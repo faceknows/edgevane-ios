@@ -1,0 +1,169 @@
+# 图表功能设计
+
+**状态：** 待验收  
+**需求：** [05-图表.md](../requirements/05-图表.md)  
+**落点：** `Charting/`、`Charting/Indicators/`、`UI/Components/ChartChrome/`
+
+## 1. 责任
+
+`Charting` 只负责 **把已经算好的数据画出来**，并回传手势。
+
+| 它做 | 它不做 |
+| --- | --- |
+| 画蜡烛 / 折线、叠加线、价格线、**买卖点标记** | 拉 REST / Socket、拉成交 |
+| 缩放、平移、十字光标 | 算 VWAP / RSI（在 `Indicators`，由 Market 调用） |
+| 日线触达最早一根时发「需要更早数据」 | 知道用户有没有订阅；不知道「复盘」是什么业务 |
+| 统一一套 `ChartSurface` | 仪表盘数字卡（那是 Swift Charts） |
+
+详情、盘前、盘后、历史分钟、秒图、日线、**复盘** **共用** `ChartSurface`。差别只在喂进去的 `ChartModel`（含 `markers`）和 `followLatest`。
+
+复盘不是第二种图表：选一天 + 当天 K 线 + 当天成交 → 仍是一个 `ChartModel`。图表只画标记，不查订单。
+
+## 2. 输入模型
+
+实现可用同名结构体；这是合同，不绑定 Lightweight Charts 类型。
+
+```text
+Bar
+  time          该棒开始时刻（Date，UTC 存，展示用美东）
+  open high low close
+  volume
+
+OverlayLine
+  id            如 "vwap"
+  points        [(time, value)]
+  colorToken    主题色名，不是写死 hex
+  width
+
+PriceLine
+  id            如 "prevClose"、"open"
+  price
+  title         已本地化或由 UI 传入 L10n key 的结果
+  dashed        Bool
+
+ChartStyle      candle | line
+
+ChartMarkerKind buy | sell | other
+
+ChartMarker
+  id            稳定 id（如成交/订单 id）
+  time          成交时刻
+  price         成交价（没有则用该时刻所在棒的 close，由组装方决定，图表不猜）
+  kind          买画在棒下，卖画在棒上（适配器默认；可被 position 覆盖）
+  title         可选，如 "100@12.34"
+  position      aboveBar | belowBar | auto
+
+ChartModel
+  bars          [Bar]  时间升序
+  style         ChartStyle
+  overlays      [OverlayLine]
+  priceLines    [PriceLine]
+  markers       [ChartMarker]   可空；蜡烛和折线都要画
+  followLatest  Bool    秒图 true；分钟主图 / 复盘 false
+  showVolume    Bool    日线 true，其它默认 false
+```
+
+空 `bars`：组件显示空态（由外层也可以先挡），**不准**画一条假平线。  
+`markers` 为空就是「没有买卖点」，不是另一种组件。适配器从第一天就必须实现 markers，禁止复盘时再开一条绘图分支。
+
+## 3. 输出事件
+
+```text
+ChartEvent
+  picked(Bar)           十字光标选中某根
+  pickedMarker(id)      点到买卖点（复盘用来对照订单）
+  reachedOldest         用户滑到已有数据最早端（日线用来再拉 100 天）
+```
+
+缩放和平移由库内部消化，不必每帧回传。标记必须跟着缩放平移，不能用 SwiftUI 盖一层对不齐的点。
+
+## 4. 谁组装 ChartModel
+
+`Market`（或详情 Store）组装，**不在 View 里算 VWAP**。
+
+| 图 | bars 来源 | overlays | priceLines | followLatest |
+| --- | --- | --- | --- | --- |
+| 盘中分钟 1/3/5 | 1 分钟仓库，3/5 现场聚合 | VWAP（开关开） | 昨收、今开（有快照才有） | false |
+| 盘前 / 盘后 | 对应会话棒，展示按 5 分钟聚合 | 无（第一期） | 可选 | false |
+| 日线 | 日线仓库 | 无 | 无 | false |
+| 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true |
+| 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴 | — | — | false |
+| 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** |
+
+### 聚合
+
+- 3 / 5 分钟、5 / 10 / 30 秒：在 `Market` 用同一套 `aggregate(bars:minutes:)` / `aggregate(seconds:)`。OHLC 取首开、最高、最低、末收，量相加。
+- VWAP：`Charting/Indicators/VWAP.swift`，典型价 `(h+l+c)/3`，按量累加。输入必须是 **1 分钟（或历史 1 分钟）原始棒**，不要对已聚合的 5 分钟再算一遍 VWAP。
+
+### 价格线 id（第一期）
+
+| id | 条件 |
+| --- | --- |
+| `prevClose` | `StockLiteSummary.snapshot` 有昨收 |
+| `sessionOpen` | 有今开 |
+
+有数据才加。成本价、止盈价以后只是多一条 `PriceLine`。
+
+## 4.1 复盘（同一套表面）
+
+用户选 **某一自然日（美东）** + **一个 symbol**：
+
+1. `Market` 拉该日盘中（及需要的盘前盘后）1 分钟棒，聚合成当前周期，算 VWAP。
+2. `Trading` / `BrokerageServing` 拉 **当前券商账户** 在该日、该 symbol 的 **已成交订单**（不是所有新建单）。第一期 Alpaca：`filled_at` 落在该日 00:00–24:00 ET 的 closed order。**一单一标**，不拆部分成交。
+3. 每个已成交订单变成一条 `ChartMarker`：`buy` / `sell`、时间、成交价、数量写进 `title`。
+4. 交给同一个 `ChartSurface`。切蜡烛/线时标记留着。
+
+没有券商账户或该日无成交：图照常，`markers` 为空，不报错。  
+**一笔成交一条标记**，即使落在同一分钟也不要合成。  
+复盘 `followLatest = false`，不要被实时秒线拽走。  
+**模拟盘复盘只标模拟成交，实盘只标实盘成交**，不要混环境。
+
+详情里「今天」也可以叠 **今日已成交**（同一 `markers`）。这是同一条组装函数：`markers(fills:)`，不是复盘专用。
+
+第一期入口：把现有 **历史分钟页** 做成复盘页（选日期 + 图 + 可选成交列表）。不新做第二套 K 线。完整「按订单筛选、多标的一日回放」以后加，仍只加组装，不加新图表类型。
+
+## 5. 库适配
+
+`Charting/Lightweight/LightweightChartView`：
+
+- 唯一 `import LightweightCharts` 的地方。
+- SwiftUI 用 `UIViewRepresentable` 包官方 iOS 封装。
+- `PriceLine` → `createPriceLine`；`OverlayLine` → `LineSeries`；`ChartMarker` → series markers（买/卖不同形状与色 token）。
+- 蜡烛 / 折线切换拆/建 series，**markers 跟着当前主 series**，不要两套 View。
+- 主题：背景、涨跌色跟 `UI/Theme`，经 `ChartModel` 或环境传入。
+
+换库：只替换 `Lightweight/`，`ChartModel` / `ChartEvent` 不动。
+
+## 6. 详情页怎么摆
+
+上到下（已订阅）：
+
+1. 标题 + 最新价 + **账户今日盈亏徽标**（组合盈亏，不是该标的）+ RSI/ADX/ATR（数字来自 Indicators，不是副图）
+2. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP
+3. 盘中 `ChartSurface`（可叠今日成交 `markers`）
+4. 盘前 / 盘后（有数据才出现）
+5. 日线（偏好默认关）、**纳指对照矮图**（偏好默认开，无 VXX）各一块 chrome + surface
+6. 秒图 chrome + surface + 价格滑条（仅已订阅）
+7. 交易条（仅已订阅）；可退订
+
+未订阅：无 6、7；底部「加入实时订阅」。
+
+## 7. 刷新
+
+| 数据 | 策略 |
+| --- | --- |
+| 分钟棒 | 进入详情拉取；开盘中每分钟对齐后再拉该会话（与 RN 60s 同量级） |
+| 日线 | 缺今日则拉；`reachedOldest` 再向前约 100 个交易日 |
+| 秒线 | 仅已订阅，Socket `second-trade` 写入环缓（约 10 分钟） |
+| 最新价 / 盘口 | 已订阅：`trade` + **`quote`**，快照兜底；未订阅：摘要/快照 last |
+
+休市仍展示已拉到的棒。
+
+## 8. 验收
+
+对有数据的标的走需求 05 第 8 节。另加：
+
+- 历史分钟 / 复盘开关 VWAP 不污染详情「今天」的棒。
+- `ChartSurface` 在蜡烛和折线下都能画 `markers`（可用夹具数据验收，不必等复盘页做完）。
+- 复盘日有成交时，买点在下、卖点在上，时间与价格和订单一致；点标记能对上那一笔。模拟/实盘不混。
+- 无 VXX。纳指是独立矮图。

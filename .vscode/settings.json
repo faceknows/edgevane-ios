@@ -1,0 +1,17 @@
+{
+  "[swift]": {
+    "editor.defaultFormatter": "sweetpad.sweetpad",
+    "editor.formatOnSave": true
+  },
+  "files.exclude": {
+    "**/.build": true,
+    "**/DerivedData": true,
+    "**/xcuserdata": true
+  },
+  "search.exclude": {
+    "**/.build": true,
+    "**/DerivedData": true,
+    "**/Pods": true
+  },
+  "lldb.library": "/Applications/Xcode.app/Contents/SharedFrameworks/LLDB.framework/Versions/A/LLDB"
+}
