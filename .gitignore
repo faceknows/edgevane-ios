@@ -42,3 +42,6 @@ buildServer.json
 .env.*
 *.pem
 AuthKey_*.p8
+
+# Machine-local API hosts (copy Config/Debug.local.xcconfig.example)
+Config/*.local.xcconfig

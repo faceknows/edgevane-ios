@@ -7,6 +7,17 @@
 
 `../money-app` **不是** 目录模板。不要按 RN 的 `services/` `store/` `hooks/` 一一建 Swift 文件。
 
+环境对应 RN 的 `.env.*`：编译配置选主机，App 只读 `AppEnvironment`。
+
+| RN | iOS |
+| --- | --- |
+| `.env.development` | `Config/Debug.xcconfig` + scheme **Moneyknows**（Debug） |
+| `.env.staging` | `Config/Staging.xcconfig` + scheme **Moneyknows Staging** |
+| `.env.production` | `Config/Release.xcconfig` + scheme **Moneyknows Release** |
+| 本机改局域网 IP | `Config/Debug.local.xcconfig`（gitignore；从 `Debug.local.xcconfig.example` 复制） |
+
+改完 xcconfig 后 `xcodegen generate` 再编。不要在 Swift 里写死第二套 URL。
+
 ---
 
 ## 1. 目录

@@ -1,0 +1,6 @@
+// Shared by Debug / Staging / Release.
+// URLs cannot be written as https://… here: // starts a comment. Use https:/$()/host.
+
+API_TIMEOUT = 30
+SOCKET_RECONNECT_INTERVAL = 3000
+SOCKET_MAX_RETRIES = 0

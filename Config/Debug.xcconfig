@@ -1,0 +1,9 @@
+#include "Shared.xcconfig"
+
+ENV_NAME = development
+API_URL = https:/$()/money-api.byteknows.com
+SOCKET_HOST = https:/$()/money-gateway.byteknows.com
+ENABLE_LOGGING = YES
+
+// Optional machine-local overrides (gitignored). Copy Debug.local.xcconfig.example.
+#include? "Debug.local.xcconfig"

@@ -10,4 +10,4 @@
 
 ## 当前状态
 
-**阶段 B：功能性设计待验收。** 从 [design/README.md](design/README.md) 看功能篇。
+**阶段 C：按切片实现。** 当前切片 C0，见 [ExecutablePlan.md](ExecutablePlan.md)。

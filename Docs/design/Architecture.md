@@ -100,7 +100,7 @@ App 令牌 ──► money-api REST
 
 两套 Client，两套 Base URL，两套鉴权。禁止用 App JWT 打 Alpaca，禁止用 Alpaca Key 打 money-api。
 
-环境（Debug / Staging / Release）只改 `App/AppEnvironment`。生产主机见需求 06。生产 Bundle ID 见需求 00 第 6 节。
+环境（Debug / Staging / Release）只改 `Config/*.xcconfig`，由 `App/AppEnvironment` 读 Info.plist。生产主机见需求 06。生产 Bundle ID 见需求 00 第 6 节。
 
 ## 6. 第一期刻意不做的结构
 

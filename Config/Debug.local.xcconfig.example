@@ -1,0 +1,11 @@
+// Copy to Debug.local.xcconfig (gitignored) to hit a machine on the LAN,
+// same idea as the commented IPs in money-app/.env.development.
+//
+//   cp Config/Debug.local.xcconfig.example Config/Debug.local.xcconfig
+//
+// Then xcodegen generate && rebuild the Debug scheme.
+
+// ENV_NAME = development
+// API_URL = http:/$()/192.168.12.195:12100
+// SOCKET_HOST = http:/$()/192.168.12.195:12100
+// ENABLE_LOGGING = YES

@@ -1,0 +1,89 @@
+name: Moneyknows
+options:
+  bundleIdPrefix: com.byteknows
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+configs:
+  Debug: debug
+  Staging: release
+  Release: release
+configFiles:
+  Debug: Config/Debug.xcconfig
+  Staging: Config/Staging.xcconfig
+  Release: Config/Release.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "1.1.0"
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_CFBundleDisplayName: moneyknows
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
+    INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.finance
+    INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: NO
+    SWIFT_STRICT_CONCURRENCY: minimal
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Moneyknows:
+    type: application
+    platform: iOS
+    sources:
+      - path: Moneyknows
+    settings:
+      base:
+        PRODUCT_NAME: Moneyknows
+        PRODUCT_MODULE_NAME: Moneyknows
+        INFOPLIST_FILE: Moneyknows/App/Info.plist
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: moneyknows
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.byteknows.moneyknows.dev
+          INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsLocalNetworking: YES
+        Staging:
+          PRODUCT_BUNDLE_IDENTIFIER: com.byteknows.moneyknows.staging
+        Release:
+          PRODUCT_BUNDLE_IDENTIFIER: com.byteknows.moneyknows
+  MoneyknowsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: MoneyknowsTests
+    dependencies:
+      - target: Moneyknows
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.byteknows.moneyknows.tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Moneyknows:
+    build:
+      targets:
+        Moneyknows: all
+        MoneyknowsTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MoneyknowsTests
+  Moneyknows Staging:
+    build:
+      targets:
+        Moneyknows: all
+    run:
+      config: Staging
+  Moneyknows Release:
+    build:
+      targets:
+        Moneyknows: all
+    run:
+      config: Release
