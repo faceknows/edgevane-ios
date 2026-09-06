@@ -33,6 +33,9 @@ packages:
   LightweightCharts:
     url: https://github.com/tradingview/LightweightChartsIOS.git
     from: 4.0.0
+  SocketIO:
+    url: https://github.com/socketio/socket.io-client-swift.git
+    from: 16.0.0
 targets:
   Moneyknows:
     type: application
@@ -42,6 +45,8 @@ targets:
     dependencies:
       - package: LightweightCharts
         product: LightweightCharts
+      - package: SocketIO
+        product: SocketIO
     settings:
       base:
         PRODUCT_NAME: Moneyknows

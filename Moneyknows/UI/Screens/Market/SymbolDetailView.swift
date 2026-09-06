@@ -4,16 +4,34 @@ struct SymbolDetailView: View {
     let symbol: String
     @EnvironmentObject private var summaries: SymbolSummaryStore
     @EnvironmentObject private var bars: BarStore
+    @EnvironmentObject private var realtime: MarketRealtimeSession
+    @EnvironmentObject private var subscriptions: SubscriptionStore
+    @EnvironmentObject private var quotes: QuoteStore
+    @EnvironmentObject private var seconds: SecondBarStore
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var charts = SymbolChartSession()
     @State private var summary: SymbolSummary?
     @State private var errorText: String?
     @State private var summaryGeneration: UInt64 = 0
+    @State private var secondInterval: SecondInterval = .five
+    @State private var secondStyle: ChartStyle = .candle
+    @State private var subscriptionBusy = false
+    @State private var subscriptionError: String?
+
+    private var isSubscribed: Bool {
+        subscriptions.contains(symbol)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                if !realtime.isSocketConnected {
+                    MarketDisconnectedBanner()
+                }
                 header
+                if isSubscribed {
+                    quoteRow
+                }
                 indicators
                 ChartChrome(
                     interval: $charts.interval,
@@ -42,6 +60,17 @@ struct SymbolDetailView: View {
                         height: 180
                     )
                 }
+                if isSubscribed {
+                    secondChart
+                    unsubscribeButton
+                } else {
+                    subscribeButton
+                }
+                if let subscriptionError {
+                    Text(subscriptionError)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
                 if let errorText {
                     EmptyStateView(title: errorText)
                 }
@@ -54,6 +83,7 @@ struct SymbolDetailView: View {
             summaryGeneration += 1
             let generation = summaryGeneration
             errorText = nil
+            subscriptionError = nil
             if summary?.symbol != SymbolCode.normalize(symbol) {
                 summary = nil
             }
@@ -79,11 +109,64 @@ struct SymbolDetailView: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(MarketFormat.price(summary?.lastPrice))
+                Text(MarketFormat.price(headerPrice))
                     .font(.title.monospacedDigit())
-                ChangePercentText(percent: summary?.changePercent)
+                ChangePercentText(percent: headerChangePercent)
             }
         }
+    }
+
+    private var quoteRow: some View {
+        HStack {
+            Text("\(L10n.Detail.bid) \(MarketFormat.price(quotes.quote(for: symbol)?.displayBid))")
+            Spacer()
+            Text("\(L10n.Detail.ask) \(MarketFormat.price(quotes.quote(for: symbol)?.displayAsk))")
+        }
+        .font(.subheadline.monospacedDigit())
+        .foregroundColor(.secondary)
+    }
+
+    private var secondChart: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.Chart.seconds).font(.headline)
+            SecondChartChrome(interval: $secondInterval, style: $secondStyle)
+            ChartSurface(
+                model: secondModel,
+                colors: ChartPalette.colors(scheme: colorScheme),
+                height: 180
+            )
+        }
+    }
+
+    private var secondModel: ChartModel {
+        _ = seconds.revision
+        return SecondChartAssembler.model(
+            bars1s: seconds.bars(for: symbol),
+            interval: secondInterval,
+            style: secondStyle
+        )
+    }
+
+    private var subscribeButton: some View {
+        Button {
+            Task { await changeSubscription(subscribe: true) }
+        } label: {
+            Text(L10n.Detail.subscribe)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(subscriptionBusy)
+    }
+
+    private var unsubscribeButton: some View {
+        Button(role: .destructive) {
+            Task { await changeSubscription(subscribe: false) }
+        } label: {
+            Text(L10n.Detail.unsubscribe)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.bordered)
+        .disabled(subscriptionBusy)
     }
 
     private var indicators: some View {
@@ -94,6 +177,20 @@ struct SymbolDetailView: View {
             row(L10n.Detail.adx, MarketFormat.compact(summary?.adx))
             row(L10n.Detail.atr, MarketFormat.price(summary?.atr))
         }
+    }
+
+    private var headerPrice: Double? {
+        if isSubscribed, let last = quotes.quote(for: symbol)?.last {
+            return last
+        }
+        return summary?.lastPrice
+    }
+
+    private var headerChangePercent: Double? {
+        guard let headerPrice, let previous = summary?.previousClose, previous != 0 else {
+            return summary?.changePercent
+        }
+        return (headerPrice - previous) / previous * 100
     }
 
     private func chartSection(
@@ -141,6 +238,23 @@ struct SymbolDetailView: View {
             guard generation == summaryGeneration else { return }
             if error.isCancellation { return }
             errorText = UserFacingError.message(from: error)
+        }
+    }
+
+    private func changeSubscription(subscribe: Bool) async {
+        subscriptionBusy = true
+        defer { subscriptionBusy = false }
+        do {
+            if subscribe {
+                try await realtime.subscribe([symbol])
+            } else {
+                try await realtime.unsubscribe([symbol])
+            }
+            subscriptionError = nil
+        } catch {
+            if error.isCancellation { return }
+            subscriptionError = UserFacingError.message(from: error)
+                ?? (subscribe ? L10n.Trade.subscribeFailed : L10n.Trade.unsubscribeFailed)
         }
     }
 }

@@ -128,6 +128,7 @@ enum L10n {
         static var endTime: String { localized("market.endTime") }
         static var applyFilters: String { localized("market.applyFilters") }
         static var invalidEndTime: String { localized("market.invalidEndTime") }
+        static var disconnected: String { localized("market.disconnected") }
         static func rsiValue(_ value: String) -> String {
             String(format: localized("market.rsiValue"), value)
         }
@@ -146,6 +147,10 @@ enum L10n {
         static var adx: String { localized("detail.adx") }
         static var atr: String { localized("detail.atr") }
         static var chart: String { localized("detail.chart") }
+        static var bid: String { localized("detail.bid") }
+        static var ask: String { localized("detail.ask") }
+        static var subscribe: String { localized("detail.subscribe") }
+        static var unsubscribe: String { localized("detail.unsubscribe") }
     }
 
     enum Chart {
@@ -162,10 +167,23 @@ enum L10n {
         static var loadFailed: String { localized("chart.loadFailed") }
         static var preMarket: String { localized("chart.preMarket") }
         static var afterMarket: String { localized("chart.afterMarket") }
+        static var seconds: String { localized("chart.seconds") }
+        static var oneSecond: String { localized("chart.oneSecond") }
+        static var fiveSeconds: String { localized("chart.fiveSeconds") }
+        static var tenSeconds: String { localized("chart.tenSeconds") }
+        static var thirtySeconds: String { localized("chart.thirtySeconds") }
     }
 
     enum Trade {
         static var placeholder: String { localized("trade.placeholder") }
+        static var title: String { localized("trade.title") }
+        static var add: String { localized("trade.add") }
+        static var addPlaceholder: String { localized("trade.addPlaceholder") }
+        static var empty: String { localized("trade.empty") }
+        static var emptyBody: String { localized("trade.emptyBody") }
+        static var subscribeFailed: String { localized("trade.subscribeFailed") }
+        static var unsubscribeFailed: String { localized("trade.unsubscribeFailed") }
+        static var symbolsRequired: String { localized("trade.symbolsRequired") }
     }
 
     enum Settings {

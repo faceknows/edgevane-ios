@@ -33,6 +33,28 @@ final class SymbolSummaryStore: ObservableObject {
         isLookingUp = false
     }
 
+    func cached(_ raw: String) -> SymbolSummary? {
+        cache[SymbolCode.normalize(raw)]?.summary
+    }
+
+    func prefetch(_ symbols: [String]) async {
+        let wanted = symbols.map(SymbolCode.normalize).filter { SymbolCode.isValid($0) }
+        guard !wanted.isEmpty else { return }
+        let epoch = self.epoch
+        do {
+            let rows = try await api.summaries(symbols: wanted.joined(separator: ",")).map(SymbolSummary.init(dto:))
+            guard self.epoch == epoch else { return }
+            let now = self.now()
+            for row in rows {
+                cache[row.symbol] = CacheEntry(summary: row, fetchedAt: now)
+            }
+            objectWillChange.send()
+        } catch {
+            if error.isCancellation { return }
+            AppLog.market.error("summaries prefetch failed")
+        }
+    }
+
     func lookup(_ raw: String, forceRefresh: Bool = false) async throws -> SymbolSummary {
         let symbol = SymbolCode.normalize(raw)
         guard SymbolCode.isValid(symbol) else {

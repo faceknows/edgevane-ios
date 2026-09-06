@@ -68,6 +68,9 @@ final class BarTimeTests: XCTestCase {
     func testParsesUnixSecondsMillisecondsAndISO() {
         let seconds = BarTime.parse("1693827000")
         XCTAssertEqual(seconds?.timeIntervalSince1970, 1_693_827_000)
+        XCTAssertEqual(BarTime.parseUnix(1_693_827_000)?.timeIntervalSince1970, 1_693_827_000)
+        XCTAssertEqual(BarTime.parseUnix(1_693_827_000_000)?.timeIntervalSince1970, 1_693_827_000)
+        XCTAssertNil(BarTime.parseUnix(500))
         let millis = BarTime.parse("1693827000000")
         XCTAssertEqual(millis?.timeIntervalSince1970, 1_693_827_000)
         XCTAssertNotNil(BarTime.parse("2026-09-04T13:30:00Z"))

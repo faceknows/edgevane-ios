@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct MoneyknowsApp: App {
     @StateObject private var appModel = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -21,9 +22,18 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.screeners)
             .environmentObject(appModel.summaries)
             .environmentObject(appModel.bars)
+            .environmentObject(appModel.realtime)
+            .environmentObject(appModel.realtime.subscriptions)
+            .environmentObject(appModel.realtime.quotes)
+            .environmentObject(appModel.realtime.seconds)
             .environmentObject(appModel.router)
             .task {
                 await appModel.start()
+            }
+            .onChange(of: scenePhase) { phase in
+                if phase == .active {
+                    appModel.ensureRealtimeConnected()
+                }
             }
         }
     }

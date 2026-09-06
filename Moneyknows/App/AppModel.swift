@@ -17,6 +17,7 @@ final class AppModel: ObservableObject {
     let screeners: ScreenerStore
     let summaries: SymbolSummaryStore
     let bars: BarStore
+    let realtime: MarketRealtimeSession
     let router: AppRouter
 
     init() {
@@ -51,6 +52,21 @@ final class AppModel: ObservableObject {
         screeners = ScreenerStore(api: screenerAPI)
         summaries = SymbolSummaryStore(api: screenerAPI)
         bars = BarStore(api: BarsAPI(client: authorized))
+        let gatewayClient = HTTPClient(
+            baseURL: AppEnvironment.socketHost,
+            defaultHeaders: HTTPClient.appHeaders(),
+            session: URLSession(configuration: sessionConfig),
+            logsRequests: AppEnvironment.enableLogging,
+            timeout: AppEnvironment.apiTimeout
+        )
+        let gatewayAuthorized = AuthorizedSession(client: gatewayClient, session: session)
+        realtime = MarketRealtimeSession(
+            subscriptions: SubscriptionStore(api: SubscribeAPI(client: gatewayAuthorized)),
+            quotes: QuoteStore(),
+            seconds: SecondBarStore(),
+            socket: GatewaySocket(),
+            barsAPI: BarsAPI(client: authorized)
+        )
         router = AppRouter()
         session.cleanup.register { [weak brokerage] in
             brokerage?.clearAll()
@@ -69,6 +85,9 @@ final class AppModel: ObservableObject {
         }
         session.cleanup.register { [weak bars] in
             bars?.reset()
+        }
+        session.cleanup.register { [weak realtime] in
+            realtime?.reset()
         }
         session.cleanup.register { [weak router] in
             router?.dismissOverlay()
@@ -97,6 +116,8 @@ final class AppModel: ObservableObject {
     func loadSignedInData() async {
         guard session.isSignedIn else { return }
         let generation = session.generation
+        realtime.connect(token: session.accessToken)
+        Task { await realtime.refreshSubscriptions() }
 
         if let userId = session.user?.id {
             preferences.prepareForUser(userId)
@@ -112,5 +133,10 @@ final class AppModel: ObservableObject {
         }
         preferences.prepareForUser(userId)
         await preferences.refresh(userId: userId)
+    }
+
+    func ensureRealtimeConnected() {
+        guard session.isSignedIn else { return }
+        realtime.connect(token: session.accessToken)
     }
 }

@@ -44,6 +44,18 @@ struct BarsAPI {
         ])
     }
 
+    func latestSnapshot(symbols: [String]) async throws -> Data {
+        let joined = symbols.map(SymbolCode.normalize).filter { !$0.isEmpty }.joined(separator: ",")
+        guard !joined.isEmpty else { return Data("{}".utf8) }
+        return try await client.sendRaw(
+            HTTPRequest(
+                method: .get,
+                path: "alpaca/market/latest-snapshot",
+                query: ["symbols": joined]
+            )
+        )
+    }
+
     private func get(_ path: String, _ query: [String: String]) async throws -> [BarDTO] {
         let data = try await client.sendRaw(HTTPRequest(method: .get, path: path, query: query))
         return try Self.decodeBars(from: data)

@@ -6,6 +6,10 @@ enum BarTime {
     static let minUnixSeconds: Double = 0
     static let maxUnixSeconds: Double = 4_102_444_800
 
+    static func parseUnix(_ value: Double) -> Date? {
+        unixSeconds(value).map { Date(timeIntervalSince1970: $0) }
+    }
+
     static func parse(_ raw: String, date: String? = nil) -> Date? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }

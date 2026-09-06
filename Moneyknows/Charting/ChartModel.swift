@@ -31,6 +31,25 @@ enum MinuteInterval: Int, CaseIterable, Identifiable {
     }
 }
 
+enum SecondInterval: Int, CaseIterable, Identifiable {
+    case one = 1
+    case five = 5
+    case ten = 10
+    case thirty = 30
+
+    var id: Int { rawValue }
+    var seconds: Int { rawValue }
+
+    var chromeTitle: String {
+        switch self {
+        case .one: return L10n.Chart.oneSecond
+        case .five: return L10n.Chart.fiveSeconds
+        case .ten: return L10n.Chart.tenSeconds
+        case .thirty: return L10n.Chart.thirtySeconds
+        }
+    }
+}
+
 struct OverlayLine: Equatable, Identifiable {
     var id: String
     var points: [OverlayPoint]
