@@ -5,6 +5,7 @@ protocol CredentialStoring {
     func set(_ value: String, account: String) throws
     func string(account: String) -> String?
     func delete(account: String)
+    func accounts() -> [String]
 }
 
 struct KeychainStore: CredentialStoring {
@@ -50,5 +51,24 @@ struct KeychainStore: CredentialStoring {
             kSecAttrAccount as String: account,
         ]
         SecItemDelete(query as CFDictionary)
+    }
+
+    func accounts() -> [String] {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true,
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess else { return [] }
+        if let items = result as? [[String: Any]] {
+            return items.compactMap { $0[kSecAttrAccount as String] as? String }
+        }
+        if let item = result as? [String: Any], let account = item[kSecAttrAccount as String] as? String {
+            return [account]
+        }
+        return []
     }
 }

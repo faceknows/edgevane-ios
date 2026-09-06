@@ -60,7 +60,7 @@ struct LoginView: View {
             do {
                 let session = try await appModel.authAPI.signIn(email: email, password: password)
                 guard session.user != nil else { throw AppError.decoding }
-                appModel.session.applySignIn(session)
+                try appModel.didSignIn(session)
             } catch let error as AppError where error.isUnauthorized {
                 errorText = UserFacingError.message(from: error) ?? L10n.Errors.generic
             } catch {

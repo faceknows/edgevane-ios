@@ -78,6 +78,24 @@ struct AuthAPI {
     }
 }
 
+@MainActor
+struct UserAPI {
+    var client: HTTPSending
+
+    func me() async throws -> AuthUserDTO {
+        try await client.send(HTTPRequest(method: .get, path: "v1/users/me"))
+    }
+
+    func deleteMe() async throws {
+        try await client.send(HTTPRequest(method: .delete, path: "v1/users/me"))
+    }
+
+    func roleConfiguration() async throws -> RoleConfiguration {
+        let data = try await client.sendRaw(HTTPRequest(method: .get, path: "v1/users/role-config"))
+        return try RoleConfiguration.decodeFlexible(from: data)
+    }
+}
+
 private struct EmailPasswordBody: Encodable {
     var email: String
     var password: String

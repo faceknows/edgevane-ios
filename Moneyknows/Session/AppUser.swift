@@ -3,12 +3,14 @@ import Foundation
 struct AppUser: Codable, Equatable {
     var id: String
     var email: String
+    var username: String?
     var nickname: String?
     var role: String?
 
-    init(id: String, email: String, nickname: String?, role: String?) {
+    init(id: String, email: String, username: String?, nickname: String?, role: String?) {
         self.id = id
         self.email = email
+        self.username = username
         self.nickname = nickname
         self.role = role
     }
@@ -16,6 +18,7 @@ struct AppUser: Codable, Equatable {
     init(dto: AuthUserDTO) {
         id = dto.id
         email = dto.email
+        username = dto.username
         nickname = dto.nickname
         role = dto.role
     }

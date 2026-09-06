@@ -22,7 +22,13 @@ struct JSONEnvelope<T: Decodable>: Decodable {
     let data: T
 }
 
-struct HTTPClient {
+protocol HTTPSending {
+    func send<T: Decodable>(_ request: HTTPRequest) async throws -> T
+    func send(_ request: HTTPRequest) async throws
+    func sendRaw(_ request: HTTPRequest) async throws -> Data
+}
+
+struct HTTPClient: HTTPSending {
     var baseURL: URL
     var defaultHeaders: [String: String]
     var session: URLSession
@@ -86,6 +92,10 @@ struct HTTPClient {
 
     func send(_ request: HTTPRequest) async throws {
         _ = try await sendData(request)
+    }
+
+    func sendRaw(_ request: HTTPRequest) async throws -> Data {
+        try await sendData(request)
     }
 
     func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {

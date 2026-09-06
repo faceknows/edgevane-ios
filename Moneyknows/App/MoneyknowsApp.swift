@@ -6,11 +6,32 @@ struct MoneyknowsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(appModel)
-                .task {
-                    await appModel.start()
-                }
+            RootContainer(
+                appearance: appModel.appearance,
+                preferences: appModel.preferences
+            )
+            .environmentObject(appModel)
+            .environmentObject(appModel.session)
+            .environmentObject(appModel.preferences)
+            .environmentObject(appModel.appearance)
+            .environmentObject(appModel.blacklist)
+            .environmentObject(appModel.brokerage)
+            .environmentObject(appModel.profile)
+            .environmentObject(appModel.pushPreference)
+            .task {
+                await appModel.start()
+            }
         }
+    }
+}
+
+private struct RootContainer: View {
+    @ObservedObject var appearance: AppearanceStore
+    @ObservedObject var preferences: PreferencesStore
+
+    var body: some View {
+        RootView()
+            .preferredColorScheme(appearance.preference.colorScheme)
+            .id(preferences.localeRevision)
     }
 }

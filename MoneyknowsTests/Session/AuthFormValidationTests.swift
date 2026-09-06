@@ -80,6 +80,164 @@ final class SessionRestorationTests: XCTestCase {
         XCTAssertNil(store.accessToken)
     }
 
+    func testRefreshAfterSignOutDoesNotRestoreSession() async throws {
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(3600), refreshToken: "refresh")
+        defer { fixture.clear() }
+        try fixture.keychain.set("access", account: "session.accessToken")
+
+        let gate = RefreshGate()
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { token in
+                XCTAssertEqual(token, "refresh")
+                return try await gate.wait()
+            }
+        )
+        XCTAssertTrue(store.isSignedIn)
+
+        let refresh = Task {
+            try await store.refresh()
+        }
+        await waitUntil { gate.isWaiting }
+        store.signOut()
+        XCTAssertFalse(store.isSignedIn)
+
+        gate.resume(
+            AuthSessionDTO(
+                accessToken: "late-access",
+                expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
+                refreshToken: "late-refresh",
+                user: AuthUserDTO(id: "1", email: "a@b.com", username: nil, nickname: nil, role: nil)
+            )
+        )
+
+        do {
+            try await refresh.value
+            XCTFail("stale refresh must not succeed")
+        } catch {
+            XCTAssertEqual(error as? AppError, .cancelled)
+        }
+        XCTAssertFalse(store.isSignedIn)
+        XCTAssertNil(store.accessToken)
+    }
+
+    func testRestoreRefreshNetworkFailureClearsSession() async throws {
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(-60), refreshToken: "refresh")
+        defer { fixture.clear() }
+        var cleaned = false
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { _ in throw AppError.network }
+        )
+        store.cleanup.register { cleaned = true }
+        XCTAssertTrue(store.isRestoringSession)
+        XCTAssertFalse(store.isSignedIn)
+
+        do {
+            try await store.restoreIfNeeded()
+            XCTFail("restore must fail")
+        } catch {
+            XCTAssertEqual(error as? AppError, .network)
+        }
+
+        XCTAssertFalse(store.isSignedIn)
+        XCTAssertFalse(store.isRestoringSession)
+        XCTAssertNil(store.accessToken)
+        XCTAssertNil(fixture.keychain.string(account: "session.refreshToken"))
+        XCTAssertTrue(cleaned)
+    }
+
+    func testExpiredSessionWithoutRefreshTokenRunsCleanup() throws {
+        var cleaned = false
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(-60), refreshToken: nil)
+        defer { fixture.clear() }
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { _ in
+                XCTFail("Refresh must not be called without a refresh token")
+                throw AppError.network
+            }
+        )
+        store.cleanup.register { cleaned = true }
+        store.runCleanupIfInactive()
+
+        XCTAssertTrue(cleaned)
+        XCTAssertFalse(store.isSignedIn)
+    }
+
+    func testApplySignInDoesNotMarkSignedInWhenKeychainWriteFails() {
+        let keychain = LimitedWriteCredentialStore()
+        keychain.failNextWrites = 1
+        let disk = DiskStore(folder: "MoneyknowsTests-session-persist-\(UUID().uuidString)")
+        let store = SessionStore(
+            keychain: keychain,
+            disk: disk,
+            refreshSession: { _ in
+                XCTFail("refresh should not run")
+                throw AppError.network
+            }
+        )
+
+        XCTAssertFalse(store.isSignedIn)
+        do {
+            try store.applySignIn(
+                AuthSessionDTO(
+                    accessToken: "new-access",
+                    expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
+                    refreshToken: "new-refresh",
+                    user: AuthUserDTO(id: "1", email: "a@b.com", username: nil, nickname: nil, role: nil)
+                )
+            )
+            XCTFail("applySignIn must fail when keychain write fails")
+        } catch {
+            XCTAssertFalse(store.isSignedIn)
+            XCTAssertNil(store.accessToken)
+            XCTAssertNil(keychain.string(account: "session.refreshToken"))
+        }
+    }
+
+    func testRefreshKeepsOldTokensWhenKeychainWriteFails() async throws {
+        let keychain = LimitedWriteCredentialStore()
+        try keychain.set("access", account: "session.accessToken")
+        try keychain.set("refresh", account: "session.refreshToken")
+        try keychain.set(
+            String(Date().addingTimeInterval(3600).timeIntervalSince1970),
+            account: "session.expiresAt"
+        )
+        let disk = DiskStore(folder: "MoneyknowsTests-session-refresh-persist-\(UUID().uuidString)")
+        disk.write(
+            AppUser(id: "1", email: "a@b.com", username: nil, nickname: nil, role: nil),
+            name: "session-user.json"
+        )
+        let store = SessionStore(
+            keychain: keychain,
+            disk: disk,
+            refreshSession: { _ in
+                AuthSessionDTO(
+                    accessToken: "new-access",
+                    expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
+                    refreshToken: "new-refresh",
+                    user: AuthUserDTO(id: "1", email: "a@b.com", username: nil, nickname: nil, role: nil)
+                )
+            }
+        )
+        XCTAssertTrue(store.isSignedIn)
+
+        keychain.failNextWrites = 1
+        do {
+            try await store.refresh()
+            XCTFail("refresh must fail when keychain write fails")
+        } catch {
+            XCTAssertTrue(store.isSignedIn)
+            XCTAssertEqual(store.accessToken, "access")
+            XCTAssertEqual(keychain.string(account: "session.refreshToken"), "refresh")
+            XCTAssertNotEqual(store.accessToken, "new-access")
+        }
+    }
+
     private func makeFixture(expiresAt: Date, refreshToken: String?) throws -> SessionFixture {
         let id = UUID().uuidString
         let fixture = SessionFixture(
@@ -98,22 +256,15 @@ final class SessionRestorationTests: XCTestCase {
     }
 }
 
-private struct SessionFixture {
-    let keychain: MemoryCredentialStore
-    let disk: DiskStore
-
-    func clear() {
-        keychain.delete(account: "session.accessToken")
-        keychain.delete(account: "session.refreshToken")
-        keychain.delete(account: "session.expiresAt")
-        disk.delete(name: "session-user.json")
-    }
-}
-
-private final class MemoryCredentialStore: CredentialStoring {
+private final class LimitedWriteCredentialStore: CredentialStoring {
+    var failNextWrites = 0
     private var values: [String: String] = [:]
 
     func set(_ value: String, account: String) throws {
+        if failNextWrites > 0 {
+            failNextWrites -= 1
+            throw AppError.decoding
+        }
         values[account] = value
     }
 
@@ -123,6 +274,22 @@ private final class MemoryCredentialStore: CredentialStoring {
 
     func delete(account: String) {
         values.removeValue(forKey: account)
+    }
+
+    func accounts() -> [String] {
+        Array(values.keys)
+    }
+}
+
+private struct SessionFixture {
+    let keychain: MemoryCredentialStore
+    let disk: DiskStore
+
+    func clear() {
+        keychain.delete(account: "session.accessToken")
+        keychain.delete(account: "session.refreshToken")
+        keychain.delete(account: "session.expiresAt")
+        disk.delete(name: "session-user.json")
     }
 }
 

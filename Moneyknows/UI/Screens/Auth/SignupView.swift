@@ -81,7 +81,7 @@ struct SignupView: View {
                     nickname: nickname.isEmpty ? nil : nickname
                 )
                 guard session.user != nil else { throw AppError.decoding }
-                appModel.session.applySignIn(session)
+                try appModel.didSignIn(session)
             } catch {
                 errorText = UserFacingError.message(from: error)
             }
