@@ -48,17 +48,62 @@ final class MarketClockTests: XCTestCase {
         XCTAssertEqual(try MarketClock.resolvedPriceSlopeEndTime("", now: date), "16:00")
         XCTAssertEqual(try MarketClock.resolvedPriceSlopeEndTime("10:15", now: date), "10:15")
     }
+
+    func testLastTradingDateSkipsWeekendsAndHolidays() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            parts.minute = minute
+            return calendar.date(from: parts)!
+        }
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 4, 10)), "2026-09-04")
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 4, 9, 15)), "2026-09-03")
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 4, 9, 30)), "2026-09-04")
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 4, 8)), "2026-09-03")
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 5, 12)), "2026-09-04")
+        XCTAssertEqual(MarketClock.lastTradingDate(from: date(2026, 9, 7, 10)), "2026-09-04")
+        XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 8, 3)), "2026-09-04")
+        XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 8, 10)), "2026-09-08")
+        XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 5, 10)), "2026-09-04")
+        XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 7, 10)), "2026-09-04")
+        XCTAssertTrue(MarketClock.isSessionActive(.regular, at: date(2026, 9, 4, 10)))
+        XCTAssertFalse(MarketClock.isSessionActive(.regular, at: date(2026, 9, 5, 10)))
+        XCTAssertFalse(MarketClock.isSessionActive(.premarket, at: date(2026, 9, 7, 8)))
+        XCTAssertFalse(MarketClock.isSessionActive(.aftermarket, at: date(2026, 9, 7, 17)))
+        XCTAssertFalse(MarketClock.shouldPoll(session: .premarket, date: "2026-09-07", now: date(2026, 9, 7, 8)))
+        XCTAssertTrue(MarketClock.shouldPoll(session: .premarket, date: "2026-09-04", now: date(2026, 9, 4, 8)))
+        XCTAssertFalse(MarketClock.shouldPoll(session: .regular, date: "2026-09-03", now: date(2026, 9, 4, 10)))
+        XCTAssertGreaterThan(MarketClock.nanosecondsUntilNextMinute(from: date(2026, 9, 4, 10, 0)), 0)
+        let knownHolidays = [
+            "2026-01-01", "2026-01-19", "2026-02-16", "2026-04-03", "2026-05-25",
+            "2026-06-19", "2026-07-03", "2026-09-07", "2026-11-26", "2026-12-25",
+            "2027-01-01", "2027-01-18", "2027-02-15", "2027-03-26", "2027-05-31",
+            "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
+        ]
+        for day in knownHolidays {
+            XCTAssertTrue(MarketClock.isUSMarketHoliday(day), day)
+        }
+        XCTAssertTrue(MarketClock.isUSMarketHoliday("2028-09-04"))
+        XCTAssertTrue(MarketClock.isUSMarketHoliday("2027-12-31"))
+        XCTAssertFalse(MarketClock.isUSMarketHoliday("2026-09-04"))
+    }
 }
 
 @MainActor
 final class ScreenerAPIDecodingTests: XCTestCase {
     func testDecodesBareArray() throws {
-        let json = Data(#"[{"symbol":"AAPL","snapshot":{"currentPrice":190.5,"dailyBar":{"c":190.5,"v":1000},"prevDailyBar":{"c":180}}}]"#.utf8)
+        let json = Data(#"[{"symbol":"AAPL","snapshot":{"currentPrice":190.5,"dailyBar":{"o":189,"c":190.5,"v":1000},"prevDailyBar":{"c":180}}}]"#.utf8)
         let rows = try ScreenerAPI.decodeList(from: json).map(SymbolSummary.init(dto:))
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0].symbol, "AAPL")
         XCTAssertEqual(rows[0].lastPrice, 190.5)
         XCTAssertEqual(rows[0].previousClose, 180)
+        XCTAssertEqual(rows[0].sessionOpen, 189)
         XCTAssertEqual(rows[0].changePercent ?? 0, 190.5 / 180 * 100 - 100, accuracy: 0.0001)
     }
 

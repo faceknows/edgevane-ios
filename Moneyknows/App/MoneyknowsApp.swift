@@ -20,6 +20,7 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.pushPreference)
             .environmentObject(appModel.screeners)
             .environmentObject(appModel.summaries)
+            .environmentObject(appModel.bars)
             .environmentObject(appModel.router)
             .task {
                 await appModel.start()

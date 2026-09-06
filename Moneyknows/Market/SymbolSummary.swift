@@ -4,6 +4,7 @@ struct SymbolSummary: Equatable, Identifiable {
     var symbol: String
     var lastPrice: Double?
     var previousClose: Double?
+    var sessionOpen: Double?
     var volume: Double?
     var rsi: Double?
     var adx: Double?
@@ -15,6 +16,7 @@ struct SymbolSummary: Equatable, Identifiable {
         symbol: String,
         lastPrice: Double? = nil,
         previousClose: Double? = nil,
+        sessionOpen: Double? = nil,
         volume: Double? = nil,
         rsi: Double? = nil,
         adx: Double? = nil,
@@ -23,6 +25,7 @@ struct SymbolSummary: Equatable, Identifiable {
         self.symbol = SymbolCode.normalize(symbol)
         self.lastPrice = lastPrice
         self.previousClose = previousClose
+        self.sessionOpen = sessionOpen
         self.volume = volume
         self.rsi = rsi
         self.adx = adx
@@ -34,6 +37,7 @@ struct SymbolSummary: Equatable, Identifiable {
             symbol: dto.symbol,
             lastPrice: dto.snapshot?.currentPrice ?? dto.snapshot?.dailyBar?.c,
             previousClose: dto.snapshot?.prevDailyBar?.c,
+            sessionOpen: dto.snapshot?.dailyBar?.o,
             volume: dto.snapshot?.dailyBar?.v,
             rsi: dto.indicators?.rsi,
             adx: dto.indicators?.adx,

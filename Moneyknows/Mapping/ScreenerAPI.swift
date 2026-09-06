@@ -10,13 +10,34 @@ struct BarDTO: Decodable, Equatable {
     var n: Double?
     var vw: Double?
 
+    init(
+        d: String? = nil,
+        o: Double? = nil,
+        h: Double? = nil,
+        l: Double? = nil,
+        c: Double? = nil,
+        v: Double? = nil,
+        n: Double? = nil,
+        vw: Double? = nil
+    ) {
+        self.d = d
+        self.o = o
+        self.h = h
+        self.l = l
+        self.c = c
+        self.v = v
+        self.n = n
+        self.vw = vw
+    }
+
     enum CodingKeys: String, CodingKey {
-        case d, o, h, l, c, v, n, vw
+        case d, o, h, l, c, v, n, vw, t
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        d = try container.decodeIfPresent(String.self, forKey: .d)
+        d = FlexibleJSON.decodeTimestampRaw(container, forKey: .d)
+            ?? FlexibleJSON.decodeTimestampRaw(container, forKey: .t)
         o = FlexibleJSON.decodeDouble(container, forKey: .o)
         h = FlexibleJSON.decodeDouble(container, forKey: .h)
         l = FlexibleJSON.decodeDouble(container, forKey: .l)

@@ -46,10 +46,15 @@ final class ScriptedHTTP: HTTPSending {
 
     func sendRaw(_ request: HTTPRequest) async throws -> Data {
         requests.append(request)
+        let result: Result<Data, Error>
+        if rawResults.isEmpty {
+            result = .failure(AppError.network)
+        } else {
+            result = rawResults.removeFirst()
+        }
         if pauseSends {
             await withCheckedContinuation { paused.append($0) }
         }
-        guard !rawResults.isEmpty else { throw AppError.network }
-        return try rawResults.removeFirst().get()
+        return try result.get()
     }
 }

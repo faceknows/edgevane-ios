@@ -44,6 +44,7 @@ Moneyknows/
   Preferences/             用户偏好 ↔ 后端
   Charting/                K 线表面：模型 + Lightweight Charts 适配
     Indicators/            VWAP / RSI / ADX / ATR（纯函数，可测）
+    Lightweight/           唯一 import LightweightCharts
   Support/                 交易时段、美东时间、数量取整等无网络工具
   UI/
     Theme/                 颜色、字体、间距

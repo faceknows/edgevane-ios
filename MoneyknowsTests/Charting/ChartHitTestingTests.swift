@@ -1,0 +1,59 @@
+import XCTest
+@testable import Moneyknows
+
+final class ChartHitTestingTests: XCTestCase {
+    func testSortsMarkersByTimeThenPriceThenId() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let later = ChartMarker(id: "b", time: start.addingTimeInterval(60), price: 10, kind: .sell, title: nil, position: .auto)
+        let cheaper = ChartMarker(id: "a", time: start, price: 9, kind: .buy, title: nil, position: .auto)
+        let pricier = ChartMarker(id: "c", time: start, price: 11, kind: .buy, title: nil, position: .auto)
+        XCTAssertEqual(ChartHitTesting.sorted([later, pricier, cheaper]).map(\.id), ["a", "c", "b"])
+    }
+
+    func testPickedMarkerUsesLibraryIndexNotTradeId() {
+        let time = Date(timeIntervalSince1970: 1_700_000_100)
+        let zeroth = ChartMarker(id: "0", time: time, price: 10, kind: .buy, title: nil, position: .auto)
+        let first = ChartMarker(id: "1", time: time, price: 11, kind: .sell, title: nil, position: .auto)
+        XCTAssertNil(ChartHitTesting.pickedMarker(in: [zeroth, first], hoveredId: nil))
+        XCTAssertNil(ChartHitTesting.pickedMarker(in: [zeroth, first], hoveredId: "0"))
+        XCTAssertNil(ChartHitTesting.pickedMarker(in: [zeroth, first], hoveredId: "1"))
+        XCTAssertEqual(
+            ChartHitTesting.pickedMarker(in: [zeroth, first], hoveredId: ChartHitTesting.libraryID(index: 1))?.id,
+            "1"
+        )
+        XCTAssertEqual(
+            ChartHitTesting.pickedMarker(in: [zeroth, first], hoveredId: ChartHitTesting.libraryID(index: 0))?.id,
+            "0"
+        )
+    }
+
+    func testPickedBarUsesContainingBucketNotNearest() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let first = Bar(time: start, open: 1, high: 1, low: 1, close: 1, volume: 1)
+        let second = Bar(time: start.addingTimeInterval(300), open: 2, high: 2, low: 2, close: 2, volume: 1)
+        let insideFirst = start.addingTimeInterval(180)
+        XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, second], at: insideFirst)?.close, 1)
+        XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, second], at: start.addingTimeInterval(300))?.close, 2)
+    }
+}
+
+final class ChartTimeScalePagingTests: XCTestCase {
+    func testIgnoresFitContentPaddingThenFiresAfterUserPansLeft() {
+        var state = ChartTimeScalePaging.State()
+        ChartTimeScalePaging.beginIgnoringFitContent(&state)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: 0, hasBars: true, state: &state))
+        XCTAssertTrue(state.ignoringFitContent)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -0.5, hasBars: true, state: &state))
+        XCTAssertFalse(state.ignoringFitContent)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -0.5, hasBars: true, state: &state))
+        XCTAssertTrue(ChartTimeScalePaging.handleLogicalRange(from: -1.2, hasBars: true, state: &state))
+        XCTAssertTrue(state.reachedOldest)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -2, hasBars: true, state: &state))
+    }
+
+    func testDoesNotFireWithoutBars() {
+        var state = ChartTimeScalePaging.State()
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -1, hasBars: false, state: &state))
+        XCTAssertFalse(state.reachedOldest)
+    }
+}

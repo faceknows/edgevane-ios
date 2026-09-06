@@ -1,0 +1,83 @@
+import SwiftUI
+
+struct ChartSurface: View {
+    var model: ChartModel
+    var colors: ChartColors
+    var height: CGFloat = 260
+    var isLoading = false
+    var errorText: String? = nil
+    var retry: (() -> Void)? = nil
+    var onEvent: (ChartEvent) -> Void = { _ in }
+
+    @State private var picked: Bar?
+    @State private var engineGeneration = 0
+    @State private var engineFailed = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let picked, !model.bars.isEmpty {
+                Text(readout(picked))
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+            if let errorText, !model.bars.isEmpty {
+                staleBanner(errorText)
+            }
+            chartBody
+                .frame(height: height)
+        }
+        .onChange(of: model) { _ in
+            picked = nil
+        }
+    }
+
+    @ViewBuilder
+    private var chartBody: some View {
+        if isLoading, model.bars.isEmpty {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if let errorText, model.bars.isEmpty {
+            EmptyStateView(title: errorText, retry: retry)
+        } else if model.bars.isEmpty {
+            EmptyStateView(title: L10n.Chart.empty, retry: retry)
+        } else if engineFailed {
+            EmptyStateView(title: L10n.Chart.loadFailed, retry: retryEngine)
+        } else {
+            LightweightChartView(model: model, colors: colors, onEvent: handle)
+                .id(engineGeneration)
+        }
+    }
+
+    private func staleBanner(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            Text(text)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            if let retry {
+                Button(L10n.Common.retry, action: retry)
+                    .font(.caption.weight(.semibold))
+            }
+        }
+    }
+
+    private func handle(_ event: ChartEvent) {
+        if case .loadFailed = event {
+            engineFailed = true
+            return
+        }
+        if case let .picked(bar) = event {
+            picked = bar
+        }
+        onEvent(event)
+    }
+
+    private func retryEngine() {
+        engineFailed = false
+        engineGeneration += 1
+    }
+
+    private func readout(_ bar: Bar) -> String {
+        "\(MarketClock.usTimeString(from: bar.time))  O \(MarketFormat.price(bar.open))  H \(MarketFormat.price(bar.high))  L \(MarketFormat.price(bar.low))  C \(MarketFormat.price(bar.close))  V \(MarketFormat.compact(bar.volume))"
+    }
+}

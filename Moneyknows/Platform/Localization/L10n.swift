@@ -146,7 +146,22 @@ enum L10n {
         static var adx: String { localized("detail.adx") }
         static var atr: String { localized("detail.atr") }
         static var chart: String { localized("detail.chart") }
-        static var chartLater: String { localized("detail.chartLater") }
+    }
+
+    enum Chart {
+        static var interval: String { localized("chart.interval") }
+        static var oneMinute: String { localized("chart.oneMinute") }
+        static var threeMinutes: String { localized("chart.threeMinutes") }
+        static var fiveMinutes: String { localized("chart.fiveMinutes") }
+        static var candle: String { localized("chart.candle") }
+        static var line: String { localized("chart.line") }
+        static var vwap: String { localized("chart.vwap") }
+        static var prevClose: String { localized("chart.prevClose") }
+        static var sessionOpen: String { localized("chart.sessionOpen") }
+        static var empty: String { localized("chart.empty") }
+        static var loadFailed: String { localized("chart.loadFailed") }
+        static var preMarket: String { localized("chart.preMarket") }
+        static var afterMarket: String { localized("chart.afterMarket") }
     }
 
     enum Trade {

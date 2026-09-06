@@ -29,12 +29,19 @@ settings:
     INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads: NO
     SWIFT_STRICT_CONCURRENCY: minimal
     ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  LightweightCharts:
+    url: https://github.com/tradingview/LightweightChartsIOS.git
+    from: 4.0.0
 targets:
   Moneyknows:
     type: application
     platform: iOS
     sources:
       - path: Moneyknows
+    dependencies:
+      - package: LightweightCharts
+        product: LightweightCharts
     settings:
       base:
         PRODUCT_NAME: Moneyknows

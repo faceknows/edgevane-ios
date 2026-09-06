@@ -16,6 +16,7 @@ final class AppModel: ObservableObject {
     let pushPreference: PushPreferenceStore
     let screeners: ScreenerStore
     let summaries: SymbolSummaryStore
+    let bars: BarStore
     let router: AppRouter
 
     init() {
@@ -49,6 +50,7 @@ final class AppModel: ObservableObject {
         let screenerAPI = ScreenerAPI(client: authorized)
         screeners = ScreenerStore(api: screenerAPI)
         summaries = SymbolSummaryStore(api: screenerAPI)
+        bars = BarStore(api: BarsAPI(client: authorized))
         router = AppRouter()
         session.cleanup.register { [weak brokerage] in
             brokerage?.clearAll()
@@ -64,6 +66,9 @@ final class AppModel: ObservableObject {
         }
         session.cleanup.register { [weak summaries] in
             summaries?.reset()
+        }
+        session.cleanup.register { [weak bars] in
+            bars?.reset()
         }
         session.cleanup.register { [weak router] in
             router?.dismissOverlay()
