@@ -11,6 +11,7 @@ struct RootView: View {
 private struct RootSwitcher: View {
     @ObservedObject var versionGate: VersionGateModel
     @ObservedObject var session: SessionStore
+    @EnvironmentObject private var router: AppRouter
 
     var body: some View {
         Group {
@@ -32,5 +33,26 @@ private struct RootSwitcher: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
+        .fullScreenCover(item: $router.overlay) { overlay in
+            NavigationView {
+                overlayDestination(overlay)
+            }
+            .navigationViewStyle(.stack)
+        }
+    }
+
+    @ViewBuilder
+    private func overlayDestination(_ overlay: AppOverlay) -> some View {
+        switch overlay {
+        case .symbol(let symbol):
+            SymbolDetailView(symbol: symbol)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Common.close) {
+                            router.dismissOverlay()
+                        }
+                    }
+                }
+        }
     }
 }

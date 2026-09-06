@@ -80,6 +80,73 @@ enum L10n {
 
     enum Home {
         static var placeholder: String { localized("home.placeholder") }
+        static var comingSoon: String { localized("home.comingSoon") }
+    }
+
+    enum Dashboard {
+        static var title: String { localized("dashboard.title") }
+        static var search: String { localized("dashboard.search") }
+        static var searchPlaceholder: String { localized("dashboard.searchPlaceholder") }
+        static var overview: String { localized("dashboard.overview") }
+        static var todayPnl: String { localized("dashboard.todayPnl") }
+        static var positions: String { localized("dashboard.positions") }
+        static var orders: String { localized("dashboard.orders") }
+        static var noBrokerage: String { localized("dashboard.noBrokerage") }
+        static var quickAccess: String { localized("dashboard.quickAccess") }
+        static var screeners: String { localized("dashboard.screeners") }
+        static var sentiment: String { localized("dashboard.sentiment") }
+        static var events: String { localized("dashboard.events") }
+        static var notifications: String { localized("dashboard.notifications") }
+        static var news: String { localized("dashboard.news") }
+        static var historical: String { localized("dashboard.historical") }
+    }
+
+    enum Market {
+        static var catalogTitle: String { localized("market.catalogTitle") }
+        static var catalog: String { localized("market.catalog") }
+        static var notificationSymbols: String { localized("market.notificationSymbols") }
+        static var search: String { localized("market.search") }
+        static var empty: String { localized("market.empty") }
+        static var unknownSymbol: String { localized("market.unknownSymbol") }
+        static var invalidSymbol: String { localized("market.invalidSymbol") }
+        static var yahoo: String { localized("market.yahoo") }
+        static var momentum: String { localized("market.momentum") }
+        static var atr: String { localized("market.atr") }
+        static var priceSlope: String { localized("market.priceSlope") }
+        static var stair: String { localized("market.stair") }
+        static var rsiAdx: String { localized("market.rsiAdx") }
+        static var volume: String { localized("market.volume") }
+        static var ibkr: String { localized("market.ibkr") }
+        static var filters: String { localized("market.filters") }
+        static var date: String { localized("market.date") }
+        static var direction: String { localized("market.direction") }
+        static var up: String { localized("market.up") }
+        static var down: String { localized("market.down") }
+        static var window: String { localized("market.window") }
+        static var minPrice: String { localized("market.minPrice") }
+        static var minVolume: String { localized("market.minVolume") }
+        static var endTime: String { localized("market.endTime") }
+        static var applyFilters: String { localized("market.applyFilters") }
+        static var invalidEndTime: String { localized("market.invalidEndTime") }
+        static func rsiValue(_ value: String) -> String {
+            String(format: localized("market.rsiValue"), value)
+        }
+        static func adxValue(_ value: String) -> String {
+            String(format: localized("market.adxValue"), value)
+        }
+        static func atrValue(_ value: String) -> String {
+            String(format: localized("market.atrValue"), value)
+        }
+    }
+
+    enum Detail {
+        static var accountPnl: String { localized("detail.accountPnl") }
+        static var indicators: String { localized("detail.indicators") }
+        static var rsi: String { localized("detail.rsi") }
+        static var adx: String { localized("detail.adx") }
+        static var atr: String { localized("detail.atr") }
+        static var chart: String { localized("detail.chart") }
+        static var chartLater: String { localized("detail.chartLater") }
     }
 
     enum Trade {

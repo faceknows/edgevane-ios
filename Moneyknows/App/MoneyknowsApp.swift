@@ -18,6 +18,9 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.brokerage)
             .environmentObject(appModel.profile)
             .environmentObject(appModel.pushPreference)
+            .environmentObject(appModel.screeners)
+            .environmentObject(appModel.summaries)
+            .environmentObject(appModel.router)
             .task {
                 await appModel.start()
             }

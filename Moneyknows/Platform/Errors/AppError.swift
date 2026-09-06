@@ -20,10 +20,8 @@ enum AppError: Error, Equatable {
 
 enum UserFacingError {
     static func message(from error: Error) -> String? {
+        if error.isCancellation { return nil }
         guard let appError = error as? AppError else {
-            if (error as NSError).code == NSURLErrorCancelled {
-                return nil
-            }
             return L10n.Errors.generic
         }
 
@@ -42,5 +40,21 @@ enum UserFacingError {
         case let .versionUnsupported(message, _):
             return message
         }
+    }
+}
+
+extension Error {
+    var isCancellation: Bool {
+        if (self as? AppError)?.isCancellation == true {
+            return true
+        }
+        if self is CancellationError {
+            return true
+        }
+        if (self as? URLError)?.code == .cancelled {
+            return true
+        }
+        let nsError = self as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
 }

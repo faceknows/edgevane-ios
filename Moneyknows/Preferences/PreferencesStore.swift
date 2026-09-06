@@ -193,9 +193,3 @@ extension UserPreferences {
         )
     }
 }
-
-extension Error {
-    var isCancellation: Bool {
-        (self as? AppError)?.isCancellation == true
-    }
-}

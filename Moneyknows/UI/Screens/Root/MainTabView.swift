@@ -3,8 +3,11 @@ import SwiftUI
 struct MainTabView: View {
     var body: some View {
         TabView {
-            HomePlaceholderView()
-                .tabItem { Label(L10n.Tabs.home, systemImage: "house") }
+            NavigationView {
+                DashboardView()
+            }
+            .navigationViewStyle(.stack)
+            .tabItem { Label(L10n.Tabs.home, systemImage: "house") }
             TradePlaceholderView()
                 .tabItem { Label(L10n.Tabs.trade, systemImage: "chart.line.uptrend.xyaxis") }
             NavigationView {

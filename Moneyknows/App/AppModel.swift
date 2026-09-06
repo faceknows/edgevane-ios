@@ -14,6 +14,9 @@ final class AppModel: ObservableObject {
     let brokerage: CurrentBrokerageStore
     let profile: ProfileStore
     let pushPreference: PushPreferenceStore
+    let screeners: ScreenerStore
+    let summaries: SymbolSummaryStore
+    let router: AppRouter
 
     init() {
         let sessionConfig = URLSessionConfiguration.default
@@ -43,6 +46,10 @@ final class AppModel: ObservableObject {
         brokerage = CurrentBrokerageStore()
         profile = ProfileStore(api: userAPI, session: session)
         pushPreference = PushPreferenceStore()
+        let screenerAPI = ScreenerAPI(client: authorized)
+        screeners = ScreenerStore(api: screenerAPI)
+        summaries = SymbolSummaryStore(api: screenerAPI)
+        router = AppRouter()
         session.cleanup.register { [weak brokerage] in
             brokerage?.clearAll()
         }
@@ -51,6 +58,15 @@ final class AppModel: ObservableObject {
         }
         session.cleanup.register { [weak preferences] in
             preferences?.markSessionStale()
+        }
+        session.cleanup.register { [weak screeners] in
+            screeners?.reset()
+        }
+        session.cleanup.register { [weak summaries] in
+            summaries?.reset()
+        }
+        session.cleanup.register { [weak router] in
+            router?.dismissOverlay()
         }
         session.runCleanupIfInactive()
     }

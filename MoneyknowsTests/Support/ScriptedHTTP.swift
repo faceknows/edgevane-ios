@@ -16,6 +16,22 @@ final class ScriptedHTTP: HTTPSending {
         pending.forEach { $0.resume() }
     }
 
+    func releaseNext() {
+        guard !paused.isEmpty else { return }
+        paused.removeFirst().resume()
+        if paused.isEmpty {
+            pauseSends = false
+        }
+    }
+
+    func releaseLast() {
+        guard let last = paused.popLast() else { return }
+        last.resume()
+        if paused.isEmpty {
+            pauseSends = false
+        }
+    }
+
     func send<T: Decodable>(_ request: HTTPRequest) async throws -> T {
         let data = try await sendRaw(request)
         if T.self == EmptyResponse.self {
