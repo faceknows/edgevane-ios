@@ -23,6 +23,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var paging = ChartTimeScalePaging.State()
     private var oldestBarTime: Date?
     private var timeScaleAPI: TimeScaleApi?
+    private var didInstallFormatters = false
 
     init(onEvent: @escaping (ChartEvent) -> Void) {
         self.onEvent = onEvent
@@ -43,7 +44,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     }
 
     func lightweightCharts(_ lightweightCharts: LightweightCharts, didFailLoadWithError error: Error) {
-        AppLog.chart.error("lightweight charts failed to load")
+        AppLog.chart.error("lightweight charts failed to load \(error.localizedDescription, privacy: .public)")
         onEvent(.loadFailed)
     }
 
@@ -79,21 +80,44 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             state: &paging
         ) {
             onEvent(.reachedOldest)
+            timeScale.applyOptions(options: TimeScaleOptions(fixLeftEdge: true))
         }
     }
 
     func didReceiveTimeScaleSizeChangeWithParameters(onTimeScale timeScale: TimeScaleApi, parameters: Rectangle?) {}
 
-    func chartOptions(_ colors: ChartColors) -> ChartOptions {
-        ChartOptions(
+    func bootstrapOptions(_ colors: ChartColors) -> ChartOptions {
+        chartOptions(colors, includeFormatters: false, lockLeftEdge: false)
+    }
+
+    private func chartOptions(
+        _ colors: ChartColors,
+        includeFormatters: Bool,
+        lockLeftEdge: Bool
+    ) -> ChartOptions {
+        let grid = chartColor(colors.grid)
+        return ChartOptions(
             layout: LayoutOptions(
                 background: .solid(color: chartColor(colors.background)),
                 textColor: chartColor(colors.text)
             ),
+            rightPriceScale: PriceScaleOptions(
+                borderColor: grid
+            ),
             timeScale: TimeScaleOptions(
+                fixLeftEdge: lockLeftEdge,
+                borderColor: grid,
                 timeVisible: true,
-                secondsVisible: false
-            )
+                secondsVisible: false,
+                tickMarkFormatter: includeFormatters ? .closure(Self.easternTickMark) : nil
+            ),
+            grid: GridOptions(
+                verticalLines: GridLineOptions(color: grid),
+                horizontalLines: GridLineOptions(color: grid)
+            ),
+            localization: includeFormatters
+                ? LocalizationOptions(timeFormatter: .closure(Self.easternCrosshairTime))
+                : nil
         )
     }
 
@@ -101,11 +125,19 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         let model = snapshot.model
         let colors = snapshot.colors
         applied = snapshot
-        chart.applyOptions(options: chartOptions(colors))
         let oldest = model.bars.first?.time
         if oldest != oldestBarTime {
             paging.reachedOldest = false
             oldestBarTime = oldest
+        }
+        let attachFormatters = ChartLibraryOptions.attachFormatters(alreadyInstalled: didInstallFormatters)
+        chart.applyOptions(options: chartOptions(
+            colors,
+            includeFormatters: attachFormatters,
+            lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging)
+        ))
+        if attachFormatters {
+            didInstallFormatters = true
         }
         if model.bars.isEmpty {
             clear(on: chart)
@@ -311,13 +343,59 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     }
 
     private func date(from time: EventTime?) -> Date? {
+        Self.date(from: time)
+    }
+
+    private static func date(from time: EventTime?) -> Date? {
+        guard let time else { return nil }
+        let parsed = parsedTime(time)
+        if let utc = parsed.utc {
+            return utc
+        }
+        if let day = parsed.calendarDay {
+            return ChartEasternTime.date(calendarDay: day)
+        }
+        return nil
+    }
+
+    private static func parsedTime(_ time: EventTime) -> (utc: Date?, calendarDay: ChartEasternTime.CalendarDay?) {
         switch time {
         case let .utc(timestamp):
-            return Date(timeIntervalSince1970: timestamp)
+            return (Date(timeIntervalSince1970: timestamp), nil)
+        case let .businessDay(day):
+            return (nil, ChartEasternTime.CalendarDay(year: day.year, month: day.month, day: day.day))
         case let .businessDayString(raw):
-            return ISO8601DateFormatter().date(from: raw)
-        case .businessDay, .none:
-            return nil
+            let parsed = ChartEasternTime.parse(raw)
+            return (parsed.instant, parsed.calendarDay)
+        }
+    }
+
+    private static func easternTickMark(_ params: TickMarkFormatterParameters) -> String {
+        let parsed = parsedTime(params.time)
+        return ChartEasternTime.tickLabel(
+            utc: parsed.utc,
+            calendarDay: parsed.calendarDay,
+            kind: tickKind(params.tickMarkType)
+        )
+    }
+
+    private static func easternCrosshairTime(_ time: EventTime) -> String {
+        let parsed = parsedTime(time)
+        return ChartEasternTime.crosshairLabel(utc: parsed.utc, calendarDay: parsed.calendarDay)
+    }
+
+    private static func tickKind(_ type: TickMarkType) -> ChartEasternTime.TickKind {
+        switch type {
+        case .year:
+            return .year
+        case .month:
+            return .month
+        case .dayOfMonth:
+            return .dayOfMonth
+        case .time:
+            return .time
+        case .timeWithSeconds:
+            return .timeWithSeconds
         }
     }
 

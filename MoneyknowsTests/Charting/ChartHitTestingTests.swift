@@ -56,4 +56,32 @@ final class ChartTimeScalePagingTests: XCTestCase {
         XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -1, hasBars: false, state: &state))
         XCTAssertFalse(state.reachedOldest)
     }
+
+    func testDoesNotFireWhenLeftEdgeIsPinnedAtZero() {
+        var state = ChartTimeScalePaging.State()
+        ChartTimeScalePaging.beginIgnoringFitContent(&state)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: 0, hasBars: true, state: &state))
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: 0, hasBars: true, state: &state))
+        XCTAssertFalse(state.reachedOldest)
+        XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
+    }
+
+    func testLocksLeftEdgeOnlyAfterReachedOldest() {
+        var state = ChartTimeScalePaging.State()
+        XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
+        ChartTimeScalePaging.beginIgnoringFitContent(&state)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -0.5, hasBars: true, state: &state))
+        XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
+        XCTAssertTrue(ChartTimeScalePaging.handleLogicalRange(from: -1.2, hasBars: true, state: &state))
+        XCTAssertTrue(ChartTimeScalePaging.locksLeftEdge(state))
+        state.reachedOldest = false
+        XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
+    }
+}
+
+final class ChartLibraryOptionsTests: XCTestCase {
+    func testAttachesFormattersOnlyUntilInstalled() {
+        XCTAssertTrue(ChartLibraryOptions.attachFormatters(alreadyInstalled: false))
+        XCTAssertFalse(ChartLibraryOptions.attachFormatters(alreadyInstalled: true))
+    }
 }

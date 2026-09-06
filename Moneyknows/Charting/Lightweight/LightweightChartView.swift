@@ -11,7 +11,7 @@ struct LightweightChartView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> LightweightCharts {
-        let chart = LightweightCharts(options: context.coordinator.chartOptions(colors))
+        let chart = LightweightCharts(options: context.coordinator.bootstrapOptions(colors))
         chart.loadDelegate = context.coordinator
         chart.delegate = context.coordinator
         context.coordinator.chart = chart

@@ -94,6 +94,7 @@ struct ChartColors: Equatable {
     var sell: ChartRGBA
     var other: ChartRGBA
     var volume: ChartRGBA
+    var grid: ChartRGBA
 
     func rgba(for token: ChartColorToken) -> ChartRGBA {
         switch token {
@@ -159,6 +160,13 @@ enum ChartTimeScalePaging {
         state = State()
     }
 
+    /// Lock the leftmost bar only after a real `.reachedOldest`. Doing it earlier
+    /// (`fixLeftEdge` from the first paint) stops logical `from` from decreasing,
+    /// so history paging never fires.
+    static func locksLeftEdge(_ state: State) -> Bool {
+        state.reachedOldest
+    }
+
     /// `fitContent()` pads about half a bar, so the first logical `from` is often negative.
     /// Swallow that callback; only emit after the user pans further left.
     static func handleLogicalRange(from: Double?, hasBars: Bool, state: inout State) -> Bool {
@@ -176,5 +184,12 @@ enum ChartTimeScalePaging {
         }
         state.reachedOldest = true
         return true
+    }
+}
+
+enum ChartLibraryOptions {
+    /// LightweightCharts iOS stores each formatter closure under a unique name and never removes it.
+    static func attachFormatters(alreadyInstalled: Bool) -> Bool {
+        !alreadyInstalled
     }
 }

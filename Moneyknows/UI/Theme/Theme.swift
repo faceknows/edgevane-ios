@@ -19,7 +19,8 @@ enum ChartPalette {
             buy: rgba(.systemGreen, dark: dark),
             sell: rgba(.systemRed, dark: dark),
             other: rgba(dark ? .systemGray : .systemGray2, dark: dark),
-            volume: rgba(.systemGray, dark: dark)
+            volume: rgba(.systemGray, dark: dark),
+            grid: ChartRGBA(red: dark ? 1 : 0, green: dark ? 1 : 0, blue: dark ? 1 : 0, alpha: dark ? 0.06 : 0.08)
         )
     }
 

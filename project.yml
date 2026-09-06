@@ -46,6 +46,7 @@ targets:
       base:
         PRODUCT_NAME: Moneyknows
         PRODUCT_MODULE_NAME: Moneyknows
+        DEVELOPMENT_TEAM: R3HTGEDVSW
         INFOPLIST_FILE: Moneyknows/App/Info.plist
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: moneyknows

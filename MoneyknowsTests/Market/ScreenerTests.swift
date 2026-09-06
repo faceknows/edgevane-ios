@@ -36,6 +36,9 @@ final class MarketClockTests: XCTestCase {
         let date = calendar.date(from: parts)!
         XCTAssertEqual(MarketClock.usDateString(from: date), "2026-09-04")
         XCTAssertEqual(MarketClock.usTimeString(from: date), "16:30")
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(secondsFromGMT: 0)!
+        XCTAssertEqual(utc.component(.hour, from: date), 20)
         XCTAssertNotNil(MarketClock.date(fromUSDate: "2026-09-04"))
         XCTAssertEqual(MarketClock.normalizeEndTime(""), "")
         XCTAssertEqual(MarketClock.normalizeEndTime("9:30"), "09:30")

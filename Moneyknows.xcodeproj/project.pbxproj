@@ -61,6 +61,7 @@
 		7A11ACEE3AC3E8246E9D98A1 /* VersionGateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22A6080E9B9153BC18334FD3 /* VersionGateModel.swift */; };
 		8276A81FC270DD7D6D82BB9D /* FlexibleJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57953E86061822846651EBCE /* FlexibleJSON.swift */; };
 		8A5E72B351E9BB00AAD2DEC9 /* SymbolSummaryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EC05120ED85C22C9C6F92DF /* SymbolSummaryStore.swift */; };
+		8AED48DCF5B1C5E2E1BB1350 /* ChartEasternTime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7C53E536F8189AC0A52B0A /* ChartEasternTime.swift */; };
 		929C730B48C0EE803D519BF4 /* ScreenerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7207EFF2E8F6B2F2266FE029 /* ScreenerStore.swift */; };
 		961C143236966454EFC7B80A /* ForgotPasswordView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43928868A0CA4E64435DDEDB /* ForgotPasswordView.swift */; };
 		98CEF812FA642F5DE34B3CA9 /* LightweightCharts in Frameworks */ = {isa = PBXBuildFile; productRef = 85B7BCA755F065FD2B801BBD /* LightweightCharts */; };
@@ -71,6 +72,7 @@
 		A6CE9461F5234CB4767F0147 /* ProfileStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1779BB5859BBFDAA65F0F60C /* ProfileStore.swift */; };
 		AB9C6875A640E688FA795E89 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B14B9E376433A6D37C4B99 /* AppLog.swift */; };
 		ABAF3C1178DC9B330F9EDFE2 /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBC8835C61423F99BD4B09A7 /* LoginView.swift */; };
+		AD7778B54BB8AF5F0F00A846 /* ChartEasternTimeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E87D44D74868E58C5BF7FFD4 /* ChartEasternTimeTests.swift */; };
 		AE1870F526EA0061C28C74A1 /* CurrentBrokerageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFE504B294C9B6BE8D0CCF5 /* CurrentBrokerageStoreTests.swift */; };
 		B18F02244AB0701C2F62768B /* SymbolDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63831A18B33527B9A56CB8DC /* SymbolDetailView.swift */; };
 		B22FD1294C1818597E4F5477 /* LightweightChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D115D5C203B4943C55A4DCEA /* LightweightChartView.swift */; };
@@ -144,6 +146,7 @@
 		4710B70E3F15A9FA375F6D51 /* AppRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRouter.swift; sourceTree = "<group>"; };
 		499808FB49EEC90BE819313F /* BarsAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarsAPI.swift; sourceTree = "<group>"; };
 		4B812F6ED5B66C5B4DA1FDD2 /* MarketFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketFormat.swift; sourceTree = "<group>"; };
+		4E7C53E536F8189AC0A52B0A /* ChartEasternTime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartEasternTime.swift; sourceTree = "<group>"; };
 		4F7CB2ACCBC34B381A4FF4A8 /* BarStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BarStoreTests.swift; sourceTree = "<group>"; };
 		5168650CC1A4369BC62BF583 /* AppUser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUser.swift; sourceTree = "<group>"; };
 		518212E1B0990EA46F8D813D /* ComingSoonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComingSoonView.swift; sourceTree = "<group>"; };
@@ -156,7 +159,7 @@
 		5B55D3A74D77A5451F57EC49 /* Staging.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Staging.xcconfig; sourceTree = "<group>"; };
 		5C416D20F130BD7D792A6B59 /* ChartHitTestingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartHitTestingTests.swift; sourceTree = "<group>"; };
 		5CE8D98E9536EED722DDD68E /* ChangePercentText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChangePercentText.swift; sourceTree = "<group>"; };
-		61E2A5D431DDDD1E33BFBDB4 /* MoneyknowsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MoneyknowsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		61E2A5D431DDDD1E33BFBDB4 /* MoneyknowsTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = MoneyknowsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		628F0F10F9A5B622A165D793 /* ScreenerResultsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenerResultsView.swift; sourceTree = "<group>"; };
 		6371DF0731617DC1D735A916 /* RefreshGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshGate.swift; sourceTree = "<group>"; };
 		63831A18B33527B9A56CB8DC /* SymbolDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolDetailView.swift; sourceTree = "<group>"; };
@@ -203,9 +206,10 @@
 		DE7B68335A25FC6EEEBEDCEC /* ChartModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartModel.swift; sourceTree = "<group>"; };
 		E2D98F60D7FCC1229B75028F /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		E50947A275F08F0519CA9E32 /* VersionGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionGateView.swift; sourceTree = "<group>"; };
+		E87D44D74868E58C5BF7FFD4 /* ChartEasternTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartEasternTimeTests.swift; sourceTree = "<group>"; };
 		E8E302F572C310B3662374E0 /* AuthorizedSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizedSession.swift; sourceTree = "<group>"; };
 		EBAD1F7F31301B743F12E429 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		EFA51F27525C7078742360A2 /* Moneyknows.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Moneyknows.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EFA51F27525C7078742360A2 /* Moneyknows.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Moneyknows.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FAFE504B294C9B6BE8D0CCF5 /* CurrentBrokerageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentBrokerageStoreTests.swift; sourceTree = "<group>"; };
 		FBC8835C61423F99BD4B09A7 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		FBEB563554C587E4CEC55671 /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
@@ -559,6 +563,7 @@
 			children = (
 				3C114C5271805413DB316DBE /* Indicators */,
 				DCBD17C8028B5F9A9FC83D76 /* Lightweight */,
+				4E7C53E536F8189AC0A52B0A /* ChartEasternTime.swift */,
 				0EDE828A3CB0EF1218CEBC82 /* ChartHitTesting.swift */,
 				DE7B68335A25FC6EEEBEDCEC /* ChartModel.swift */,
 				3448676DD7F1CD1CEE84608C /* ChartSurface.swift */,
@@ -632,6 +637,7 @@
 			isa = PBXGroup;
 			children = (
 				812479FB122C2E109B55A5E7 /* Indicators */,
+				E87D44D74868E58C5BF7FFD4 /* ChartEasternTimeTests.swift */,
 				5C416D20F130BD7D792A6B59 /* ChartHitTestingTests.swift */,
 			);
 			path = Charting;
@@ -703,6 +709,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					108E4B5DB9A806A3D4362FF0 = {
+						DevelopmentTeam = R3HTGEDVSW;
+					};
+				};
 			};
 			buildConfigurationList = C9D384F3A3552BBCE615E62B /* Build configuration list for PBXProject "Moneyknows" */;
 			developmentRegion = en;
@@ -763,6 +774,7 @@
 				CA26EE35FD7702A982458223 /* BrokerageAccount.swift in Sources */,
 				64CB2D8059BB50A35BDEA502 /* ChangePercentText.swift in Sources */,
 				D11B763DC35FAC6F6ADA00E1 /* ChartChrome.swift in Sources */,
+				8AED48DCF5B1C5E2E1BB1350 /* ChartEasternTime.swift in Sources */,
 				1C1533B6547B402680239615 /* ChartHitTesting.swift in Sources */,
 				E63B6EEE55799740EE2AFE97 /* ChartModel.swift in Sources */,
 				D04F28290BECCC078A0E16D2 /* ChartSurface.swift in Sources */,
@@ -829,6 +841,7 @@
 				DC0B58CB34A23613C527A52C /* AuthFormValidationTests.swift in Sources */,
 				EC0BDF4262AE0A6CA2C5722D /* AuthorizedSessionTests.swift in Sources */,
 				6C14DE630D46A188F53DAF2A /* BarStoreTests.swift in Sources */,
+				AD7778B54BB8AF5F0F00A846 /* ChartEasternTimeTests.swift in Sources */,
 				F977657AD8AB4E44013C5C9A /* ChartHitTestingTests.swift in Sources */,
 				AE1870F526EA0061C28C74A1 /* CurrentBrokerageStoreTests.swift in Sources */,
 				218CE37513BA014645226A2F /* ErrorCancellationTests.swift in Sources */,
@@ -860,6 +873,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = R3HTGEDVSW;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Moneyknows/App/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = moneyknows;
