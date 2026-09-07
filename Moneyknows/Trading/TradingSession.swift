@@ -42,6 +42,12 @@ final class TradingSession: ObservableObject {
     var isPolling: Bool { pollTask != nil }
     var sessionEpoch: UInt64 { epoch }
 
+    func fills(symbol: String, day: String) async throws -> [Fill] {
+        guard let serving else { return [] }
+        guard let date = MarketClock.date(fromUSDate: day) else { return [] }
+        return try await serving.fills(symbol: symbol, day: date)
+    }
+
     func positionBeforeFill(for raw: String) -> Position? {
         let symbol = SymbolCode.normalize(raw)
         if let snapshot = fillInference {

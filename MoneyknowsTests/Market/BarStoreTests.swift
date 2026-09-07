@@ -200,4 +200,30 @@ final class BarStoreTests: XCTestCase {
         XCTAssertEqual(http.requests.count, 1)
         _ = try? await first.value
     }
+
+    func testEphemeralLoadDoesNotWriteTodayCache() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":3,"h":3,"l":3,"c":3,"v":3}]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let bars = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, caches: false)
+        XCTAssertEqual(bars.first?.close, 3)
+        XCTAssertNil(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular))
+        XCTAssertEqual(http.requests.first?.path, "alpaca/market/intraday-bars")
+    }
+
+    func testIndexBarsUseIbkrCompPath() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let bars = try await store.load(symbol: "NASDAQ", date: "2026-09-04", session: .index)
+        XCTAssertEqual(bars.first?.close, 1)
+        XCTAssertEqual(http.requests.first?.path, "ibkr/market/intraday-bars")
+        XCTAssertEqual(http.requests.first?.query["symbol"], "COMP")
+        XCTAssertEqual(store.cached(symbol: "COMP", date: "2026-09-04", session: .index)?.first?.close, 1)
+        XCTAssertNil(store.cached(symbol: "COMP", date: "2026-09-04", session: .regular))
+    }
 }

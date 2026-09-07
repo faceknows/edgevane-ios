@@ -8,6 +8,7 @@ enum AppRoute: Hashable {
     case positionDetail(String)
     case orders
     case credentials
+    case historicalMinutes
 }
 
 enum AppOverlay: Identifiable, Equatable {
@@ -50,6 +51,8 @@ final class AppRouter: ObservableObject {
             OrdersView()
         case .credentials:
             CredentialsView()
+        case .historicalMinutes:
+            HistoricalMinutesView()
         }
     }
 }

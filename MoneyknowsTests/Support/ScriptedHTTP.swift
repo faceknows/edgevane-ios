@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class ScriptedHTTP: HTTPSending {
     var rawResults: [Result<Data, Error>] = []
+    var rawResultsByPath: [String: Data] = [:]
     var requests: [HTTPRequest] = []
     var pauseSends = false
 
@@ -47,7 +48,9 @@ final class ScriptedHTTP: HTTPSending {
     func sendRaw(_ request: HTTPRequest) async throws -> Data {
         requests.append(request)
         let result: Result<Data, Error>
-        if rawResults.isEmpty {
+        if let data = rawResultsByPath[request.path] {
+            result = .success(data)
+        } else if rawResults.isEmpty {
             result = .failure(AppError.network)
         } else {
             result = rawResults.removeFirst()

@@ -338,6 +338,57 @@ final class AlpacaTradingAPIDecodingTests: XCTestCase {
             XCTAssertEqual(error as? AppError, .decoding)
         }
     }
+
+    func testFillActivityDecodesRequiredFields() throws {
+        let rows = try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"BUY","symbol":" aapl ","order_id":"keep"}]
+        """#.utf8))
+        XCTAssertEqual(rows.map(\.orderId), ["keep"])
+        XCTAssertEqual(rows[0].symbol, "AAPL")
+        XCTAssertEqual(rows[0].side, "buy")
+        XCTAssertEqual(rows[0].qty, 1)
+        XCTAssertEqual(rows[0].price, 10)
+    }
+
+    func testFillActivityMissingOrderIdThrows() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
+    func testFillActivityMissingPriceThrows() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
+    func testFillActivityMissingTransactionTimeThrows() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"FILL","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
+    func testFillActivityInvalidSideThrows() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"hold","symbol":"AAPL","order_id":"keep"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
+    func testFillActivityNonFillTypeThrows() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [{"id":"a1","activity_type":"DIV","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
 }
 
 @MainActor
@@ -403,6 +454,318 @@ final class AlpacaBrokerageTests: XCTestCase {
         _ = try await serving.closedOrders(limit: 50, beforeOrderId: "filled")
         XCTAssertEqual(http.requests.last?.query["before_order_id"], "filled")
         XCTAssertNil(http.requests.last?.query["until"])
+    }
+
+    func testFillsQueryUsesActivitiesForEasternDayAndKeepsSameDayGTC() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "keep-act", orderId: "keep", time: "2026-09-04T14:30:00Z"),
+                Self.fillActivity(id: "gtc-act", orderId: "gtc", price: "10.5", time: "2026-09-04T15:00:00Z"),
+                Self.fillActivity(id: "other-act", orderId: "msft", symbol: "MSFT", time: "2026-09-04T14:45:00Z"),
+                Self.fillActivity(id: "next-act", orderId: "drop", time: "2026-09-05T10:00:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        let day = MarketClock.date(fromUSDate: "2026-09-04")!
+        let fills = try await serving.fills(symbol: " aapl ", day: day)
+        XCTAssertEqual(fills.map(\.orderId), ["keep", "gtc"])
+        XCTAssertEqual(fills.map(\.id), [Self.fillID("keep"), Self.fillID("gtc")])
+        XCTAssertEqual(fills.first?.side, .buy)
+        XCTAssertEqual(fills[1].price, 10.5, accuracy: 0.0001)
+        let bounds = MarketClock.easternDayBounds("2026-09-04")!
+        Self.assertFillQuery(http.requests.last!, after: bounds.start, until: bounds.end)
+        XCTAssertNil(http.requests.last?.query["page_token"])
+    }
+
+    func testFillsRejectsMalformedFillInPage() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "keep-act", orderId: "keep", time: "2026-09-04T14:30:00Z"),
+                "{\"id\":\"bad\",\"activity_type\":\"FILL\",\"transaction_time\":\"2026-09-04T14:31:00Z\",\"price\":\"10\",\"qty\":\"1\",\"side\":\"buy\",\"symbol\":\"AAPL\"}",
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        do {
+            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+            XCTFail("malformed FILL must fail the snapshot")
+        } catch {
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
+    func testFillsCollapsesSameOrderIdUsingActivityQtyNotCumQty() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "leg-2", orderId: "keep", qty: "1", price: "12", time: "2026-09-04T15:00:00Z", cumQty: "2"),
+                Self.fillActivity(id: "leg-1", orderId: "keep", qty: "1", price: "10", time: "2026-09-04T14:30:00Z", cumQty: "1"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        let fills = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(fills.map(\.id), [Self.fillID("keep")])
+        XCTAssertEqual(fills.map(\.orderId), ["keep"])
+        XCTAssertEqual(fills[0].quantity, 2, accuracy: 0.0001)
+        XCTAssertEqual(fills[0].price, 11, accuracy: 0.0001)
+        XCTAssertEqual(fills[0].filledAt, Self.parseISO("2026-09-04T15:00:00Z"))
+    }
+
+    func testFillsKeepsPartialFillsOfTheSameOrderOnDifferentEasternDays() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "fri-act", orderId: "gtc", qty: "1", price: "10", time: "2026-09-04T19:00:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "mon-act", orderId: "gtc", qty: "1", price: "11", time: "2026-09-08T14:00:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        let friday = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        let monday = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-08")!)
+        XCTAssertEqual(friday.map(\.orderId), ["gtc"])
+        XCTAssertEqual(monday.map(\.orderId), ["gtc"])
+        XCTAssertEqual(friday.map(\.id), [Self.fillID("gtc")])
+        XCTAssertEqual(monday.map(\.id), [Self.fillID("gtc", "2026-09-08")])
+        XCTAssertEqual(friday[0].quantity, 1, accuracy: 0.0001)
+        XCTAssertEqual(monday[0].quantity, 1, accuracy: 0.0001)
+        XCTAssertEqual(friday[0].price, 10, accuracy: 0.0001)
+        XCTAssertEqual(monday[0].price, 11, accuracy: 0.0001)
+        let merged = DayFills.merging(friday, monday)
+        XCTAssertEqual(merged.map(\.id), [Self.fillID("gtc"), Self.fillID("gtc", "2026-09-08")])
+        XCTAssertEqual(merged.map(\.quantity), [1, 1])
+    }
+
+    func testFillsPaginatesWithPageTokenAndEasternBounds() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "f1", orderId: "f1", time: "2026-09-04T14:30:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "f2", orderId: "f2", side: "sell", price: "11", time: "2026-09-04T15:30:00Z"),
+            ])),
+            .success(Data("[]".utf8)),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http, activityPageSize: 1)
+        )
+        let day = MarketClock.date(fromUSDate: "2026-09-04")!
+        let fills = try await serving.fills(symbol: "AAPL", day: day)
+        XCTAssertEqual(Set(fills.map(\.id)), [Self.fillID("f1"), Self.fillID("f2")])
+        XCTAssertEqual(http.requests.map(\.path), Array(repeating: "v2/account/activities", count: 3))
+        let bounds = MarketClock.easternDayBounds("2026-09-04")!
+        Self.assertFillQuery(http.requests[0], after: bounds.start, until: bounds.end, pageSize: "1")
+        Self.assertFillQuery(http.requests[1], after: bounds.start, until: bounds.end, pageToken: "f1", pageSize: "1")
+        Self.assertFillQuery(http.requests[2], after: bounds.start, until: bounds.end, pageToken: "f2", pageSize: "1")
+    }
+
+    func testFillsCachesHistoricalDaysAndEvictsLRUBuckets() async throws {
+        let day4 = Self.fillActivitiesData([
+            Self.fillActivity(id: "f1", orderId: "f1", time: "2026-09-04T14:30:00Z"),
+            Self.fillActivity(id: "m1", orderId: "m1", symbol: "MSFT", time: "2026-09-04T14:31:00Z"),
+        ])
+        let day3 = Self.fillActivitiesData([
+            Self.fillActivity(id: "f2", orderId: "f2", side: "sell", price: "11", time: "2026-09-03T14:30:00Z"),
+        ])
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(day4),
+            .success(day3),
+            .success(day4),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        serving.maxFillBuckets = 1
+        let first = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(first.map(\.id), [Self.fillID("f1")])
+        XCTAssertEqual(http.requests.count, 1)
+        let cached = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(cached.map(\.id), [Self.fillID("f1")])
+        XCTAssertEqual(http.requests.count, 1)
+        let sameDayOther = try await serving.fills(symbol: "MSFT", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(sameDayOther.map(\.id), [Self.fillID("m1")])
+        XCTAssertEqual(http.requests.count, 1)
+        let second = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-03")!)
+        XCTAssertEqual(second.map(\.id), [Self.fillID("f2", "2026-09-03")])
+        XCTAssertEqual(http.requests.count, 2)
+        let revived = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(revived.map(\.id), [Self.fillID("f1")])
+        XCTAssertEqual(http.requests.count, 3)
+    }
+
+    func testFillsSharesOneDayFetchAcrossSymbols() async throws {
+        let http = ScriptedHTTP()
+        http.pauseSends = true
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "a", orderId: "a", time: "2026-09-04T14:30:00Z"),
+                Self.fillActivity(id: "m", orderId: "m", symbol: "MSFT", time: "2026-09-04T14:31:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        let day = MarketClock.date(fromUSDate: "2026-09-04")!
+        async let apple = serving.fills(symbol: "AAPL", day: day)
+        await waitUntil { http.requests.count == 1 }
+        async let microsoft = serving.fills(symbol: "MSFT", day: day)
+        XCTAssertEqual(http.requests.count, 1)
+        http.releasePaused()
+        let (aapl, msft) = try await (apple, microsoft)
+        XCTAssertEqual(aapl.map(\.id), [Self.fillID("a")])
+        XCTAssertEqual(msft.map(\.id), [Self.fillID("m")])
+        XCTAssertEqual(http.requests.count, 1)
+    }
+
+    func testFillsDoesNotCacheTodayOrErrors() async throws {
+        let today = MarketClock.usDateString()
+        let page = Self.fillActivitiesData([
+            Self.fillActivity(id: "live", orderId: "live", time: "2026-09-04T14:30:00Z"),
+        ])
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .failure(AppError.network),
+            .success(page),
+            .success(page),
+            .success(page),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        do {
+            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+            XCTFail("errors must surface")
+        } catch {
+            XCTAssertEqual(error as? AppError, .network)
+        }
+        let recovered = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(recovered.map(\.id), [Self.fillID("live")])
+        XCTAssertEqual(http.requests.count, 2)
+        let todayDate = MarketClock.date(fromUSDate: today)!
+        _ = try await serving.fills(symbol: "AAPL", day: todayDate)
+        _ = try await serving.fills(symbol: "AAPL", day: todayDate)
+        XCTAssertEqual(http.requests.count, 4)
+    }
+
+    func testFillsPaginationCycleThrowsIncompleteHistory() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "a", orderId: "a", time: "2026-09-04T14:30:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "b", orderId: "b", time: "2026-09-04T14:31:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "a", orderId: "a", time: "2026-09-04T14:30:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http, activityPageSize: 1)
+        )
+        do {
+            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+            XCTFail("cursor cycle must reject the snapshot")
+        } catch {
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
+            XCTAssertEqual(UserFacingError.message(from: error), L10n.Trading.orderHistoryIncomplete)
+        }
+        XCTAssertEqual(http.requests.count, 3)
+        XCTAssertTrue(http.requests.allSatisfy { $0.query["date"] == nil && $0.path == "v2/account/activities" })
+    }
+
+    func testFillsPaginationExceedsPageCapThrowsIncompleteHistory() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p1", orderId: "p1", time: "2026-09-04T14:30:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p2", orderId: "p2", time: "2026-09-04T14:31:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p3", orderId: "p3", time: "2026-09-04T14:32:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http, activityPageSize: 1, maxActivityPages: 2)
+        )
+        do {
+            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+            XCTFail("page cap must reject the snapshot")
+        } catch {
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
+        }
+        XCTAssertEqual(http.requests.count, 3)
+    }
+
+    func testFillsPaginationAllowsEmptyProbeAtCap() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p1", orderId: "p1", time: "2026-09-04T14:30:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p2", orderId: "p2", time: "2026-09-04T14:31:00Z"),
+            ])),
+            .success(Data("[]".utf8)),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http, activityPageSize: 1, maxActivityPages: 2)
+        )
+        let fills = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(Set(fills.map(\.id)), [Self.fillID("p1"), Self.fillID("p2")])
+        XCTAssertEqual(http.requests.count, 3)
+        XCTAssertEqual(http.requests[2].query["page_token"], "p2")
+    }
+
+    func testFillsPaginationExceedsFillCapThrowsIncompleteHistory() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p1", orderId: "p1", time: "2026-09-04T14:30:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p2", orderId: "p2", time: "2026-09-04T14:31:00Z"),
+            ])),
+            .success(Self.fillActivitiesData([
+                Self.fillActivity(id: "p3", orderId: "p3", time: "2026-09-04T14:32:00Z"),
+            ])),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http, activityPageSize: 1, maxActivityPages: 10, maxFillActivities: 2)
+        )
+        do {
+            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+            XCTFail("fill cap must reject the snapshot")
+        } catch {
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
+        }
+        XCTAssertEqual(http.requests.count, 3)
     }
 
     func testOpenOrdersPaginatesWithBeforeOrderId() async throws {
@@ -758,6 +1121,65 @@ final class AlpacaBrokerageTests: XCTestCase {
         XCTAssertNil(body["extended_hours"])
         XCTAssertEqual((body["take_profit"] as? [String: Any])?["limit_price"] as? String, "10.02")
         XCTAssertEqual((body["stop_loss"] as? [String: Any])?["stop_price"] as? String, "9.98")
+    }
+
+    private static func fillID(_ orderId: String, _ day: String = "2026-09-04") -> String {
+        DayFills.fillID(orderId: orderId, day: day)
+    }
+
+    private static func fillActivity(
+        id: String,
+        orderId: String,
+        symbol: String = "AAPL",
+        side: String = "buy",
+        qty: String = "1",
+        price: String = "10",
+        time: String,
+        cumQty: String? = nil
+    ) -> String {
+        let cum = cumQty.map { ",\"cum_qty\":\"\($0)\"" } ?? ""
+        return "{\"id\":\"\(id)\",\"activity_type\":\"FILL\",\"transaction_time\":\"\(time)\",\"type\":\"fill\",\"price\":\"\(price)\",\"qty\":\"\(qty)\",\"side\":\"\(side)\",\"symbol\":\"\(symbol)\",\"order_id\":\"\(orderId)\"\(cum)}"
+    }
+
+    private static func fillActivitiesData(_ rows: [String]) -> Data {
+        Data("[\(rows.joined(separator: ","))]".utf8)
+    }
+
+    private static func parseISO(_ raw: String) -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: raw)!
+    }
+
+    private static func iso(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.string(from: date)
+    }
+
+    private static func assertFillQuery(
+        _ request: HTTPRequest,
+        after: Date,
+        until: Date,
+        pageToken: String? = nil,
+        pageSize: String = "100",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(request.path, "v2/account/activities", file: file, line: line)
+        XCTAssertEqual(request.query["activity_types"], "FILL", file: file, line: line)
+        XCTAssertEqual(request.query["direction"], "desc", file: file, line: line)
+        XCTAssertEqual(request.query["page_size"], pageSize, file: file, line: line)
+        XCTAssertEqual(request.query["after"], iso(after), file: file, line: line)
+        XCTAssertEqual(request.query["until"], iso(until), file: file, line: line)
+        XCTAssertNil(request.query["date"], file: file, line: line)
+        XCTAssertNil(request.query["symbols"], file: file, line: line)
+        XCTAssertNil(request.query["before_order_id"], file: file, line: line)
+        if let pageToken {
+            XCTAssertEqual(request.query["page_token"], pageToken, file: file, line: line)
+        } else {
+            XCTAssertNil(request.query["page_token"], file: file, line: line)
+        }
     }
 }
 
@@ -2354,7 +2776,7 @@ final class OrderPlacementTests: XCTestCase {
     }
 }
 
-private final class FakeBrokerage: BrokerageServing {
+final class FakeBrokerage: BrokerageServing {
     var account: BrokerageAccount
     private let lock = NSLock()
     private var _portfolioValue: Portfolio
@@ -2374,6 +2796,11 @@ private final class FakeBrokerage: BrokerageServing {
     private var _portfolioError: Error?
     private var _positionsError: Error?
     private var _ordersError: Error?
+    private var _fillsDayErrors: [String: Error] = [:]
+    private var _fillRows: [Fill]?
+    private var _fillRowsQueue: [[Fill]] = []
+    private var _fillsCalls = 0
+    private var _fillsDays: [String] = []
     private var _portfolioCalls = 0
     private var _positionsCalls = 0
     private var _openCalls = 0
@@ -2451,6 +2878,24 @@ private final class FakeBrokerage: BrokerageServing {
         get { withLock { _ordersError } }
         set { withLock { _ordersError = newValue } }
     }
+
+    var fillsDayErrors: [String: Error] {
+        get { withLock { _fillsDayErrors } }
+        set { withLock { _fillsDayErrors = newValue } }
+    }
+
+    var fillRows: [Fill]? {
+        get { withLock { _fillRows } }
+        set { withLock { _fillRows = newValue } }
+    }
+
+    var fillRowsQueue: [[Fill]] {
+        get { withLock { _fillRowsQueue } }
+        set { withLock { _fillRowsQueue = newValue } }
+    }
+
+    var fillsCalls: Int { withLock { _fillsCalls } }
+    var fillsDays: [String] { withLock { _fillsDays } }
 
     var portfolioCalls: Int { withLock { _portfolioCalls } }
     var positionsCalls: Int { withLock { _positionsCalls } }
@@ -2578,6 +3023,34 @@ private final class FakeBrokerage: BrokerageServing {
         return snapshot
     }
 
+    func fills(symbol: String, day: Date) async throws -> [Fill] {
+        let dayString = MarketClock.usDateString(from: day)
+        let rows: [Order] = withLock {
+            _fillsCalls += 1
+            _fillsDays.append(dayString)
+            return _orderRows
+        }
+        await waitIfPaused()
+        if let error = withLock({ _fillsDayErrors[dayString] ?? _ordersError }) { throw error }
+        let queued = withLock { () -> [Fill]? in
+            guard !_fillRowsQueue.isEmpty else { return nil }
+            return _fillRowsQueue.removeFirst()
+        }
+        if let queued {
+            return queued.filter {
+                $0.symbol == SymbolCode.normalize(symbol)
+                    && MarketClock.usDateString(from: $0.filledAt) == dayString
+            }
+        }
+        if let fillRows = withLock({ _fillRows }) {
+            return fillRows.filter {
+                $0.symbol == SymbolCode.normalize(symbol)
+                    && MarketClock.usDateString(from: $0.filledAt) == dayString
+            }
+        }
+        return DayFills.fills(from: rows, symbol: symbol, day: dayString)
+    }
+
     func order(id: String) async throws -> [Order] {
         let rows: [Order] = withLock {
             _orderLookups += 1
@@ -2601,6 +3074,7 @@ private final class FakeBrokerage: BrokerageServing {
                 next.filledQuantity = order.quantity
                 next.filledAvgPrice = order.limitPrice
                 next.updatedAt = Date(timeIntervalSince1970: 1_700_000_250)
+                next.filledAt = Date(timeIntervalSince1970: 1_700_000_250)
                 return next
             }
         }
@@ -2749,7 +3223,8 @@ private func sampleOrder(
     clientOrderId: String? = nil,
     orderClass: String? = nil,
     stopPrice: Double? = nil,
-    parentOrderId: String? = nil
+    parentOrderId: String? = nil,
+    filledAt: Date? = nil
 ) -> Order {
     Order(
         id: id,
@@ -2766,6 +3241,7 @@ private func sampleOrder(
         submittedAt: submittedAt,
         updatedAt: updatedAt,
         createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+        filledAt: filledAt,
         clientOrderId: clientOrderId,
         orderClass: orderClass,
         parentOrderId: parentOrderId

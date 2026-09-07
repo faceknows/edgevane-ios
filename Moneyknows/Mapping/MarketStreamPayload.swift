@@ -103,6 +103,7 @@ enum MarketStreamPayload {
             submittedAt: date(fields["submitted_at"]),
             updatedAt: date(fields["updated_at"]),
             createdAt: date(fields["created_at"]),
+            filledAt: date(fields["filled_at"]),
             clientOrderId: string(fields["client_order_id"]),
             orderClass: string(fields["order_class"]),
             parentOrderId: string(fields["parent_order_id"])
@@ -227,6 +228,7 @@ struct StreamOrder: Equatable {
     var submittedAt: Date?
     var updatedAt: Date?
     var createdAt: Date?
+    var filledAt: Date?
     var clientOrderId: String?
     var orderClass: String?
     var parentOrderId: String?

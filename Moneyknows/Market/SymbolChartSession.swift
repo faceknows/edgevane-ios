@@ -5,14 +5,15 @@ final class SymbolChartSession: ObservableObject {
     @Published var interval: MinuteInterval = .five
     @Published var style: ChartStyle = .candle
     @Published var showVWAP = true
+    @Published var fills: [Fill] = []
     @Published private(set) var regularBars: [Bar] = []
     @Published private(set) var preBars: [Bar] = []
     @Published private(set) var afterBars: [Bar] = []
     @Published private(set) var isLoadingRegular = false
     @Published private(set) var errorText: String?
 
-    private(set) var regularDate = ""
-    private(set) var extendedDate = ""
+    @Published private(set) var regularDate = ""
+    @Published private(set) var extendedDate = ""
 
     private var symbol = ""
     private var loadID: UInt64 = 0
@@ -27,31 +28,22 @@ final class SymbolChartSession: ObservableObject {
             showVWAP: showVWAP,
             previousClose: summary?.previousClose,
             sessionOpen: summary?.sessionOpen,
+            markers: DayFills.markers(fills, bars: regularBars, session: .regular),
             followLatest: false
         )
     }
 
     var preModel: ChartModel {
-        MinuteChartAssembler.model(
+        MinuteChartAssembler.extendedHours(
             bars1m: preBars,
-            interval: .five,
-            style: .candle,
-            showVWAP: false,
-            previousClose: nil,
-            sessionOpen: nil,
-            followLatest: false
+            markers: DayFills.markers(fills, bars: preBars, session: .premarket)
         )
     }
 
     var afterModel: ChartModel {
-        MinuteChartAssembler.model(
+        MinuteChartAssembler.extendedHours(
             bars1m: afterBars,
-            interval: .five,
-            style: .candle,
-            showVWAP: false,
-            previousClose: nil,
-            sessionOpen: nil,
-            followLatest: false
+            markers: DayFills.markers(fills, bars: afterBars, session: .aftermarket)
         )
     }
 
@@ -70,6 +62,7 @@ final class SymbolChartSession: ObservableObject {
         self.symbol = next
         self.store = store
         errorText = nil
+        fills = []
         _ = syncDates(now: now)
         adoptCachedBars()
         await refreshAll()
@@ -89,6 +82,7 @@ final class SymbolChartSession: ObservableObject {
         if nextRegular != regularDate {
             regularDate = nextRegular
             regularBars = store?.cached(symbol: symbol, date: nextRegular, session: .regular) ?? []
+            fills = []
             errorText = nil
             rolled.insert(.regular)
         }
@@ -96,6 +90,7 @@ final class SymbolChartSession: ObservableObject {
             extendedDate = nextExtended
             preBars = store?.cached(symbol: symbol, date: nextExtended, session: .premarket) ?? []
             afterBars = store?.cached(symbol: symbol, date: nextExtended, session: .aftermarket) ?? []
+            fills = []
             rolled.insert(.premarket)
             rolled.insert(.aftermarket)
         }
@@ -186,6 +181,8 @@ final class SymbolChartSession: ObservableObject {
             preBars = bars
         case .aftermarket:
             afterBars = bars
+        case .index:
+            break
         }
     }
 }

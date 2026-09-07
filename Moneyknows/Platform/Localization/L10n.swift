@@ -173,6 +173,15 @@ enum L10n {
         static var fiveSeconds: String { localized("chart.fiveSeconds") }
         static var tenSeconds: String { localized("chart.tenSeconds") }
         static var thirtySeconds: String { localized("chart.thirtySeconds") }
+        static var nasdaq: String { localized("chart.nasdaq") }
+    }
+
+    enum Historical {
+        static var title: String { localized("historical.title") }
+        static var symbolPlaceholder: String { localized("historical.symbolPlaceholder") }
+        static var fills: String { localized("historical.fills") }
+        static var emptyFills: String { localized("historical.emptyFills") }
+        static var listOnly: String { localized("historical.listOnly") }
     }
 
     enum Trade {
@@ -239,6 +248,7 @@ enum L10n {
         static func orderFilled(_ symbol: String) -> String {
             String(format: localized("trading.orderFilled"), symbol)
         }
+        static var orderHistoryIncomplete: String { localized("trading.orderHistoryIncomplete") }
         static func orderCanceled(_ symbol: String) -> String {
             String(format: localized("trading.orderCanceled"), symbol)
         }

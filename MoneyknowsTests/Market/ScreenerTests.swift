@@ -40,6 +40,11 @@ final class MarketClockTests: XCTestCase {
         utc.timeZone = TimeZone(secondsFromGMT: 0)!
         XCTAssertEqual(utc.component(.hour, from: date), 20)
         XCTAssertNotNil(MarketClock.date(fromUSDate: "2026-09-04"))
+        let bounds = MarketClock.easternDayBounds("2026-09-04")!
+        XCTAssertEqual(MarketClock.usDateString(from: bounds.start), "2026-09-04")
+        XCTAssertEqual(MarketClock.usTimeString(from: bounds.start), "00:00")
+        XCTAssertEqual(MarketClock.usDateString(from: bounds.end), "2026-09-05")
+        XCTAssertEqual(MarketClock.usTimeString(from: bounds.end), "00:00")
         XCTAssertEqual(MarketClock.normalizeEndTime(""), "")
         XCTAssertEqual(MarketClock.normalizeEndTime("9:30"), "09:30")
         XCTAssertEqual(MarketClock.normalizeEndTime("0930"), "09:30")
@@ -74,6 +79,11 @@ final class MarketClockTests: XCTestCase {
         XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 8, 10)), "2026-09-08")
         XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 5, 10)), "2026-09-04")
         XCTAssertEqual(MarketClock.extendedHoursDate(from: date(2026, 9, 7, 10)), "2026-09-04")
+        XCTAssertEqual(MarketClock.sessionWindow(at: date(2026, 9, 4, 8)), .premarket)
+        XCTAssertEqual(MarketClock.sessionWindow(at: date(2026, 9, 4, 10)), .regular)
+        XCTAssertEqual(MarketClock.sessionWindow(at: date(2026, 9, 4, 18)), .aftermarket)
+        XCTAssertNil(MarketClock.sessionWindow(at: date(2026, 9, 4, 3, 59)))
+        XCTAssertNil(MarketClock.sessionWindow(at: date(2026, 9, 4, 20)))
         XCTAssertTrue(MarketClock.isSessionActive(.regular, at: date(2026, 9, 4, 10)))
         XCTAssertFalse(MarketClock.isSessionActive(.regular, at: date(2026, 9, 5, 10)))
         XCTAssertFalse(MarketClock.isSessionActive(.premarket, at: date(2026, 9, 7, 8)))

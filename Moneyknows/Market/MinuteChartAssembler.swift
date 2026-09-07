@@ -46,9 +46,35 @@ enum MinuteChartAssembler {
             style: style,
             overlays: overlays,
             priceLines: priceLines,
-            markers: markers,
+            markers: aligned(markers, to: bars, duration: TimeInterval(interval.minutes * 60)),
             followLatest: followLatest,
             showVolume: showVolume
         )
+    }
+
+    static func extendedHours(bars1m: [Bar], markers: [ChartMarker] = []) -> ChartModel {
+        model(
+            bars1m: bars1m,
+            interval: .five,
+            style: .candle,
+            showVWAP: false,
+            previousClose: nil,
+            sessionOpen: nil,
+            markers: markers,
+            followLatest: false
+        )
+    }
+
+    /// Lightweight Charts only draws a marker when `time` matches a bar.
+    private static func aligned(_ markers: [ChartMarker], to bars: [Bar], duration: TimeInterval) -> [ChartMarker] {
+        guard !bars.isEmpty else { return [] }
+        return markers.compactMap { marker in
+            guard let bar = ChartHitTesting.containingBar(in: bars, at: marker.time, duration: duration) else {
+                return nil
+            }
+            var next = marker
+            next.time = bar.time
+            return next
+        }
     }
 }

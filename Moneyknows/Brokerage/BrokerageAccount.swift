@@ -1,6 +1,6 @@
 import Foundation
 
-enum BrokerageEnvironment: String, Codable, CaseIterable {
+enum BrokerageEnvironment: String, Codable, CaseIterable, Equatable {
     case paper
     case live
 

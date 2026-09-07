@@ -17,6 +17,15 @@ enum MarketClock {
         usDateFormatter.date(from: string)
     }
 
+    static func easternDayBounds(_ dateString: String) -> (start: Date, end: Date)? {
+        guard let start = date(fromUSDate: dateString),
+              let end = easternCalendar.date(byAdding: .day, value: 1, to: start)
+        else {
+            return nil
+        }
+        return (start, end)
+    }
+
     static func usTimeString(from date: Date = Date()) -> String {
         usTimeFormatter.string(from: date)
     }
@@ -82,17 +91,17 @@ enum MarketClock {
         return isUSWeekday(date) && !isUSMarketHoliday(dateString)
     }
 
+    static func sessionWindow(at date: Date) -> USSessionWindow? {
+        let time = usTimeString(from: date)
+        if time >= "04:00", time < "09:30" { return .premarket }
+        if time >= "09:30", time < "16:00" { return .regular }
+        if time >= "16:00", time < "20:00" { return .aftermarket }
+        return nil
+    }
+
     static func isSessionActive(_ session: USSessionWindow, at date: Date = Date()) -> Bool {
         guard isUSTradingDay(usDateString(from: date)) else { return false }
-        let time = usTimeString(from: date)
-        switch session {
-        case .premarket:
-            return time >= "04:00" && time < "09:30"
-        case .regular:
-            return time >= "09:30" && time < "16:00"
-        case .aftermarket:
-            return time >= "16:00" && time < "20:00"
-        }
+        return sessionWindow(at: date) == session
     }
 
     static func isExtendedHoursSession(at date: Date = Date()) -> Bool {

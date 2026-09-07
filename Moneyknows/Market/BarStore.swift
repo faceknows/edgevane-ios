@@ -24,13 +24,15 @@ final class BarStore: ObservableObject {
     }
 
     func cached(symbol: String, date: String, session: BarSession) -> [Bar]? {
-        cache[cacheKey(symbol: SymbolCode.normalize(symbol), date: date, session: session)]
+        let symbol = Self.normalized(symbol, session: session)
+        return cache[cacheKey(symbol: symbol, date: date, session: session)]
     }
 
-    func load(symbol: String, date: String, session: BarSession) async throws -> [Bar] {
-        let symbol = SymbolCode.normalize(symbol)
-        let key = cacheKey(symbol: symbol, date: date, session: session)
-        if let existing = inflight[key] {
+    func load(symbol: String, date: String, session: BarSession, caches: Bool = true) async throws -> [Bar] {
+        let symbol = Self.normalized(symbol, session: session)
+        let storeKey = cacheKey(symbol: symbol, date: date, session: session)
+        let inflightKey = caches ? storeKey : "\(storeKey):ephemeral"
+        if let existing = inflight[inflightKey] {
             return try await existing.task.value
         }
 
@@ -39,8 +41,8 @@ final class BarStore: ObservableObject {
         let inflightID = nextInflightID
         let task = Task { @MainActor in
             defer {
-                if self.inflight[key]?.id == inflightID {
-                    self.inflight[key] = nil
+                if self.inflight[inflightKey]?.id == inflightID {
+                    self.inflight[inflightKey] = nil
                 }
             }
             let dtos: [BarDTO]
@@ -51,16 +53,20 @@ final class BarStore: ObservableObject {
                 dtos = try await self.api.preMarket(symbol: symbol, date: date)
             case .aftermarket:
                 dtos = try await self.api.afterMarket(symbol: symbol, date: date)
+            case .index:
+                dtos = try await self.api.indexIntraday(symbol: symbol, date: date)
             }
             guard self.epoch == epoch else { throw AppError.cancelled }
             let bars = Self.capped(MinuteBars.fromDTOs(dtos, date: date))
-            if bars.isEmpty, let existing = self.cache[key], !existing.isEmpty {
-                return existing
+            if caches {
+                if bars.isEmpty, let existing = self.cache[storeKey], !existing.isEmpty {
+                    return existing
+                }
+                self.remember(storeKey, bars: bars)
             }
-            self.remember(key, bars: bars)
             return bars
         }
-        inflight[key] = InFlight(id: inflightID, task: task)
+        inflight[inflightKey] = InFlight(id: inflightID, task: task)
         return try await task.value
     }
 
@@ -82,6 +88,10 @@ final class BarStore: ObservableObject {
     private func cacheKey(symbol: String, date: String, session: BarSession) -> String {
         "us:\(symbol):\(date):\(session.rawValue):1Min"
     }
+
+    private static func normalized(_ symbol: String, session: BarSession) -> String {
+        session == .index ? BarSession.indexSymbol : SymbolCode.normalize(symbol)
+    }
 }
 
 private struct InFlight {
@@ -93,10 +103,18 @@ enum BarSession: String, Equatable, Hashable {
     case regular
     case premarket
     case aftermarket
+    case index
+
+    static let indexSymbol = "COMP"
+
+    static func isIndexSymbol(_ raw: String) -> Bool {
+        let symbol = SymbolCode.normalize(raw)
+        return symbol == indexSymbol || symbol == "NASDAQ"
+    }
 
     var clockWindow: MarketClock.USSessionWindow {
         switch self {
-        case .regular: return .regular
+        case .regular, .index: return .regular
         case .premarket: return .premarket
         case .aftermarket: return .aftermarket
         }

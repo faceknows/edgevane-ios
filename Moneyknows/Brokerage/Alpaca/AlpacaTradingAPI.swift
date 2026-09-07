@@ -38,6 +38,7 @@ struct AlpacaOrderDTO: Equatable {
     var submittedAt: Date?
     var updatedAt: Date?
     var createdAt: Date?
+    var filledAt: Date?
     var clientOrderId: String?
     var orderClass: String?
     var parentOrderId: String?
@@ -49,11 +50,25 @@ struct AlpacaOrderPage: Equatable {
     var hasMore: Bool
 }
 
+struct AlpacaFillActivityDTO: Equatable {
+    var id: String
+    var orderId: String
+    var symbol: String
+    var side: String
+    var qty: Double
+    var price: Double
+    var transactionTime: Date
+}
+
 struct AlpacaTradingAPI {
     var client: HTTPSending
     var openPageSize: Int = 500
     var maxOpenPages: Int = 20
     var maxOpenOrders: Int = 10_000
+    var activityPageSize: Int = 100
+    var maxActivityPages: Int = 20
+    /// Alpaca `page_size` max is 100, so 20 pages is 2,000 account FILLs per Eastern day.
+    var maxFillActivities: Int = 2_000
 
     func account() async throws -> AlpacaAccountDTO {
         let data = try await client.sendRaw(HTTPRequest(method: .get, path: "v2/account"))
@@ -71,6 +86,53 @@ struct AlpacaTradingAPI {
 
     func closedOrders(limit: Int, beforeOrderId: String? = nil) async throws -> AlpacaOrderPage {
         try await fetchOrderPage(status: "closed", limit: limit, beforeOrderId: beforeOrderId)
+    }
+
+    func fillActivities(after: Date, until: Date) async throws -> [AlpacaFillActivityDTO] {
+        var all: [AlpacaFillActivityDTO] = []
+        var seenIDs = Set<String>()
+        var seenTokens = Set<String>()
+        var pageToken: String?
+        var pages = 0
+        let pageSize = min(100, max(1, activityPageSize))
+        let pageCap = max(1, maxActivityPages)
+        let fillCap = min(max(1, maxFillActivities), pageSize * pageCap)
+        while true {
+            let token = pageToken ?? ""
+            if !seenTokens.insert(token).inserted {
+                throw AppError.orderHistoryIncomplete
+            }
+            if pages >= pageCap {
+                let probe = try await sendFillActivities(
+                    after: after,
+                    until: until,
+                    limit: pageSize,
+                    pageToken: pageToken
+                )
+                if !probe.isEmpty {
+                    throw AppError.orderHistoryIncomplete
+                }
+                break
+            }
+            pages += 1
+            let page = try await sendFillActivities(
+                after: after,
+                until: until,
+                limit: pageSize,
+                pageToken: pageToken
+            )
+            for dto in page where seenIDs.insert(dto.id).inserted {
+                all.append(dto)
+            }
+            if all.count > fillCap {
+                throw AppError.orderHistoryIncomplete
+            }
+            guard page.count >= pageSize, let next = page.last?.id, !next.isEmpty else {
+                break
+            }
+            pageToken = next
+        }
+        return all
     }
 
     func order(id: String) async throws -> [AlpacaOrderDTO] {
@@ -197,7 +259,11 @@ struct AlpacaTradingAPI {
         )
     }
 
-    private func fetchAllPaged(status: String, pageSize: Int) async throws -> [AlpacaOrderDTO] {
+    private func fetchAllPaged(
+        status: String,
+        pageSize: Int,
+        symbols: String? = nil
+    ) async throws -> [AlpacaOrderDTO] {
         var all: [AlpacaOrderDTO] = []
         var seenOrders = Set<String>()
         var seenCursors = Set<String>()
@@ -211,14 +277,24 @@ struct AlpacaTradingAPI {
                 throw AppError.decoding
             }
             if pages >= pageCap {
-                let probe = try await fetchOrderPage(status: status, limit: pageSize, beforeOrderId: beforeOrderId)
+                let probe = try await fetchOrderPage(
+                    status: status,
+                    limit: pageSize,
+                    beforeOrderId: beforeOrderId,
+                    symbols: symbols
+                )
                 if !probe.orders.isEmpty {
                     throw AppError.decoding
                 }
                 break
             }
             pages += 1
-            let page = try await fetchOrderPage(status: status, limit: pageSize, beforeOrderId: beforeOrderId)
+            let page = try await fetchOrderPage(
+                status: status,
+                limit: pageSize,
+                beforeOrderId: beforeOrderId,
+                symbols: symbols
+            )
             for dto in page.orders where seenOrders.insert(dto.id).inserted {
                 all.append(dto)
             }
@@ -233,12 +309,33 @@ struct AlpacaTradingAPI {
         return all
     }
 
-    private func fetchOrderPage(status: String, limit: Int, beforeOrderId: String?) async throws -> AlpacaOrderPage {
-        let data = try await sendOrders(status: status, limit: limit, beforeOrderId: beforeOrderId)
+    private func fetchOrderPage(
+        status: String,
+        limit: Int,
+        beforeOrderId: String?,
+        symbols: String? = nil,
+        after: Date? = nil,
+        until: Date? = nil
+    ) async throws -> AlpacaOrderPage {
+        let data = try await sendOrders(
+            status: status,
+            limit: limit,
+            beforeOrderId: beforeOrderId,
+            symbols: symbols,
+            after: after,
+            until: until
+        )
         return try Self.decodeOrderPage(from: data, requestedLimit: limit)
     }
 
-    private func sendOrders(status: String, limit: Int, beforeOrderId: String?) async throws -> Data {
+    private func sendOrders(
+        status: String,
+        limit: Int,
+        beforeOrderId: String?,
+        symbols: String? = nil,
+        after: Date? = nil,
+        until: Date? = nil
+    ) async throws -> Data {
         var query = [
             "status": status,
             "limit": String(limit),
@@ -248,9 +345,66 @@ struct AlpacaTradingAPI {
         if let beforeOrderId, !beforeOrderId.isEmpty {
             query["before_order_id"] = beforeOrderId
         }
+        if let symbols, !symbols.isEmpty {
+            query["symbols"] = symbols
+        }
+        if let after {
+            query["after"] = Self.formatTime(after)
+        }
+        if let until {
+            query["until"] = Self.formatTime(until)
+        }
         return try await client.sendRaw(
             HTTPRequest(method: .get, path: "v2/orders", query: query)
         )
+    }
+
+    private func sendFillActivities(
+        after: Date,
+        until: Date,
+        limit: Int,
+        pageToken: String?
+    ) async throws -> [AlpacaFillActivityDTO] {
+        var query = [
+            "activity_types": "FILL",
+            "page_size": String(limit),
+            "direction": "desc",
+            "after": Self.formatTime(after),
+            "until": Self.formatTime(until),
+        ]
+        if let pageToken, !pageToken.isEmpty {
+            query["page_token"] = pageToken
+        }
+        let data = try await client.sendRaw(
+            HTTPRequest(method: .get, path: "v2/account/activities", query: query)
+        )
+        return try Self.decodeFillActivities(from: data)
+    }
+
+    static func decodeFillActivities(from data: Data) throws -> [AlpacaFillActivityDTO] {
+        try array(data).map { item in
+            guard let object = item as? [String: Any] else { throw AppError.decoding }
+            let type = string(object["activity_type"])?.uppercased()
+            guard type == "FILL" else { throw AppError.decoding }
+            guard let id = string(object["id"]), !id.isEmpty else { throw AppError.decoding }
+            guard let orderId = string(object["order_id"]), !orderId.isEmpty else { throw AppError.decoding }
+            guard let symbol = symbol(object["symbol"]), !symbol.isEmpty else { throw AppError.decoding }
+            guard let side = string(object["side"])?.lowercased(), side == "buy" || side == "sell" else {
+                throw AppError.decoding
+            }
+            guard let qty = number(object["qty"]), qty > 0 else { throw AppError.decoding }
+            guard let price = number(object["price"]), price > 0 else { throw AppError.decoding }
+            guard let transactionTime = parseTime(object["transaction_time"]) else { throw AppError.decoding }
+            return AlpacaFillActivityDTO(
+                id: id,
+                orderId: orderId,
+                symbol: symbol,
+                side: side,
+                qty: qty,
+                price: price,
+                transactionTime: transactionTime
+            )
+        }
     }
 
     private static func decodeOrderTree(
@@ -312,6 +466,7 @@ struct AlpacaTradingAPI {
             submittedAt: parseTime(object["submitted_at"]),
             updatedAt: parseTime(object["updated_at"]),
             createdAt: parseTime(object["created_at"]),
+            filledAt: parseTime(object["filled_at"]),
             clientOrderId: string(object["client_order_id"]),
             orderClass: string(object["order_class"]),
             parentOrderId: string(object["parent_order_id"])
@@ -365,6 +520,12 @@ struct AlpacaTradingAPI {
         defer { timeLock.unlock() }
         if let date = isoFractional.date(from: raw) { return date }
         return isoInternet.date(from: raw)
+    }
+
+    private static func formatTime(_ date: Date) -> String {
+        timeLock.lock()
+        defer { timeLock.unlock() }
+        return isoInternet.string(from: date)
     }
 
     private static let timeLock = NSLock()

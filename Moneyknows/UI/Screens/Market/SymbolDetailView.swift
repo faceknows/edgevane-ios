@@ -10,8 +10,13 @@ struct SymbolDetailView: View {
     @EnvironmentObject private var seconds: SecondBarStore
     @EnvironmentObject private var portfolio: PortfolioStore
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
+    @EnvironmentObject private var trading: TradingSession
+    @EnvironmentObject private var orders: OrderStore
+    @EnvironmentObject private var preferences: PreferencesStore
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var charts = SymbolChartSession()
+    @StateObject private var indexCharts = IndexChartSession()
+    @StateObject private var dayFills = DayFillsSession()
     @State private var summary: SymbolSummary?
     @State private var errorText: String?
     @State private var summaryGeneration: UInt64 = 0
@@ -24,6 +29,19 @@ struct SymbolDetailView: View {
 
     private var isSubscribed: Bool {
         subscriptions.contains(symbol)
+    }
+
+    private var showsIndex: Bool {
+        preferences.values.showIndexBarInDetail && !BarSession.isIndexSymbol(symbol)
+    }
+
+    private var fillTaskID: String {
+        let days = DayFills.chartDays(regularDate: charts.regularDate, extendedDate: charts.extendedDate).joined(separator: ",")
+        return "\(SymbolCode.normalize(symbol))|\(days)|\(brokerage.current?.id ?? "")|\(trading.sessionEpoch)"
+    }
+
+    private var indexTaskID: String {
+        IndexChartSession.taskID(date: charts.regularDate, enabled: showsIndex)
     }
 
     var body: some View {
@@ -43,7 +61,7 @@ struct SymbolDetailView: View {
                     style: $charts.style,
                     showVWAP: $charts.showVWAP
                 )
-                chartSection(
+                ChartPanel(
                     title: L10n.Detail.chart,
                     model: charts.regularModel,
                     height: 260,
@@ -52,18 +70,41 @@ struct SymbolDetailView: View {
                     retry: { Task { await charts.retryRegular() } }
                 )
                 if !charts.preBars.isEmpty {
-                    chartSection(
+                    ChartPanel(
                         title: L10n.Chart.preMarket,
                         model: charts.preModel,
                         height: 180
                     )
                 }
                 if !charts.afterBars.isEmpty {
-                    chartSection(
+                    ChartPanel(
                         title: L10n.Chart.afterMarket,
                         model: charts.afterModel,
                         height: 180
                     )
+                }
+                if let fillErrorText = dayFills.errorText {
+                    Text(fillErrorText)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
+                if showsIndex {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ChartChrome(
+                            interval: $indexCharts.interval,
+                            style: $indexCharts.style,
+                            showVWAP: .constant(false),
+                            showsVWAPToggle: false
+                        )
+                        ChartPanel(
+                            title: L10n.Chart.nasdaq,
+                            model: indexCharts.model,
+                            height: 160,
+                            isLoading: indexCharts.isLoading,
+                            errorText: indexCharts.errorText,
+                            retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
+                        )
+                    }
                 }
                 if isSubscribed {
                     secondChart
@@ -96,10 +137,27 @@ struct SymbolDetailView: View {
             await charts.start(symbol: symbol, store: bars)
             await summaryLoad
         }
+        .task(id: fillTaskID) {
+            dayFills.reset()
+            charts.fills = []
+            let days = DayFills.chartDays(regularDate: charts.regularDate, extendedDate: charts.extendedDate)
+            guard !days.isEmpty else { return }
+            await dayFills.load(symbol: symbol, days: days, trading: trading)
+            refreshMarkers()
+        }
+        .task(id: indexTaskID) {
+            await refreshIndexChart()
+        }
         .onChange(of: summary) { value in
             if let value {
                 charts.updateSummary(value)
             }
+        }
+        .onChange(of: dayFills.fills) { _ in
+            refreshMarkers()
+        }
+        .onChange(of: orders.orders) { _ in
+            dayFills.refresh(orders: orders.orders, trading: trading)
         }
     }
 
@@ -249,39 +307,24 @@ struct SymbolDetailView: View {
         return (headerPrice - previous) / previous * 100
     }
 
-    private func chartSection(
-        title: String,
-        model: ChartModel,
-        height: CGFloat,
-        isLoading: Bool = false,
-        errorText: String? = nil,
-        retry: (() -> Void)? = nil
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(title).font(.headline)
-                Spacer()
-                if isLoading {
-                    ProgressView()
-                }
-            }
-            ChartSurface(
-                model: model,
-                colors: ChartPalette.colors(scheme: colorScheme),
-                height: height,
-                isLoading: isLoading,
-                errorText: errorText,
-                retry: retry
-            )
-        }
-    }
-
     private func row(_ title: String, _ value: String) -> some View {
         HStack {
             Text(title)
             Spacer()
             Text(value).foregroundColor(.secondary)
         }
+    }
+
+    private func refreshMarkers() {
+        charts.fills = dayFills.fills
+    }
+
+    private func refreshIndexChart() async {
+        guard showsIndex, !charts.regularDate.isEmpty else {
+            indexCharts.reset()
+            return
+        }
+        await indexCharts.start(store: bars, date: charts.regularDate)
     }
 
     private func loadSummary(_ generation: UInt64) async {

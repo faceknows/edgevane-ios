@@ -64,7 +64,7 @@ struct DashboardView: View {
                 NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.news)) {
                     Label(L10n.Dashboard.news, systemImage: "newspaper")
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.historical)) {
+                NavigationLink(destination: AppRouter.destination(.historicalMinutes)) {
                     Label(L10n.Dashboard.historical, systemImage: "clock")
                 }
             }

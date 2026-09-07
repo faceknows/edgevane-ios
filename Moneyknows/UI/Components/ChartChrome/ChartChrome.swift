@@ -46,6 +46,39 @@ struct SecondChartChrome: View {
     }
 }
 
+struct ChartPanel: View {
+    var title: String
+    var model: ChartModel
+    var height: CGFloat
+    var isLoading = false
+    var errorText: String? = nil
+    var retry: (() -> Void)? = nil
+    var onEvent: (ChartEvent) -> Void = { _ in }
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                if isLoading {
+                    ProgressView()
+                }
+            }
+            ChartSurface(
+                model: model,
+                colors: ChartPalette.colors(scheme: colorScheme),
+                height: height,
+                isLoading: isLoading,
+                errorText: errorText,
+                retry: retry,
+                onEvent: onEvent
+            )
+        }
+    }
+}
+
 private extension ChartChrome {
     var styleButton: some View {
         Button(style == .candle ? L10n.Chart.line : L10n.Chart.candle) {

@@ -35,6 +35,19 @@ final class ChartHitTestingTests: XCTestCase {
         XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, second], at: insideFirst)?.close, 1)
         XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, second], at: start.addingTimeInterval(300))?.close, 2)
     }
+
+    func testContainingBarDoesNotClampOutsideRange() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let first = Bar(time: start, open: 1, high: 1, low: 1, close: 1, volume: 1)
+        let last = Bar(time: start.addingTimeInterval(300), open: 2, high: 2, low: 2, close: 2, volume: 1)
+        XCTAssertNil(ChartHitTesting.containingBar(in: [first, last], at: start.addingTimeInterval(-1), duration: 60))
+        XCTAssertEqual(ChartHitTesting.containingBar(in: [first, last], at: start.addingTimeInterval(30), duration: 60)?.close, 1)
+        XCTAssertNil(ChartHitTesting.containingBar(in: [first, last], at: start.addingTimeInterval(60), duration: 60))
+        XCTAssertEqual(ChartHitTesting.containingBar(in: [first, last], at: start.addingTimeInterval(300), duration: 60)?.close, 2)
+        XCTAssertNil(ChartHitTesting.containingBar(in: [first, last], at: start.addingTimeInterval(360), duration: 60))
+        XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, last], at: start.addingTimeInterval(-1))?.close, 1)
+        XCTAssertEqual(ChartHitTesting.pickedBar(in: [first, last], at: start.addingTimeInterval(360))?.close, 2)
+    }
 }
 
 final class ChartTimeScalePagingTests: XCTestCase {

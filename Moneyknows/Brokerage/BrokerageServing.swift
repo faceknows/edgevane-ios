@@ -11,6 +11,7 @@ protocol BrokerageServing: AnyObject {
     func place(_ order: NewOrder) async throws -> [Order]
     func replace(orderId: String, amendment: OrderAmendment) async throws -> [Order]
     func closePosition(symbol: String, percentage: Double, cancelOpenOrders: Bool) async throws -> [Order]
+    func fills(symbol: String, day: Date) async throws -> [Fill]
 }
 
 extension BrokerageServing {

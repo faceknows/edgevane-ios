@@ -29,4 +29,13 @@ enum ChartHitTesting {
         }
         return bars.first
     }
+
+    static func containingBar(in bars: [Bar], at time: Date, duration: TimeInterval) -> Bar? {
+        guard duration > 0, let first = bars.first, let last = bars.last else { return nil }
+        let rangeEnd = last.time.addingTimeInterval(duration)
+        guard time >= first.time, time < rangeEnd else { return nil }
+        return bars.last { bar in
+            bar.time <= time && time < bar.time.addingTimeInterval(duration)
+        }
+    }
 }

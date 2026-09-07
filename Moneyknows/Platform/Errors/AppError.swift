@@ -4,6 +4,7 @@ enum AppError: Error, Equatable {
     case network
     case cancelled
     case decoding
+    case orderHistoryIncomplete
     case http(status: Int, message: String?, errorCode: String?)
     case versionUnsupported(message: String, storeURL: URL?)
 
@@ -37,6 +38,8 @@ enum UserFacingError {
             return L10n.Errors.network
         case .decoding:
             return L10n.Errors.generic
+        case .orderHistoryIncomplete:
+            return L10n.Trading.orderHistoryIncomplete
         case let .http(status, message, _):
             if let message, !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return message

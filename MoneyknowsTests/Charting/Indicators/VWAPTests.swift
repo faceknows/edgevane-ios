@@ -126,7 +126,8 @@ final class MinuteChartAssemblerTests: XCTestCase {
         XCTAssertEqual(model.overlays.first?.points.count, bars1m.count)
         XCTAssertEqual(model.priceLines.map(\.id), ["prevClose", "sessionOpen"])
         XCTAssertTrue(model.priceLines.allSatisfy(\.dashed))
-        XCTAssertEqual(model.markers, [marker])
+        XCTAssertEqual(model.markers.map(\.id), ["fill-1"])
+        XCTAssertEqual(model.markers.first?.time, model.bars.first?.time)
         XCTAssertFalse(model.followLatest)
 
         let hidden = MinuteChartAssembler.model(
@@ -140,5 +141,74 @@ final class MinuteChartAssemblerTests: XCTestCase {
         XCTAssertTrue(hidden.overlays.isEmpty)
         XCTAssertTrue(hidden.priceLines.isEmpty)
         XCTAssertEqual(hidden.bars.count, 6)
+    }
+
+    func testMarkersSnapOntoAggregatedBars() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let bars1m = (0..<6).map { index in
+            Bar(
+                time: start.addingTimeInterval(TimeInterval(index * 60)),
+                open: 10,
+                high: 11,
+                low: 9,
+                close: 10,
+                volume: 1
+            )
+        }
+        let marker = ChartMarker(
+            id: "fill-2",
+            time: start.addingTimeInterval(60),
+            price: 10.5,
+            kind: .sell,
+            title: "1@10.5",
+            position: .aboveBar
+        )
+        let model = MinuteChartAssembler.model(
+            bars1m: bars1m,
+            interval: .five,
+            style: .candle,
+            showVWAP: false,
+            previousClose: nil,
+            sessionOpen: nil,
+            markers: [marker]
+        )
+        XCTAssertEqual(model.bars.first?.time, start)
+        XCTAssertEqual(model.markers.first?.id, "fill-2")
+        XCTAssertEqual(model.markers.first?.time, start)
+        XCTAssertEqual(model.markers.first?.price, 10.5)
+        XCTAssertEqual(model.markers.first?.position, .aboveBar)
+    }
+
+    func testMarkersOutsideAggregatedRangeAreDropped() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let bars1m = [
+            Bar(time: start, open: 10, high: 11, low: 9, close: 10, volume: 1),
+        ]
+        let early = ChartMarker(
+            id: "early",
+            time: start.addingTimeInterval(-120),
+            price: 10,
+            kind: .buy,
+            title: nil,
+            position: .belowBar
+        )
+        let late = ChartMarker(
+            id: "late",
+            time: start.addingTimeInterval(360),
+            price: 10,
+            kind: .sell,
+            title: nil,
+            position: .aboveBar
+        )
+        let model = MinuteChartAssembler.model(
+            bars1m: bars1m,
+            interval: .one,
+            style: .candle,
+            showVWAP: false,
+            previousClose: nil,
+            sessionOpen: nil,
+            markers: [early, late]
+        )
+        XCTAssertTrue(model.markers.isEmpty)
     }
 }

@@ -44,6 +44,14 @@ struct BarsAPI {
         ])
     }
 
+    func indexIntraday(symbol: String = "COMP", date: String, timeFrame: String = "1Min") async throws -> [BarDTO] {
+        try await get("ibkr/market/intraday-bars", [
+            "symbol": symbol,
+            "date": date,
+            "timeFrame": timeFrame,
+        ])
+    }
+
     func latestSnapshot(symbols: [String]) async throws -> Data {
         let joined = symbols.map(SymbolCode.normalize).filter { !$0.isEmpty }.joined(separator: ",")
         guard !joined.isEmpty else { return Data("{}".utf8) }

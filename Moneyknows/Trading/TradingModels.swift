@@ -153,6 +153,7 @@ struct Order: Equatable, Identifiable {
     var submittedAt: Date?
     var updatedAt: Date?
     var createdAt: Date?
+    var filledAt: Date?
     var clientOrderId: String?
     var orderClass: String?
     var parentOrderId: String?
@@ -484,6 +485,7 @@ extension Order {
             submittedAt: stream.submittedAt,
             updatedAt: stream.updatedAt,
             createdAt: stream.createdAt,
+            filledAt: stream.filledAt,
             clientOrderId: stream.clientOrderId,
             orderClass: stream.orderClass,
             parentOrderId: stream.parentOrderId

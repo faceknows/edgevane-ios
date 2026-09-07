@@ -131,6 +131,12 @@
 		FF102709AD6A566AC9CCDE9A /* AlpacaTradingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711C8D1F733CE7A57B6A4AAB /* AlpacaTradingAPI.swift */; };
 		FF720C8BA64C8478D697D7C8 /* PushPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A37A14962F1FF6C1F1FBAF5 /* PushPreferenceStore.swift */; };
 		FFE37CF44D87DDAC482BB9A7 /* PriceSlopeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B870286463E2535138EC83 /* PriceSlopeFilterView.swift */; };
+		C7D0F1111111111111110002 /* DayFills.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110001 /* DayFills.swift */; };
+		C7D0F1111111111111110004 /* HistoricalMinutesSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110003 /* HistoricalMinutesSession.swift */; };
+		C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110005 /* IndexChartSession.swift */; };
+		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
+		C7D0F111111111111111000A /* DayFillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110009 /* DayFillsTests.swift */; };
+		C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111000B /* HistoricalMinutesTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -272,6 +278,12 @@
 		FBEB563554C587E4CEC55671 /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
 		FCA5822FD58FB83884DB36CE /* TradingChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TradingChrome.swift; sourceTree = "<group>"; };
 		FDDBBA5D0648CCDB75A6BD09 /* MarketDisconnectedBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketDisconnectedBanner.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110001 /* DayFills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFills.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110003 /* HistoricalMinutesSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesSession.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110005 /* IndexChartSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexChartSession.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110009 /* DayFillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFillsTests.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111000B /* HistoricalMinutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -505,6 +517,7 @@
 				6F0ADFD6E9CF4278A0135F85 /* ScreenerCatalogView.swift */,
 				628F0F10F9A5B622A165D793 /* ScreenerResultsView.swift */,
 				63831A18B33527B9A56CB8DC /* SymbolDetailView.swift */,
+				C7D0F1111111111111110007 /* HistoricalMinutesView.swift */,
 			);
 			path = Market;
 			sourceTree = "<group>";
@@ -584,6 +597,7 @@
 			isa = PBXGroup;
 			children = (
 				3D009C363DABBE4E8DD0E100 /* AutoExit.swift */,
+				C7D0F1111111111111110001 /* DayFills.swift */,
 				109E62E931C1C73C6071A161 /* OrderPlacement.swift */,
 				F52D319CD62DB04312D9C9C6 /* TradingModels.swift */,
 				029C5E06DE5BE08AA3EF3CD3 /* TradingSession.swift */,
@@ -621,6 +635,8 @@
 			children = (
 				B00C110132B20A1F936559DA /* BarAggregator.swift */,
 				C44D48D0FA81D74C28321F27 /* BarStore.swift */,
+				C7D0F1111111111111110003 /* HistoricalMinutesSession.swift */,
+				C7D0F1111111111111110005 /* IndexChartSession.swift */,
 				C1F2E28323ECEEFED9841708 /* MarketRealtimeSession.swift */,
 				1E3383C6C64573865ADB79F8 /* MinuteChartAssembler.swift */,
 				5390F4D90B9FBE74B11B2134 /* QuoteStore.swift */,
@@ -641,6 +657,7 @@
 			isa = PBXGroup;
 			children = (
 				0185957A443D83B37E24A2C0 /* TradingTests.swift */,
+				C7D0F1111111111111110009 /* DayFillsTests.swift */,
 			);
 			path = Trading;
 			sourceTree = "<group>";
@@ -665,6 +682,7 @@
 			isa = PBXGroup;
 			children = (
 				4F7CB2ACCBC34B381A4FF4A8 /* BarStoreTests.swift */,
+				C7D0F111111111111111000B /* HistoricalMinutesTests.swift */,
 				52666655AADE53D1FBDC419B /* RealtimeTests.swift */,
 				C91EB5BC562651B639FE6F36 /* ScreenerTests.swift */,
 				A62C553730C527782DEA392F /* SymbolChartSessionTests.swift */,
@@ -925,6 +943,7 @@
 				E9151CC35B6628482F73AC38 /* CredentialsView.swift in Sources */,
 				9C181482E66CE699D6A95AA5 /* CurrentBrokerageStore.swift in Sources */,
 				147BA311720422CC6BB5D2E6 /* DashboardView.swift in Sources */,
+				C7D0F1111111111111110002 /* DayFills.swift in Sources */,
 				5F2D5BEF3845AD130C532232 /* DiskStore.swift in Sources */,
 				4F639A7DCC10D1F2D7D30F8D /* EmptyStateView.swift in Sources */,
 				8276A81FC270DD7D6D82BB9D /* FlexibleJSON.swift in Sources */,
@@ -932,7 +951,10 @@
 				3B3681F0DCEED96715911772 /* FormMessage.swift in Sources */,
 				57C39C82E678841CC31996BD /* GatewaySocket.swift in Sources */,
 				DB2B650BC8874E1A57899084 /* HTTPClient.swift in Sources */,
+				C7D0F1111111111111110004 /* HistoricalMinutesSession.swift in Sources */,
+				C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */,
 				70C4A20D82EF76150EFD4AB4 /* IndicatorChips.swift in Sources */,
+				C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */,
 				D6997A407E3950C125053650 /* KeychainStore.swift in Sources */,
 				70199D529C905B71C104E8D0 /* L10n.swift in Sources */,
 				C8A824511889B895BCE55928 /* LightweightChartCoordinator.swift in Sources */,
@@ -1010,7 +1032,9 @@
 				AD7778B54BB8AF5F0F00A846 /* ChartEasternTimeTests.swift in Sources */,
 				F977657AD8AB4E44013C5C9A /* ChartHitTestingTests.swift in Sources */,
 				AE1870F526EA0061C28C74A1 /* CurrentBrokerageStoreTests.swift in Sources */,
+				C7D0F111111111111111000A /* DayFillsTests.swift in Sources */,
 				218CE37513BA014645226A2F /* ErrorCancellationTests.swift in Sources */,
+				C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */,
 				DE0AD3787E9C6C11119AE78F /* MemoryCredentialStore.swift in Sources */,
 				4F3BDF7ECDD39E20F4D9660F /* PreferencesStoreTests.swift in Sources */,
 				9F705F133B6382462D515718 /* RealtimeTests.swift in Sources */,
