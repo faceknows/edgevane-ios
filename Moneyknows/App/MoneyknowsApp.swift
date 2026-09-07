@@ -9,7 +9,9 @@ struct MoneyknowsApp: App {
         WindowGroup {
             RootContainer(
                 appearance: appModel.appearance,
-                preferences: appModel.preferences
+                preferences: appModel.preferences,
+                brokerage: appModel.brokerage,
+                onBrokerageChange: { appModel.syncTrading() }
             )
             .environmentObject(appModel)
             .environmentObject(appModel.session)
@@ -26,13 +28,21 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.realtime.subscriptions)
             .environmentObject(appModel.realtime.quotes)
             .environmentObject(appModel.realtime.seconds)
+            .environmentObject(appModel.trading)
+            .environmentObject(appModel.trading.portfolio)
+            .environmentObject(appModel.trading.positions)
+            .environmentObject(appModel.trading.orders)
             .environmentObject(appModel.router)
             .task {
+                appModel.setTradingForeground(scenePhase == .active)
                 await appModel.start()
             }
             .onChange(of: scenePhase) { phase in
                 if phase == .active {
                     appModel.ensureRealtimeConnected()
+                    appModel.setTradingForeground(true)
+                } else {
+                    appModel.setTradingForeground(false)
                 }
             }
         }
@@ -42,10 +52,15 @@ struct MoneyknowsApp: App {
 private struct RootContainer: View {
     @ObservedObject var appearance: AppearanceStore
     @ObservedObject var preferences: PreferencesStore
+    @ObservedObject var brokerage: CurrentBrokerageStore
+    var onBrokerageChange: () -> Void
 
     var body: some View {
         RootView()
             .preferredColorScheme(appearance.preference.colorScheme)
             .id(preferences.localeRevision)
+            .onChange(of: brokerage.generation) { _ in
+                onBrokerageChange()
+            }
     }
 }

@@ -18,7 +18,9 @@ final class AppModel: ObservableObject {
     let summaries: SymbolSummaryStore
     let bars: BarStore
     let realtime: MarketRealtimeSession
+    let trading: TradingSession
     let router: AppRouter
+    private var isTradingForeground = false
 
     init() {
         let sessionConfig = URLSessionConfiguration.default
@@ -46,6 +48,9 @@ final class AppModel: ObservableObject {
         appearance = AppearanceStore()
         blacklist = AutoExitBlacklistStore()
         brokerage = CurrentBrokerageStore()
+        if let userId = session.user?.id {
+            brokerage.prepareForUser(userId)
+        }
         profile = ProfileStore(api: userAPI, session: session)
         pushPreference = PushPreferenceStore()
         let screenerAPI = ScreenerAPI(client: authorized)
@@ -67,9 +72,14 @@ final class AppModel: ObservableObject {
             socket: GatewaySocket(),
             barsAPI: BarsAPI(client: authorized)
         )
+        trading = TradingSession()
         router = AppRouter()
         session.cleanup.register { [weak brokerage] in
-            brokerage?.clearAll()
+            do {
+                try brokerage?.clearAll()
+            } catch {
+                AppLog.brokerage.error("clear brokerage on logout failed")
+            }
         }
         session.cleanup.register { [weak profile] in
             profile?.reset()
@@ -88,6 +98,9 @@ final class AppModel: ObservableObject {
         }
         session.cleanup.register { [weak realtime] in
             realtime?.reset()
+        }
+        session.cleanup.register { [weak trading] in
+            trading?.reset()
         }
         session.cleanup.register { [weak router] in
             router?.dismissOverlay()
@@ -118,6 +131,11 @@ final class AppModel: ObservableObject {
         let generation = session.generation
         realtime.connect(token: session.accessToken)
         Task { await realtime.refreshSubscriptions() }
+        if let userId = session.user?.id {
+            brokerage.prepareForUser(userId)
+        }
+        syncTrading()
+        applyTradingForeground()
 
         if let userId = session.user?.id {
             preferences.prepareForUser(userId)
@@ -131,6 +149,9 @@ final class AppModel: ObservableObject {
         guard session.generation == generation, session.isSignedIn, let userId = session.user?.id else {
             return
         }
+        brokerage.prepareForUser(userId)
+        syncTrading()
+        applyTradingForeground()
         preferences.prepareForUser(userId)
         await preferences.refresh(userId: userId)
     }
@@ -138,5 +159,36 @@ final class AppModel: ObservableObject {
     func ensureRealtimeConnected() {
         guard session.isSignedIn else { return }
         realtime.connect(token: session.accessToken)
+    }
+
+    func syncTrading() {
+        guard session.isSignedIn,
+              let account = brokerage.current,
+              let credentials = brokerage.credentials(for: account.environment)
+        else {
+            trading.use(nil)
+            return
+        }
+        trading.use(
+            AlpacaBrokerage(
+                account: account,
+                key: credentials.key,
+                secret: credentials.secret
+            )
+        )
+    }
+
+    func setTradingForeground(_ foreground: Bool) {
+        isTradingForeground = foreground
+        brokerage.setForeground(foreground)
+        applyTradingForeground()
+    }
+
+    private func applyTradingForeground() {
+        guard isTradingForeground, session.isSignedIn else {
+            trading.setForeground(false)
+            return
+        }
+        trading.setForeground(true)
     }
 }

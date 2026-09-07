@@ -18,6 +18,22 @@ enum MarketFormat {
         return .secondary
     }
 
+    static func signedPrice(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        let formatted = price(abs(value))
+        if value > 0 { return "+\(formatted)" }
+        if value < 0 { return "-\(formatted)" }
+        return formatted
+    }
+
+    static func quantity(_ value: Double?) -> String {
+        guard let value else { return "—" }
+        if value == value.rounded() {
+            return String(format: "%.0f", value)
+        }
+        return String(format: "%g", value)
+    }
+
     static func compact(_ value: Double?) -> String {
         guard let value else { return "—" }
         if abs(value) >= 1_000_000 {

@@ -1,22 +1,43 @@
 import SwiftUI
 
-struct SymbolRow: View {
-    var summary: SymbolSummary
+struct SymbolRowLayout<Leading: View, Trailing: View>: View {
+    var leading: Leading
+    var trailing: Trailing
+
+    init(
+        @ViewBuilder leading: () -> Leading,
+        @ViewBuilder trailing: () -> Trailing
+    ) {
+        self.leading = leading()
+        self.trailing = trailing()
+    }
 
     var body: some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text(summary.symbol)
-                    .font(.headline)
-                IndicatorChips(summary: summary)
+                leading
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(MarketFormat.price(summary.lastPrice))
-                    .font(.headline.monospacedDigit())
-                ChangePercentText(percent: summary.changePercent)
+                trailing
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+struct SymbolRow: View {
+    var summary: SymbolSummary
+
+    var body: some View {
+        SymbolRowLayout {
+            Text(summary.symbol)
+                .font(.headline)
+            IndicatorChips(summary: summary)
+        } trailing: {
+            Text(MarketFormat.price(summary.lastPrice))
+                .font(.headline.monospacedDigit())
+            ChangePercentText(percent: summary.changePercent)
+        }
     }
 }

@@ -57,4 +57,8 @@ extension Error {
         let nsError = self as NSError
         return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
     }
+
+    var isUnauthorized: Bool {
+        (self as? AppError)?.isUnauthorized == true
+    }
 }

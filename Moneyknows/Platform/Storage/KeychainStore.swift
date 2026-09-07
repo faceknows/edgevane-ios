@@ -4,8 +4,23 @@ import Security
 protocol CredentialStoring {
     func set(_ value: String, account: String) throws
     func string(account: String) -> String?
+    func stringIfPresent(account: String) throws -> String?
     func delete(account: String)
-    func accounts() -> [String]
+    func deleteChecked(account: String) throws
+    func accounts() throws -> [String]
+}
+
+extension CredentialStoring {
+    func stringIfPresent(account: String) throws -> String? {
+        string(account: account)
+    }
+
+    func deleteChecked(account: String) throws {
+        delete(account: account)
+        guard string(account: account) == nil else {
+            throw AppError.decoding
+        }
+    }
 }
 
 struct KeychainStore: CredentialStoring {
@@ -29,6 +44,10 @@ struct KeychainStore: CredentialStoring {
     }
 
     func string(account: String) -> String? {
+        try? stringIfPresent(account: account)
+    }
+
+    func stringIfPresent(account: String) throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -38,22 +57,33 @@ struct KeychainStore: CredentialStoring {
         ]
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let data = item as? Data else {
+        if status == errSecItemNotFound {
             return nil
         }
-        return String(data: data, encoding: .utf8)
+        guard status == errSecSuccess, let data = item as? Data else {
+            throw AppError.decoding
+        }
+        guard let value = String(data: data, encoding: .utf8) else {
+            throw AppError.decoding
+        }
+        return value
     }
 
     func delete(account: String) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-        SecItemDelete(query as CFDictionary)
+        _ = deleteStatus(account: account)
     }
 
-    func accounts() -> [String] {
+    func deleteChecked(account: String) throws {
+        let status = deleteStatus(account: account)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw AppError.decoding
+        }
+        guard try stringIfPresent(account: account) == nil else {
+            throw AppError.decoding
+        }
+    }
+
+    func accounts() throws -> [String] {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -62,7 +92,12 @@ struct KeychainStore: CredentialStoring {
         ]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess else { return [] }
+        if status == errSecItemNotFound {
+            return []
+        }
+        guard status == errSecSuccess else {
+            throw AppError.decoding
+        }
         if let items = result as? [[String: Any]] {
             return items.compactMap { $0[kSecAttrAccount as String] as? String }
         }
@@ -70,5 +105,14 @@ struct KeychainStore: CredentialStoring {
             return [account]
         }
         return []
+    }
+
+    private func deleteStatus(account: String) -> OSStatus {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+        ]
+        return SecItemDelete(query as CFDictionary)
     }
 }

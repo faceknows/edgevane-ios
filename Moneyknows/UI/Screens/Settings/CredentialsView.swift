@@ -115,7 +115,7 @@ struct CredentialsView: View {
             defer { busy = false }
             do {
                 if key.isEmpty {
-                    brokerage.clear(environment: environment)
+                    try brokerage.clear(environment: environment)
                     loadFields()
                     message = L10n.Credentials.cleared
                 } else {

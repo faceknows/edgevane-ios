@@ -8,6 +8,8 @@ struct SymbolDetailView: View {
     @EnvironmentObject private var subscriptions: SubscriptionStore
     @EnvironmentObject private var quotes: QuoteStore
     @EnvironmentObject private var seconds: SecondBarStore
+    @EnvironmentObject private var portfolio: PortfolioStore
+    @EnvironmentObject private var brokerage: CurrentBrokerageStore
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var charts = SymbolChartSession()
     @State private var summary: SymbolSummary?
@@ -103,9 +105,7 @@ struct SymbolDetailView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(symbol)
                     .font(.largeTitle.bold())
-                Text(L10n.Detail.accountPnl)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                accountPnlLabel
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
@@ -176,6 +176,32 @@ struct SymbolDetailView: View {
             row(L10n.Detail.rsi, MarketFormat.compact(summary?.rsi))
             row(L10n.Detail.adx, MarketFormat.compact(summary?.adx))
             row(L10n.Detail.atr, MarketFormat.price(summary?.atr))
+        }
+    }
+
+    private var accountPnlLabel: some View {
+        HStack(spacing: 6) {
+            Text(L10n.Detail.accountPnl)
+                .foregroundColor(.secondary)
+            if brokerage.current == nil {
+                Text(L10n.Dashboard.noBrokerage)
+                    .foregroundColor(.secondary)
+            } else if let snapshot = portfolio.snapshot {
+                Text(MarketFormat.signedPrice(snapshot.profitLoss))
+                    .foregroundColor(accountPnlColor(snapshot))
+            } else {
+                Text("—")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .font(.caption)
+    }
+
+    private func accountPnlColor(_ snapshot: Portfolio) -> Color {
+        switch DailyPnL.tone(percent: snapshot.profitLossPercent) {
+        case .profit: return .green
+        case .loss: return .red
+        case .warning: return .orange
         }
     }
 

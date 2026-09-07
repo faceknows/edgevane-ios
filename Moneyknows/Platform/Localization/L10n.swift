@@ -186,6 +186,98 @@ enum L10n {
         static var symbolsRequired: String { localized("trade.symbolsRequired") }
     }
 
+    enum Trading {
+        static var blocked: String { localized("trading.blocked") }
+        static var addCredentialsBody: String { localized("trading.addCredentialsBody") }
+        static var goToCredentials: String { localized("trading.goToCredentials") }
+        static var credentialsInvalid: String { localized("trading.credentialsInvalid") }
+        static var credentialsInvalidBody: String { localized("trading.credentialsInvalidBody") }
+    }
+
+    enum Portfolio {
+        static var title: String { localized("portfolio.title") }
+        static var todayPnl: String { localized("portfolio.todayPnl") }
+        static var value: String { localized("portfolio.value") }
+        static var account: String { localized("portfolio.account") }
+        static var equity: String { localized("portfolio.equity") }
+        static var lastEquity: String { localized("portfolio.lastEquity") }
+        static var portfolioValue: String { localized("portfolio.portfolioValue") }
+        static var buyingPower: String { localized("portfolio.buyingPower") }
+        static var cash: String { localized("portfolio.cash") }
+    }
+
+    enum Positions {
+        static var title: String { localized("positions.title") }
+        static var empty: String { localized("positions.empty") }
+        static var emptyBody: String { localized("positions.emptyBody") }
+        static var quantity: String { localized("positions.quantity") }
+        static var side: String { localized("positions.side") }
+        static var long: String { localized("positions.long") }
+        static var short: String { localized("positions.short") }
+        static var entry: String { localized("positions.entry") }
+        static var current: String { localized("positions.current") }
+        static var marketValue: String { localized("positions.marketValue") }
+        static var cost: String { localized("positions.cost") }
+        static var unrealized: String { localized("positions.unrealized") }
+    }
+
+    enum Orders {
+        static var title: String { localized("orders.title") }
+        static var empty: String { localized("orders.empty") }
+        static var emptyBody: String { localized("orders.emptyBody") }
+        static var filters: String { localized("orders.filters") }
+        static var filterAll: String { localized("orders.filterAll") }
+        static var filterFilled: String { localized("orders.filterFilled") }
+        static var filterNew: String { localized("orders.filterNew") }
+        static var symbolFilter: String { localized("orders.symbolFilter") }
+        static var loadMore: String { localized("orders.loadMore") }
+        static func partialFill(_ filled: String, _ ordered: String, _ remaining: String) -> String {
+            String(format: localized("orders.partialFill"), filled, ordered, remaining)
+        }
+        static func priceAverage(_ price: String) -> String {
+            String(format: localized("orders.priceAverage"), price)
+        }
+        static func priceLimit(_ price: String) -> String {
+            String(format: localized("orders.priceLimit"), price)
+        }
+        static func priceStop(_ price: String) -> String {
+            String(format: localized("orders.priceStop"), price)
+        }
+        static var historyIncomplete: String { localized("orders.historyIncomplete") }
+        static var buy: String { localized("orders.buy") }
+        static var sell: String { localized("orders.sell") }
+        static var cancelOrder: String { localized("orders.cancelOrder") }
+        static var cancelConfirmTitle: String { localized("orders.cancelConfirmTitle") }
+        static var cancelFailed: String { localized("orders.cancelFailed") }
+        static var statusNew: String { localized("orders.status.new") }
+        static var statusPartiallyFilled: String { localized("orders.status.partiallyFilled") }
+        static var statusFilled: String { localized("orders.status.filled") }
+        static var statusDoneForDay: String { localized("orders.status.doneForDay") }
+        static var statusCanceled: String { localized("orders.status.canceled") }
+        static var statusExpired: String { localized("orders.status.expired") }
+        static var statusReplaced: String { localized("orders.status.replaced") }
+        static var statusPendingCancel: String { localized("orders.status.pendingCancel") }
+        static var statusPendingReplace: String { localized("orders.status.pendingReplace") }
+        static var statusAccepted: String { localized("orders.status.accepted") }
+        static var statusPendingNew: String { localized("orders.status.pendingNew") }
+        static var statusAcceptedForBidding: String { localized("orders.status.acceptedForBidding") }
+        static var statusStopped: String { localized("orders.status.stopped") }
+        static var statusRejected: String { localized("orders.status.rejected") }
+        static var statusSuspended: String { localized("orders.status.suspended") }
+        static var statusCalculated: String { localized("orders.status.calculated") }
+        static var statusHeld: String { localized("orders.status.held") }
+        static var statusOther: String { localized("orders.status.other") }
+        static var typeMarket: String { localized("orders.type.market") }
+        static var typeLimit: String { localized("orders.type.limit") }
+        static var typeStop: String { localized("orders.type.stop") }
+        static var typeStopLimit: String { localized("orders.type.stopLimit") }
+        static var typeTrailingStop: String { localized("orders.type.trailingStop") }
+        static var typeOther: String { localized("orders.type.other") }
+        static func cancelConfirmMessage(_ symbol: String, _ side: String, _ quantity: String, _ environment: String) -> String {
+            String(format: localized("orders.cancelConfirmMessage"), symbol, side, quantity, environment)
+        }
+    }
+
     enum Settings {
         static var title: String { localized("settings.title") }
         static var signOut: String { localized("settings.signOut") }

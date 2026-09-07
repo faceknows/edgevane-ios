@@ -3,6 +3,10 @@ import SwiftUI
 struct DashboardView: View {
     @EnvironmentObject private var summaries: SymbolSummaryStore
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
+    @EnvironmentObject private var trading: TradingSession
+    @EnvironmentObject private var portfolio: PortfolioStore
+    @EnvironmentObject private var positions: PositionStore
+    @EnvironmentObject private var orders: OrderStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var search = SymbolSearchSession()
     @State private var searchText = ""
@@ -22,14 +26,25 @@ struct DashboardView: View {
             }
 
             Section(L10n.Dashboard.overview) {
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.todayPnl)) {
-                    overviewRow(L10n.Dashboard.todayPnl, value: overviewValue)
+                if let environment = trading.environment ?? brokerage.current?.environment {
+                    EnvironmentBanner(environment: environment)
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.positions)) {
-                    overviewRow(L10n.Dashboard.positions, value: overviewValue)
+                if portfolio.snapshot?.tradingBlocked == true {
+                    TradingBlockedBanner()
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.orders)) {
-                    overviewRow(L10n.Dashboard.orders, value: overviewValue)
+                if trading.needsCredentials || dashboardErrorText != nil {
+                    TradingIssueBanner(errorText: dashboardErrorText) {
+                        Task { await trading.refresh() }
+                    }
+                }
+                NavigationLink(destination: AppRouter.destination(.portfolio)) {
+                    overviewRow(L10n.Dashboard.todayPnl, accessory: todayPnlValue)
+                }
+                NavigationLink(destination: AppRouter.destination(.positions)) {
+                    overviewRow(L10n.Dashboard.positions, accessory: positionsValue)
+                }
+                NavigationLink(destination: AppRouter.destination(.orders)) {
+                    overviewRow(L10n.Dashboard.orders, accessory: ordersValue)
                 }
             }
 
@@ -55,18 +70,42 @@ struct DashboardView: View {
             }
         }
         .navigationTitle(L10n.Dashboard.title)
+        .refreshable { await trading.refresh() }
     }
 
-    private var overviewValue: String {
-        brokerage.current == nil ? L10n.Dashboard.noBrokerage : L10n.Home.comingSoon
+    private var dashboardErrorText: String? {
+        if trading.needsCredentials { return nil }
+        return portfolio.errorText ?? positions.errorText ?? orders.errorText
     }
 
-    private func overviewRow(_ title: String, value: String) -> some View {
+    @ViewBuilder
+    private var todayPnlValue: some View {
+        if brokerage.current == nil {
+            Text(L10n.Dashboard.noBrokerage).foregroundColor(.secondary)
+        } else {
+            DailyPnLText(portfolio: portfolio.snapshot)
+        }
+    }
+
+    private var positionsValue: some View {
+        Text(brokerage.current == nil ? L10n.Dashboard.noBrokerage : "\(positions.positions.count)")
+            .foregroundColor(.secondary)
+    }
+
+    private var ordersValue: some View {
+        Text(brokerage.current == nil ? L10n.Dashboard.noBrokerage : ordersCountText)
+            .foregroundColor(.secondary)
+    }
+
+    private var ordersCountText: String {
+        orders.hasMoreClosed ? "\(orders.orders.count)+" : "\(orders.orders.count)"
+    }
+
+    private func overviewRow<Content: View>(_ title: String, accessory: Content) -> some View {
         HStack {
             Text(title)
             Spacer()
-            Text(value)
-                .foregroundColor(.secondary)
+            accessory
         }
     }
 

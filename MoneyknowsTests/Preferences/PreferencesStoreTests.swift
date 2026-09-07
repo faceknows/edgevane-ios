@@ -37,17 +37,16 @@ final class PreferencesStoreTests: XCTestCase {
         let store = PreferencesStore(api: PreferencesAPI(client: http), disk: disk)
         store.prepareForUser("user-1")
 
-        async let first: Void = store.apply(
+        await store.apply(
             { $0.showOTOAction = true },
             patch: UserPreferencePatch(showOTOAction: true),
             userId: "user-1"
         )
-        async let second: Void = store.apply(
+        await store.apply(
             { $0.showMarketTrade = true },
             patch: UserPreferencePatch(showMarketTrade: true),
             userId: "user-1"
         )
-        _ = await (first, second)
 
         XCTAssertTrue(store.values.showOTOAction)
         XCTAssertFalse(store.values.showMarketTrade)

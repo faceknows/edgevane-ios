@@ -3,6 +3,11 @@ import SwiftUI
 enum AppRoute: Hashable {
     case screenerCatalog
     case screenerResults(ScreenerKind)
+    case portfolio
+    case positions
+    case positionDetail(String)
+    case orders
+    case credentials
 }
 
 enum AppOverlay: Identifiable, Equatable {
@@ -35,6 +40,16 @@ final class AppRouter: ObservableObject {
             ScreenerCatalogView()
         case .screenerResults(let kind):
             ScreenerResultsView(kind: kind)
+        case .portfolio:
+            PortfolioView()
+        case .positions:
+            PositionsView()
+        case .positionDetail(let symbol):
+            PositionDetailView(symbol: symbol)
+        case .orders:
+            OrdersView()
+        case .credentials:
+            CredentialsView()
         }
     }
 }

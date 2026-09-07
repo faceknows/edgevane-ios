@@ -1,12 +1,5 @@
 import Foundation
 
-struct AlpacaAccountDTO: Decodable, Equatable {
-    var id: String
-    var accountNumber: String?
-    var status: String?
-    var tradingBlocked: Bool?
-}
-
 struct AlpacaAccountValidator: BrokerageAccountValidating {
     var logsRequests: Bool
     var session: URLSession
@@ -28,7 +21,7 @@ struct AlpacaAccountValidator: BrokerageAccountValidating {
             logsRequests: logsRequests,
             timeout: AppEnvironment.apiTimeout
         )
-        let dto: AlpacaAccountDTO = try await client.send(HTTPRequest(method: .get, path: "v2/account"))
+        let dto = try await AlpacaTradingAPI(client: client).account()
         AppLog.brokerage.info("validated alpaca \(environment.rawValue, privacy: .public)")
         return BrokerageAccount(id: dto.id, provider: "alpaca", environment: environment)
     }
