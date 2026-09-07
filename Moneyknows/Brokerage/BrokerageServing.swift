@@ -8,6 +8,9 @@ protocol BrokerageServing: AnyObject {
     func closedOrders(limit: Int, beforeOrderId: String?) async throws -> OrderPage
     func order(id: String) async throws -> [Order]
     func cancel(orderId: String) async throws
+    func place(_ order: NewOrder) async throws -> [Order]
+    func replace(orderId: String, amendment: OrderAmendment) async throws -> [Order]
+    func closePosition(symbol: String, percentage: Double, cancelOpenOrders: Bool) async throws -> [Order]
 }
 
 extension BrokerageServing {

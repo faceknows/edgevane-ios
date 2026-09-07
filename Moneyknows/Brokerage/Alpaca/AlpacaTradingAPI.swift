@@ -39,6 +39,8 @@ struct AlpacaOrderDTO: Equatable {
     var updatedAt: Date?
     var createdAt: Date?
     var clientOrderId: String?
+    var orderClass: String?
+    var parentOrderId: String?
 }
 
 struct AlpacaOrderPage: Equatable {
@@ -78,6 +80,43 @@ struct AlpacaTradingAPI {
 
     func cancel(orderId: String) async throws {
         try await client.send(HTTPRequest(method: .delete, path: "v2/orders/\(orderId)"))
+    }
+
+    func place(_ order: NewOrder) async throws -> [AlpacaOrderDTO] {
+        let data = try await client.sendRaw(
+            HTTPRequest(method: .post, path: "v2/orders", body: AlpacaPlaceOrderBody(order))
+        )
+        return try Self.decodeOrder(from: data)
+    }
+
+    func replace(orderId: String, amendment: OrderAmendment) async throws -> [AlpacaOrderDTO] {
+        let data = try await client.sendRaw(
+            HTTPRequest(
+                method: .patch,
+                path: "v2/orders/\(orderId)",
+                body: AlpacaReplaceOrderBody(amendment)
+            )
+        )
+        return try Self.decodeOrder(from: data)
+    }
+
+    func closePosition(
+        symbol: String,
+        percentage: Double,
+        cancelOpenOrders: Bool
+    ) async throws -> [AlpacaOrderDTO] {
+        let data = try await client.sendRaw(
+            HTTPRequest(
+                method: .delete,
+                path: "v2/positions/\(SymbolCode.normalize(symbol))",
+                query: [
+                    "percentage": AlpacaNumberFormat.string(percentage),
+                    "cancel_orders": cancelOpenOrders ? "true" : "false",
+                ]
+            )
+        )
+        if data.isEmpty { return [] }
+        return try Self.decodeOrder(from: data)
     }
 
     static func decodeAccount(from data: Data) throws -> AlpacaAccountDTO {
@@ -214,13 +253,33 @@ struct AlpacaTradingAPI {
         )
     }
 
-    private static func decodeOrderTree(_ object: [String: Any]) throws -> [AlpacaOrderDTO] {
-        var rows = [try decodeOrderFields(object)]
+    private static func decodeOrderTree(
+        _ object: [String: Any],
+        inheritedClientId: String? = nil,
+        inheritedOrderClass: String? = nil,
+        inheritedParentId: String? = nil
+    ) throws -> [AlpacaOrderDTO] {
+        var row = try decodeOrderFields(object)
+        if row.clientOrderId == nil, let inheritedClientId {
+            row.clientOrderId = inheritedClientId
+        }
+        if row.orderClass == nil, let inheritedOrderClass {
+            row.orderClass = inheritedOrderClass
+        }
+        if row.parentOrderId == nil, let inheritedParentId {
+            row.parentOrderId = inheritedParentId
+        }
+        var rows = [row]
         if let legs = object["legs"] {
             guard let items = legs as? [Any] else { throw AppError.decoding }
             for item in items {
                 guard let child = item as? [String: Any] else { throw AppError.decoding }
-                rows.append(contentsOf: try decodeOrderTree(child))
+                rows.append(contentsOf: try decodeOrderTree(
+                    child,
+                    inheritedClientId: row.clientOrderId ?? inheritedClientId,
+                    inheritedOrderClass: row.orderClass ?? inheritedOrderClass,
+                    inheritedParentId: row.id
+                ))
             }
         }
         return rows
@@ -253,7 +312,9 @@ struct AlpacaTradingAPI {
             submittedAt: parseTime(object["submitted_at"]),
             updatedAt: parseTime(object["updated_at"]),
             createdAt: parseTime(object["created_at"]),
-            clientOrderId: string(object["client_order_id"])
+            clientOrderId: string(object["client_order_id"]),
+            orderClass: string(object["order_class"]),
+            parentOrderId: string(object["parent_order_id"])
         )
     }
 
@@ -339,5 +400,150 @@ struct AlpacaTradingAPI {
         if let value = value as? NSNumber, !(value is Bool) { return value.doubleValue }
         if let text = string(value), let value = Double(text), value.isFinite { return value }
         return nil
+    }
+}
+
+enum AlpacaNumberFormat {
+    static func string(_ value: Double) -> String {
+        if value == value.rounded(), value >= Double(Int.min), value <= Double(Int.max) {
+            return String(Int(value))
+        }
+        var text = String(format: "%.4f", value)
+        while text.contains("."), text.last == "0" {
+            text.removeLast()
+        }
+        if text.last == "." {
+            text.removeLast()
+        }
+        return text
+    }
+
+    static func price(_ value: Double) -> String {
+        let rounded = OrderSizing.roundPrice(value)
+        if rounded >= 1 {
+            return String(format: "%.2f", rounded)
+        }
+        return String(format: "%.4f", rounded)
+    }
+}
+
+private struct AlpacaPlaceOrderBody: Encodable {
+    var symbol: String
+    var qty: String
+    var side: String
+    var type: String
+    var timeInForce: String
+    var limitPrice: String?
+    var stopPrice: String?
+    var extendedHours: Bool?
+    var clientOrderId: String?
+    var orderClass: String?
+    var takeProfit: AlpacaTakeProfitBody?
+    var stopLoss: AlpacaStopLossBody?
+
+    init(_ order: NewOrder) {
+        symbol = order.symbol
+        qty = AlpacaNumberFormat.string(order.quantity)
+        side = order.side.rawValue
+        switch order.kind {
+        case .limit, .oto:
+            type = "limit"
+        case .stop:
+            type = "stop"
+        case .oco:
+            type = "limit"
+        }
+        timeInForce = order.timeInForce
+        switch order.kind {
+        case .oco:
+            limitPrice = nil
+            stopPrice = nil
+        default:
+            limitPrice = order.limitPrice.map(AlpacaNumberFormat.price)
+            stopPrice = order.stopPrice.map(AlpacaNumberFormat.price)
+        }
+        extendedHours = order.extendedHours ? true : nil
+        clientOrderId = order.clientOrderId
+        if order.kind == .oto {
+            orderClass = "oto"
+            takeProfit = order.takeProfitLimitPrice.map { AlpacaTakeProfitBody(limitPrice: AlpacaNumberFormat.price($0)) }
+        }
+        if order.kind == .oco {
+            orderClass = "oco"
+            takeProfit = order.limitPrice.map { AlpacaTakeProfitBody(limitPrice: AlpacaNumberFormat.price($0)) }
+            stopLoss = order.stopPrice.map { AlpacaStopLossBody(stopPrice: AlpacaNumberFormat.price($0)) }
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case symbol
+        case qty
+        case side
+        case type
+        case timeInForce = "time_in_force"
+        case limitPrice = "limit_price"
+        case stopPrice = "stop_price"
+        case extendedHours = "extended_hours"
+        case clientOrderId = "client_order_id"
+        case orderClass = "order_class"
+        case takeProfit = "take_profit"
+        case stopLoss = "stop_loss"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(symbol, forKey: .symbol)
+        try container.encode(qty, forKey: .qty)
+        try container.encode(side, forKey: .side)
+        try container.encode(type, forKey: .type)
+        try container.encode(timeInForce, forKey: .timeInForce)
+        try container.encodeIfPresent(limitPrice, forKey: .limitPrice)
+        try container.encodeIfPresent(stopPrice, forKey: .stopPrice)
+        try container.encodeIfPresent(extendedHours, forKey: .extendedHours)
+        try container.encodeIfPresent(clientOrderId, forKey: .clientOrderId)
+        try container.encodeIfPresent(orderClass, forKey: .orderClass)
+        try container.encodeIfPresent(takeProfit, forKey: .takeProfit)
+        try container.encodeIfPresent(stopLoss, forKey: .stopLoss)
+    }
+}
+
+private struct AlpacaTakeProfitBody: Encodable {
+    var limitPrice: String
+
+    enum CodingKeys: String, CodingKey {
+        case limitPrice = "limit_price"
+    }
+}
+
+private struct AlpacaStopLossBody: Encodable {
+    var stopPrice: String
+
+    enum CodingKeys: String, CodingKey {
+        case stopPrice = "stop_price"
+    }
+}
+
+private struct AlpacaReplaceOrderBody: Encodable {
+    var qty: String?
+    var limitPrice: String?
+    var stopPrice: String?
+
+    init(_ amendment: OrderAmendment) {
+        qty = amendment.quantity.map(AlpacaNumberFormat.string)
+        limitPrice = amendment.limitPrice.map(AlpacaNumberFormat.price)
+        stopPrice = amendment.stopPrice.map(AlpacaNumberFormat.price)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case qty
+        case limitPrice = "limit_price"
+        case stopPrice = "stop_price"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(qty, forKey: .qty)
+        try container.encodeIfPresent(limitPrice, forKey: .limitPrice)
+        try container.encodeIfPresent(stopPrice, forKey: .stopPrice)
     }
 }

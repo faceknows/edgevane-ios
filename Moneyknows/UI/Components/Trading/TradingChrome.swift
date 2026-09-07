@@ -100,3 +100,65 @@ struct TradingCredentialsPrompt: View {
         .padding(.vertical, 24)
     }
 }
+
+struct TradingNoticeBanner: View {
+    @EnvironmentObject private var trading: TradingSession
+
+    var body: some View {
+        if let notice = trading.notice, !notice.isEmpty {
+            Button {
+                trading.clearNotice()
+            } label: {
+                Text(notice)
+                    .font(.footnote)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(10)
+                    .background(Color(uiColor: .secondarySystemBackground))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+struct QuantityMultiplierBar: View {
+    var selected: Double
+    var onSelect: (Double) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(OrderSizing.multipliers, id: \.label) { item in
+                Button(item.label) {
+                    onSelect(item.value)
+                }
+                .buttonStyle(.bordered)
+                .tint(abs(item.value - selected) < 0.0001 ? .accentColor : .secondary)
+            }
+        }
+    }
+}
+
+extension BrokerageEnvironment {
+    var title: String {
+        self == .live ? L10n.Credentials.live : L10n.Credentials.paper
+    }
+}
+
+enum TradeConfirmCopy {
+    static func message(
+        symbol: String,
+        side: OrderSide,
+        price: Double?,
+        quantity: Double,
+        environment: BrokerageEnvironment
+    ) -> String {
+        L10n.Trading.confirmMessage(
+            symbol,
+            side == .sell ? L10n.Trading.sell : L10n.Trading.buy,
+            MarketFormat.price(price),
+            MarketFormat.quantity(quantity),
+            environment.title
+        )
+    }
+}

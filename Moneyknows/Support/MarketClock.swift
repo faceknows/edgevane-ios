@@ -95,6 +95,33 @@ enum MarketClock {
         }
     }
 
+    static func isExtendedHoursSession(at date: Date = Date()) -> Bool {
+        isSessionActive(.premarket, at: date) || isSessionActive(.aftermarket, at: date)
+    }
+
+    static func remainingOpeningProtectionMinutes(minutes: Int, at date: Date = Date()) -> Int? {
+        let window = max(0, minutes)
+        guard window > 0 else { return nil }
+        guard isUSTradingDay(usDateString(from: date)) else { return nil }
+        guard let nowMinutes = minutesSinceMidnight(usTimeString(from: date)) else { return nil }
+        let openMinutes = 9 * 60 + 30
+        guard nowMinutes >= openMinutes else { return nil }
+        let remaining = openMinutes + window - nowMinutes
+        return remaining > 0 ? remaining : nil
+    }
+
+    static func isOpeningProtectionActive(minutes: Int, at date: Date = Date()) -> Bool {
+        remainingOpeningProtectionMinutes(minutes: minutes, at: date) != nil
+    }
+
+    private static func minutesSinceMidnight(_ time: String) -> Int? {
+        let parts = time.split(separator: ":")
+        guard parts.count == 2, let hours = Int(parts[0]), let minutes = Int(parts[1]) else {
+            return nil
+        }
+        return hours * 60 + minutes
+    }
+
     static func shouldPoll(session: USSessionWindow, date: String, now: Date = Date()) -> Bool {
         date == usDateString(from: now) && isSessionActive(session, at: now)
     }

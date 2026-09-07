@@ -80,6 +80,53 @@ enum MarketStreamPayload {
         }
     }
 
+    static func order(from data: Data) -> StreamOrder? {
+        guard let object = json(data), let fields = orderFields(object) else { return nil }
+        guard let id = string(fields["id"]), !id.isEmpty else { return nil }
+        guard let symbol = string(fields["symbol"]), !symbol.isEmpty else { return nil }
+        guard let side = string(fields["side"]) else { return nil }
+        guard let type = string(fields["type"]) ?? string(fields["order_type"]) else { return nil }
+        guard let status = string(fields["status"]) else { return nil }
+        guard let qty = number(fields["qty"]) else { return nil }
+        return StreamOrder(
+            id: id,
+            symbol: SymbolCode.normalize(symbol),
+            side: side,
+            type: type,
+            status: status,
+            qty: qty,
+            filledQty: number(fields["filled_qty"]) ?? 0,
+            limitPrice: number(fields["limit_price"]),
+            stopPrice: number(fields["stop_price"]),
+            filledAvgPrice: number(fields["filled_avg_price"]),
+            timeInForce: string(fields["time_in_force"]),
+            submittedAt: date(fields["submitted_at"]),
+            updatedAt: date(fields["updated_at"]),
+            createdAt: date(fields["created_at"]),
+            clientOrderId: string(fields["client_order_id"]),
+            orderClass: string(fields["order_class"]),
+            parentOrderId: string(fields["parent_order_id"])
+        )
+    }
+
+    private static func orderFields(_ object: [String: Any]) -> [String: Any]? {
+        if string(object["id"]) != nil, string(object["symbol"]) != nil {
+            return object
+        }
+        if let order = object["order"] as? [String: Any] {
+            return order
+        }
+        if let data = object["data"] as? [String: Any] {
+            if let order = data["order"] as? [String: Any] {
+                return order
+            }
+            if string(data["id"]) != nil, string(data["symbol"]) != nil {
+                return data
+            }
+        }
+        return nil
+    }
+
     private static func streamQuote(symbol: String?, fields: [String: Any]) -> StreamQuote? {
         guard let symbol else { return nil }
         let normalized = SymbolCode.normalize(symbol)
@@ -163,4 +210,24 @@ struct StreamSecondBar: Equatable {
     var low: Double
     var close: Double
     var volume: Double
+}
+
+struct StreamOrder: Equatable {
+    var id: String
+    var symbol: String
+    var side: String
+    var type: String
+    var status: String
+    var qty: Double
+    var filledQty: Double
+    var limitPrice: Double?
+    var stopPrice: Double?
+    var filledAvgPrice: Double?
+    var timeInForce: String?
+    var submittedAt: Date?
+    var updatedAt: Date?
+    var createdAt: Date?
+    var clientOrderId: String?
+    var orderClass: String?
+    var parentOrderId: String?
 }

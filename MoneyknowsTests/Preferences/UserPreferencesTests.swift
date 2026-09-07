@@ -65,6 +65,13 @@ final class RoleConfigurationTests: XCTestCase {
         XCTAssertEqual(config.enabledFeatureKeys, ["SCANNERS"])
     }
 
+    func testMissingMaxOrderValueIsNil() throws {
+        let json = #"{"configuration":{"SCANNERS":true}}"#
+        let config = try RoleConfiguration.decodeFlexible(from: Data(json.utf8))
+        XCTAssertNil(config.maxOrderValue)
+        XCTAssertEqual(config.enabledFeatureKeys, ["SCANNERS"])
+    }
+
     func testRejectsInvalidLimitType() {
         let json = #"{"configuration":{"MAX_ORDER_VALUE":"big"}}"#
         XCTAssertThrowsError(try RoleConfiguration.decodeFlexible(from: Data(json.utf8)))
@@ -76,6 +83,7 @@ final class AutoExitBlacklistTests: XCTestCase {
     func testAddAndRemoveNormalizedSymbols() {
         let folder = "MoneyknowsTests-blacklist-\(UUID().uuidString)"
         let store = AutoExitBlacklistStore(disk: DiskStore(folder: folder))
+        store.prepareForUser("user-1")
         store.addTakeProfit(" aapl ")
         store.addTakeProfit("AAPL")
         store.addStopLoss("msft")
@@ -83,5 +91,32 @@ final class AutoExitBlacklistTests: XCTestCase {
         XCTAssertTrue(store.isStopLossBlocked("Msft"))
         store.removeTakeProfit("aapl")
         XCTAssertTrue(store.values.takeProfit.isEmpty)
+    }
+
+    func testBlacklistIsIsolatedPerUserAndIgnoresGlobalFile() {
+        let folder = "MoneyknowsTests-blacklist-\(UUID().uuidString)"
+        let disk = DiskStore(folder: folder)
+        disk.write(AutoExitBlacklist(takeProfit: ["LEAK"], stopLoss: ["LEAK"]), name: "auto-exit-blacklist.json")
+        let store = AutoExitBlacklistStore(disk: disk)
+        XCTAssertTrue(store.values.takeProfit.isEmpty)
+
+        store.prepareForUser("user-a")
+        store.addTakeProfit("AAPL")
+        store.addStopLoss("MSFT")
+
+        store.prepareForUser("user-b")
+        XCTAssertTrue(store.values.takeProfit.isEmpty)
+        XCTAssertTrue(store.values.stopLoss.isEmpty)
+        store.addTakeProfit("TSLA")
+
+        store.prepareForUser("user-a")
+        XCTAssertEqual(store.values.takeProfit, ["AAPL"])
+        XCTAssertEqual(store.values.stopLoss, ["MSFT"])
+
+        store.resetSession()
+        XCTAssertTrue(store.values.takeProfit.isEmpty)
+        store.prepareForUser("user-a")
+        XCTAssertEqual(store.values.takeProfit, ["AAPL"])
+        XCTAssertFalse(store.isTakeProfitBlocked("LEAK"))
     }
 }

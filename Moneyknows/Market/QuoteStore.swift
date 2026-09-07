@@ -11,6 +11,22 @@ struct SymbolQuote: Equatable {
 
     var displayBid: Double? { bid ?? snapshotBid ?? last }
     var displayAsk: Double? { ask ?? snapshotAsk ?? last }
+    var liveBid: Double? { bid ?? snapshotBid }
+    var liveAsk: Double? { ask ?? snapshotAsk }
+
+    var mid: Double? {
+        if let bid = liveBid, let ask = liveAsk {
+            return (bid + ask) / 2
+        }
+        return last
+    }
+
+    func referencePrice(for side: OrderSide) -> Double? {
+        switch side {
+        case .buy: return displayBid
+        case .sell: return displayAsk
+        }
+    }
 }
 
 @MainActor

@@ -95,6 +95,30 @@ final class MarketClockTests: XCTestCase {
         XCTAssertTrue(MarketClock.isUSMarketHoliday("2027-12-31"))
         XCTAssertFalse(MarketClock.isUSMarketHoliday("2026-09-04"))
     }
+
+    func testOpeningProtectionAndExtendedHours() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            parts.minute = minute
+            return calendar.date(from: parts)!
+        }
+        XCTAssertEqual(MarketClock.remainingOpeningProtectionMinutes(minutes: 30, at: date(2026, 9, 4, 9, 35)), 25)
+        XCTAssertTrue(MarketClock.isOpeningProtectionActive(minutes: 30, at: date(2026, 9, 4, 9, 30)))
+        XCTAssertFalse(MarketClock.isOpeningProtectionActive(minutes: 30, at: date(2026, 9, 4, 10, 0)))
+        XCTAssertFalse(MarketClock.isOpeningProtectionActive(minutes: 0, at: date(2026, 9, 4, 9, 35)))
+        XCTAssertFalse(MarketClock.isOpeningProtectionActive(minutes: 30, at: date(2026, 9, 5, 9, 35)))
+        XCTAssertFalse(MarketClock.isOpeningProtectionActive(minutes: 30, at: date(2026, 9, 7, 9, 35)))
+        XCTAssertTrue(MarketClock.isExtendedHoursSession(at: date(2026, 9, 4, 8, 0)))
+        XCTAssertTrue(MarketClock.isExtendedHoursSession(at: date(2026, 9, 4, 17, 0)))
+        XCTAssertFalse(MarketClock.isExtendedHoursSession(at: date(2026, 9, 4, 11, 0)))
+        XCTAssertFalse(MarketClock.isExtendedHoursSession(at: date(2026, 9, 5, 8, 0)))
+    }
 }
 
 @MainActor

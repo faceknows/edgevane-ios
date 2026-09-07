@@ -8,6 +8,7 @@ struct OrdersView: View {
     @State private var filter: OrderListFilter = .all
     @State private var symbolFilter = ""
     @State private var pendingCancel: Order?
+    @State private var pendingAmend: Order?
     @State private var cancelError: String?
 
     var body: some View {
@@ -76,9 +77,11 @@ struct OrdersView: View {
                                 )
                             } else {
                                 ForEach(visibleOrders) { order in
-                                    OrderRow(order: order) {
-                                        pendingCancel = order
-                                    }
+                                    OrderRow(
+                                        order: order,
+                                        onCancel: { pendingCancel = order },
+                                        onAmend: { pendingAmend = order }
+                                    )
                                 }
                             }
                             if orders.hasMoreClosed {
@@ -111,6 +114,12 @@ struct OrdersView: View {
             if let pendingCancel {
                 Text(cancelMessage(pendingCancel))
             }
+        }
+        .sheet(item: $pendingAmend) { order in
+            NavigationView {
+                AmendOrderView(order: order)
+            }
+            .navigationViewStyle(.stack)
         }
     }
 
@@ -152,6 +161,7 @@ struct OrdersView: View {
 private struct OrderRow: View {
     var order: Order
     var onCancel: () -> Void
+    var onAmend: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -173,9 +183,16 @@ private struct OrderRow: View {
                 priceColumn
             }
             if order.isCancellable {
-                Button(L10n.Orders.cancelOrder, role: .destructive, action: onCancel)
-                    .font(.caption)
-                    .buttonStyle(.borderless)
+                HStack {
+                    if order.isAmendable {
+                        Button(L10n.Orders.amendOrder, action: onAmend)
+                            .font(.caption)
+                            .buttonStyle(.borderless)
+                    }
+                    Button(L10n.Orders.cancelOrder, role: .destructive, action: onCancel)
+                        .font(.caption)
+                        .buttonStyle(.borderless)
+                }
             }
         }
         .padding(.vertical, 4)
@@ -211,5 +228,115 @@ private struct OrderRow: View {
             }
         }
         .font(.caption.monospacedDigit())
+    }
+}
+
+struct AmendOrderView: View {
+    let order: Order
+    @EnvironmentObject private var trading: TradingSession
+    @EnvironmentObject private var brokerage: CurrentBrokerageStore
+    @EnvironmentObject private var preferences: PreferencesStore
+    @EnvironmentObject private var profile: ProfileStore
+    @Environment(\.presentationMode) private var presentationMode
+
+    @State private var quantityInput = ""
+    @State private var priceInput = ""
+    @State private var errorText: String?
+    @State private var busy = false
+    @State private var confirming = false
+
+    var body: some View {
+        Form {
+            Section {
+                if let environment = trading.environment ?? brokerage.current?.environment {
+                    EnvironmentBanner(environment: environment)
+                }
+                TextField(L10n.Trading.quantity, text: $quantityInput)
+                    .keyboardType(.decimalPad)
+                TextField(L10n.Trading.price, text: $priceInput)
+                    .keyboardType(.decimalPad)
+            }
+            if let errorText {
+                Section {
+                    FormMessage(text: errorText)
+                }
+            }
+            Section {
+                PrimaryButton(title: L10n.Orders.amendOrder, busy: busy) {
+                    confirming = true
+                }
+            }
+        }
+        .navigationTitle(L10n.Orders.amendOrder)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(L10n.Common.cancel) {
+                    presentationMode.wrappedValue.dismiss()
+                }
+            }
+        }
+        .onAppear {
+            if order.quantity == order.quantity.rounded() {
+                quantityInput = String(Int(order.quantity))
+            } else {
+                quantityInput = String(format: "%.4f", order.quantity)
+            }
+            if let price = order.limitPrice ?? order.stopPrice {
+                priceInput = String(format: "%.2f", price)
+            }
+        }
+        .alert(L10n.Orders.amendConfirmTitle, isPresented: $confirming) {
+            Button(L10n.Common.cancel, role: .cancel) {}
+            Button(L10n.Common.confirm) {
+                Task { await submit() }
+            }
+        } message: {
+            Text(confirmMessage)
+        }
+    }
+
+    private var environment: BrokerageEnvironment {
+        trading.environment ?? brokerage.current?.environment ?? .paper
+    }
+
+    private var confirmMessage: String {
+        L10n.Orders.amendConfirmMessage(
+            order.symbol,
+            order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy,
+            quantityInput,
+            priceInput,
+            environment.title
+        )
+    }
+
+    private func submit() async {
+        errorText = nil
+        guard let quantity = TradeInput.parse(quantityInput), let price = TradeInput.parse(priceInput) else {
+            errorText = L10n.Trading.invalidPrice
+            return
+        }
+        var amendment = OrderAmendment()
+        amendment.quantity = quantity
+        if order.type == .stop {
+            amendment.stopPrice = price
+        } else {
+            amendment.limitPrice = price
+        }
+        busy = true
+        defer { busy = false }
+        do {
+            _ = try await trading.replace(
+                orderId: order.id,
+                amendment: amendment,
+                original: order,
+                protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen,
+                maxOrderValue: profile.roleConfiguration?.maxOrderValue
+            )
+            presentationMode.wrappedValue.dismiss()
+        } catch {
+            if error.isCancellation { return }
+            errorText = UserFacingError.message(from: error) ?? L10n.Orders.amendFailed
+        }
     }
 }

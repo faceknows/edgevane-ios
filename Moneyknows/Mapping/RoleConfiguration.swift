@@ -48,9 +48,9 @@ extension RoleLimitValue: Decodable {
 struct RoleConfiguration: Equatable {
     var values: [String: RoleLimitValue]
 
-    var maxOrderValue: Double {
+    var maxOrderValue: Double? {
         guard let value = values["MAX_ORDER_VALUE"]?.number, value.isFinite, value > 0 else {
-            return 50
+            return nil
         }
         return value
     }

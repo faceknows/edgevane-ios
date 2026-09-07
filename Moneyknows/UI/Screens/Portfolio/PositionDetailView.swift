@@ -6,6 +6,8 @@ struct PositionDetailView: View {
     @EnvironmentObject private var positions: PositionStore
     @EnvironmentObject private var portfolio: PortfolioStore
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
+    @EnvironmentObject private var preferences: PreferencesStore
+    @State private var closeKind: TradeActionKind?
 
     private var position: Position? {
         positions.position(for: symbol)
@@ -46,6 +48,22 @@ struct PositionDetailView: View {
                             }
                         }
                     }
+                    Section(L10n.Positions.close) {
+                        Button(L10n.Trading.limitClose) {
+                            closeKind = .limitClose
+                        }
+                        if preferences.values.showMarketTrade {
+                            Button(L10n.Trading.marketClose) {
+                                closeKind = .marketClose
+                            }
+                        }
+                    }
+                }
+                .sheet(item: $closeKind) { kind in
+                    NavigationView {
+                        TradeTicketView(symbol: symbol, action: kind, presetPrice: nil)
+                    }
+                    .navigationViewStyle(.stack)
                 }
             } else if trading.needsCredentials {
                 TradingCredentialsPrompt(

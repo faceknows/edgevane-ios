@@ -118,6 +118,32 @@ final class OrderStore: ObservableObject {
         isLoading = value
     }
 
+    func applyUpdate(_ order: Order) -> OrderApplyResult {
+        var byId = Dictionary(uniqueKeysWithValues: orders.map { ($0.id, $0) })
+        if let existing = byId[order.id] {
+            if let incoming = order.updatedAt, let current = existing.updatedAt, incoming < current {
+                return OrderApplyResult(accepted: false, statusChanged: false, isNewFill: false)
+            }
+            if existing == order {
+                return OrderApplyResult(accepted: false, statusChanged: false, isNewFill: false)
+            }
+            let statusChanged = existing.status != order.status
+            let isNewFill = order.status == .filled && existing.status != .filled && !order.isAutoExit
+            byId[order.id] = order
+            self.orders = sorted(Array(byId.values))
+            errorText = nil
+            return OrderApplyResult(accepted: true, statusChanged: statusChanged, isNewFill: isNewFill)
+        }
+        byId[order.id] = order
+        self.orders = sorted(Array(byId.values))
+        errorText = nil
+        return OrderApplyResult(
+            accepted: true,
+            statusChanged: true,
+            isNewFill: order.status == .filled && !order.isAutoExit
+        )
+    }
+
     func filtered(_ filter: OrderListFilter, symbol: String? = nil) -> [Order] {
         let wanted = symbol
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }

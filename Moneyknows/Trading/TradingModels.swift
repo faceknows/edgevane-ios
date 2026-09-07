@@ -154,12 +154,41 @@ struct Order: Equatable, Identifiable {
     var updatedAt: Date?
     var createdAt: Date?
     var clientOrderId: String?
+    var orderClass: String?
+    var parentOrderId: String?
 
     var sortDate: Date {
         updatedAt ?? submittedAt ?? createdAt ?? Date.distantPast
     }
 
     var isCancellable: Bool { status.isCancellable }
+
+    var isAmendable: Bool {
+        isCancellable && (type == .limit || type == .stop)
+    }
+
+    var isAutoExit: Bool {
+        AutoExitOrder.isAutoExit(clientOrderId)
+    }
+
+    var isOTOBracket: Bool {
+        OTOOrder.isOTO(clientOrderId) || orderClass?.lowercased() == "oto"
+    }
+
+    var isOCOBracket: Bool {
+        AutoExitOrder.isOCO(clientOrderId) || orderClass?.lowercased() == "oco"
+    }
+
+    var isProtectiveExit: Bool {
+        isAutoExit || isOTOBracket || isOCOBracket
+    }
+
+    var ocoGroupId: String {
+        if let parentOrderId, !parentOrderId.isEmpty {
+            return parentOrderId
+        }
+        return id
+    }
 
     var listQuantity: Double {
         filledQuantity > 0 ? filledQuantity : quantity
@@ -193,6 +222,273 @@ struct OrderPage: Equatable {
     var orders: [Order]
     var nextBeforeOrderId: String?
     var hasMore: Bool
+}
+
+struct OrderApplyResult: Equatable {
+    var accepted: Bool
+    var statusChanged: Bool
+    var isNewFill: Bool
+}
+
+enum NewOrderKind: Equatable {
+    case limit
+    case stop
+    case oto
+    case oco
+}
+
+struct NewOrder: Equatable {
+    var symbol: String
+    var side: OrderSide
+    var kind: NewOrderKind
+    var quantity: Double
+    var limitPrice: Double?
+    var stopPrice: Double?
+    var takeProfitLimitPrice: Double?
+    var timeInForce: String
+    var extendedHours: Bool
+    var clientOrderId: String?
+
+    init(
+        symbol: String,
+        side: OrderSide,
+        kind: NewOrderKind,
+        quantity: Double,
+        limitPrice: Double? = nil,
+        stopPrice: Double? = nil,
+        takeProfitLimitPrice: Double? = nil,
+        timeInForce: String = "day",
+        extendedHours: Bool = false,
+        clientOrderId: String? = nil
+    ) {
+        self.symbol = SymbolCode.normalize(symbol)
+        self.side = side
+        self.kind = kind
+        self.quantity = quantity
+        self.limitPrice = limitPrice
+        self.stopPrice = stopPrice
+        self.takeProfitLimitPrice = takeProfitLimitPrice
+        self.timeInForce = timeInForce
+        self.extendedHours = extendedHours
+        self.clientOrderId = clientOrderId
+    }
+
+    var displayPrice: Double? {
+        switch kind {
+        case .limit, .oto, .oco:
+            return limitPrice
+        case .stop:
+            return stopPrice
+        }
+    }
+}
+
+struct OrderAmendment: Equatable {
+    var quantity: Double?
+    var limitPrice: Double?
+    var stopPrice: Double?
+}
+
+struct ClosePositionCommand: Equatable {
+    var symbol: String
+    var percentage: Double
+    var cancelOpenOrders: Bool
+
+    init(symbol: String, percentage: Double = 100, cancelOpenOrders: Bool) {
+        self.symbol = SymbolCode.normalize(symbol)
+        self.percentage = percentage
+        self.cancelOpenOrders = cancelOpenOrders
+    }
+}
+
+enum AutoExitOrder {
+    static let takeProfitPrefix = "auto-tp-"
+    static let stopLossPrefix = "auto-sl-"
+    static let ocoPrefix = "auto-oco-"
+
+    static func isAutoExit(_ clientOrderId: String?) -> Bool {
+        isTakeProfit(clientOrderId) || isStopLoss(clientOrderId) || isOCO(clientOrderId)
+    }
+
+    static func isTakeProfit(_ clientOrderId: String?) -> Bool {
+        hasPrefix(clientOrderId, takeProfitPrefix)
+    }
+
+    static func isStopLoss(_ clientOrderId: String?) -> Bool {
+        hasPrefix(clientOrderId, stopLossPrefix)
+    }
+
+    static func isOCO(_ clientOrderId: String?) -> Bool {
+        hasPrefix(clientOrderId, ocoPrefix)
+    }
+
+    static func takeProfitClientId() -> String {
+        "\(takeProfitPrefix)\(UUID().uuidString)"
+    }
+
+    static func stopLossClientId() -> String {
+        "\(stopLossPrefix)\(UUID().uuidString)"
+    }
+
+    static func ocoClientId() -> String {
+        "\(ocoPrefix)\(UUID().uuidString)"
+    }
+
+    private static func hasPrefix(_ clientOrderId: String?, _ prefix: String) -> Bool {
+        guard let clientOrderId, !clientOrderId.isEmpty else { return false }
+        return clientOrderId.lowercased().hasPrefix(prefix)
+    }
+}
+
+enum OTOOrder {
+    static let prefix = "oto-"
+
+    static func isOTO(_ clientOrderId: String?) -> Bool {
+        guard let clientOrderId, !clientOrderId.isEmpty else { return false }
+        return clientOrderId.lowercased().hasPrefix(prefix)
+    }
+
+    static func clientId() -> String {
+        "\(prefix)\(UUID().uuidString)"
+    }
+}
+
+enum ProtectiveExit {
+    static func snapshots(from orders: [Order], symbol: String, positionSide: PositionSide) -> [NewOrder] {
+        let open = OrderSizing.openExitOrders(symbol: symbol, positionSide: positionSide, orders: orders)
+            .filter(\.isProtectiveExit)
+        var consumed: Set<String> = []
+        var snapshots: [NewOrder] = []
+        let grouped = Dictionary(grouping: open.filter(\.isOCOBracket)) { $0.ocoGroupId }
+        for (_, group) in grouped {
+            let quantity = group.map(\.remainingQuantity).max() ?? 0
+            let limitPrice = group.compactMap(\.limitPrice).first
+            let stopPrice = group.compactMap(\.stopPrice).first
+            guard quantity >= 1, let limitPrice, let stopPrice else { continue }
+            snapshots.append(
+                NewOrder(
+                    symbol: symbol,
+                    side: group[0].side,
+                    kind: .oco,
+                    quantity: quantity,
+                    limitPrice: limitPrice,
+                    stopPrice: stopPrice,
+                    timeInForce: "day",
+                    extendedHours: false,
+                    clientOrderId: AutoExitOrder.ocoClientId()
+                )
+            )
+            group.forEach { consumed.insert($0.id) }
+        }
+        for order in open where !consumed.contains(order.id) {
+            guard order.remainingQuantity >= 1 else { continue }
+            if order.type == .stop || AutoExitOrder.isStopLoss(order.clientOrderId) {
+                snapshots.append(
+                    NewOrder(
+                        symbol: symbol,
+                        side: order.side,
+                        kind: .stop,
+                        quantity: order.remainingQuantity,
+                        stopPrice: order.stopPrice,
+                        clientOrderId: AutoExitOrder.stopLossClientId()
+                    )
+                )
+            } else {
+                let clientId = order.isOTOBracket ? OTOOrder.clientId() : AutoExitOrder.takeProfitClientId()
+                snapshots.append(
+                    NewOrder(
+                        symbol: symbol,
+                        side: order.side,
+                        kind: .limit,
+                        quantity: order.remainingQuantity,
+                        limitPrice: order.limitPrice,
+                        extendedHours: false,
+                        clientOrderId: clientId
+                    )
+                )
+            }
+        }
+        return snapshots
+    }
+}
+
+enum StopQuantityMode: String, CaseIterable, Identifiable {
+    case available
+    case total
+    case custom
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .available: return L10n.Trading.stopQtyAvailable
+        case .total: return L10n.Trading.stopQtyTotal
+        case .custom: return L10n.Trading.stopQtyCustom
+        }
+    }
+}
+
+extension OrderStatus {
+    init(brokerValue: String) {
+        switch brokerValue.lowercased() {
+        case "new": self = .new
+        case "partially_filled": self = .partiallyFilled
+        case "filled": self = .filled
+        case "done_for_day": self = .doneForDay
+        case "canceled", "cancelled": self = .canceled
+        case "expired": self = .expired
+        case "replaced": self = .replaced
+        case "pending_cancel": self = .pendingCancel
+        case "pending_replace": self = .pendingReplace
+        case "accepted": self = .accepted
+        case "pending_new": self = .pendingNew
+        case "accepted_for_bidding": self = .acceptedForBidding
+        case "stopped": self = .stopped
+        case "rejected": self = .rejected
+        case "suspended": self = .suspended
+        case "calculated": self = .calculated
+        case "held": self = .held
+        default: self = .other
+        }
+    }
+}
+
+extension OrderType {
+    init(brokerValue: String) {
+        switch brokerValue.lowercased() {
+        case "market": self = .market
+        case "limit": self = .limit
+        case "stop": self = .stop
+        case "stop_limit": self = .stopLimit
+        case "trailing_stop": self = .trailingStop
+        default: self = .other
+        }
+    }
+}
+
+extension Order {
+    init?(stream: StreamOrder) {
+        guard let side = OrderSide(rawValue: stream.side.lowercased()) else { return nil }
+        self.init(
+            id: stream.id,
+            symbol: stream.symbol,
+            side: side,
+            type: OrderType(brokerValue: stream.type),
+            status: OrderStatus(brokerValue: stream.status),
+            quantity: stream.qty,
+            filledQuantity: stream.filledQty,
+            limitPrice: stream.limitPrice,
+            stopPrice: stream.stopPrice,
+            filledAvgPrice: stream.filledAvgPrice,
+            timeInForce: stream.timeInForce,
+            submittedAt: stream.submittedAt,
+            updatedAt: stream.updatedAt,
+            createdAt: stream.createdAt,
+            clientOrderId: stream.clientOrderId,
+            orderClass: stream.orderClass,
+            parentOrderId: stream.parentOrderId
+        )
+    }
 }
 
 enum DailyPnL {

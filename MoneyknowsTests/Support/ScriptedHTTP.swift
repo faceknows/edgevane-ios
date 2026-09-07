@@ -58,3 +58,24 @@ final class ScriptedHTTP: HTTPSending {
         return try result.get()
     }
 }
+
+private struct EncodableBox: Encodable {
+    private let encodeClosure: (Encoder) throws -> Void
+
+    init(_ value: Encodable) {
+        encodeClosure = value.encode
+    }
+
+    func encode(to encoder: Encoder) throws {
+        try encodeClosure(encoder)
+    }
+}
+
+func jsonObject(from request: HTTPRequest) throws -> [String: Any] {
+    guard let body = request.body else { return [:] }
+    let data = try HTTPClient.makeEncoder().encode(EncodableBox(body))
+    guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw AppError.decoding
+    }
+    return object
+}

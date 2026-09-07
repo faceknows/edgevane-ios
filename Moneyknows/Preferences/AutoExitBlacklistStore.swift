@@ -12,12 +12,23 @@ final class AutoExitBlacklistStore: ObservableObject {
     @Published private(set) var values: AutoExitBlacklist
 
     private let disk: DiskStore
-    private let file = "auto-exit-blacklist.json"
+    private var ownerUserId: String?
 
     init(disk: DiskStore = DiskStore()) {
         self.disk = disk
-        values = disk.read(AutoExitBlacklist.self, name: file) ?? .empty
+        values = .empty
+    }
+
+    func prepareForUser(_ userId: String) {
+        if ownerUserId == userId { return }
+        ownerUserId = userId
+        values = disk.read(AutoExitBlacklist.self, name: Self.fileName(for: userId)) ?? .empty
         normalizeInPlace()
+    }
+
+    func resetSession() {
+        ownerUserId = nil
+        values = .empty
     }
 
     func removeTakeProfit(_ symbol: String) {
@@ -55,12 +66,22 @@ final class AutoExitBlacklistStore: ObservableObject {
     }
 
     private func persist() {
-        disk.write(values, name: file)
+        guard let ownerUserId else { return }
+        disk.write(values, name: Self.fileName(for: ownerUserId))
     }
 
     private func normalizeInPlace() {
         values.takeProfit = Self.normalizeList(values.takeProfit)
         values.stopLoss = Self.normalizeList(values.stopLoss)
+    }
+
+    private static func fileName(for userId: String) -> String {
+        "auto-exit-blacklist.\(sanitizedUserId(userId)).json"
+    }
+
+    private static func sanitizedUserId(_ userId: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_"))
+        return String(userId.unicodeScalars.map { allowed.contains($0) ? Character($0) : "_" })
     }
 
     private static func normalize(_ symbol: String) -> String {

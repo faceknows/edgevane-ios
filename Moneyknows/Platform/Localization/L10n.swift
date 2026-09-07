@@ -17,6 +17,7 @@ enum L10n {
     enum Common {
         static var retry: String { localized("common.retry") }
         static var cancel: String { localized("common.cancel") }
+        static var confirm: String { localized("common.confirm") }
         static var done: String { localized("common.done") }
         static var close: String { localized("common.close") }
         static var next: String { localized("common.next") }
@@ -192,6 +193,70 @@ enum L10n {
         static var goToCredentials: String { localized("trading.goToCredentials") }
         static var credentialsInvalid: String { localized("trading.credentialsInvalid") }
         static var credentialsInvalidBody: String { localized("trading.credentialsInvalidBody") }
+        static func protectionWindow(_ minutes: Int) -> String {
+            String(format: localized("trading.protectionWindow"), minutes)
+        }
+        static var invalidQuantity: String { localized("trading.invalidQuantity") }
+        static var invalidPrice: String { localized("trading.invalidPrice") }
+        static var invalidSymbol: String { localized("trading.invalidSymbol") }
+        static var maxOrderValue: String { localized("trading.maxOrderValue") }
+        static var otoSpread: String { localized("trading.otoSpread") }
+        static var noPosition: String { localized("trading.noPosition") }
+        static var buy: String { localized("trading.buy") }
+        static var sell: String { localized("trading.sell") }
+        static var otoBuy: String { localized("trading.otoBuy") }
+        static var otoSell: String { localized("trading.otoSell") }
+        static var takeProfit: String { localized("trading.takeProfit") }
+        static var stopLoss: String { localized("trading.stopLoss") }
+        static var limitClose: String { localized("trading.limitClose") }
+        static var marketClose: String { localized("trading.marketClose") }
+        static var extendedHours: String { localized("trading.extendedHours") }
+        static var quantity: String { localized("trading.quantity") }
+        static var price: String { localized("trading.price") }
+        static var takeProfitPrice: String { localized("trading.takeProfitPrice") }
+        static var confirmTitle: String { localized("trading.confirmTitle") }
+        static func confirmMessage(
+            _ symbol: String,
+            _ side: String,
+            _ price: String,
+            _ quantity: String,
+            _ environment: String
+        ) -> String {
+            String(format: localized("trading.confirmMessage"), symbol, side, price, quantity, environment)
+        }
+        static var submit: String { localized("trading.submit") }
+        static var submitFailed: String { localized("trading.submitFailed") }
+        static var stopQtyAvailable: String { localized("trading.stopQtyAvailable") }
+        static var stopQtyTotal: String { localized("trading.stopQtyTotal") }
+        static var stopQtyCustom: String { localized("trading.stopQtyCustom") }
+        static var cancelOpenOrders: String { localized("trading.cancelOpenOrders") }
+        static var blockTakeProfit: String { localized("trading.blockTakeProfit") }
+        static var allowTakeProfit: String { localized("trading.allowTakeProfit") }
+        static var blockStopLoss: String { localized("trading.blockStopLoss") }
+        static var allowStopLoss: String { localized("trading.allowStopLoss") }
+        static var sliderHint: String { localized("trading.sliderHint") }
+        static var sliderTitle: String { localized("trading.sliderTitle") }
+        static func orderFilled(_ symbol: String) -> String {
+            String(format: localized("trading.orderFilled"), symbol)
+        }
+        static func orderCanceled(_ symbol: String) -> String {
+            String(format: localized("trading.orderCanceled"), symbol)
+        }
+        static func orderRejected(_ symbol: String) -> String {
+            String(format: localized("trading.orderRejected"), symbol)
+        }
+        static var takeProfitKind: String { localized("trading.takeProfitKind") }
+        static var stopLossKind: String { localized("trading.stopLossKind") }
+        static var autoExitKind: String { localized("trading.autoExitKind") }
+        static func autoExitPlaced(_ kind: String, _ symbol: String) -> String {
+            String(format: localized("trading.autoExitPlaced"), kind, symbol)
+        }
+        static func autoExitFailed(_ kind: String, _ symbol: String, _ message: String) -> String {
+            String(format: localized("trading.autoExitFailed"), kind, symbol, message)
+        }
+        static func protectionRestoreFailed(_ symbol: String, _ message: String) -> String {
+            String(format: localized("trading.protectionRestoreFailed"), symbol, message)
+        }
     }
 
     enum Portfolio {
@@ -219,6 +284,7 @@ enum L10n {
         static var marketValue: String { localized("positions.marketValue") }
         static var cost: String { localized("positions.cost") }
         static var unrealized: String { localized("positions.unrealized") }
+        static var close: String { localized("positions.close") }
     }
 
     enum Orders {
@@ -249,6 +315,18 @@ enum L10n {
         static var cancelOrder: String { localized("orders.cancelOrder") }
         static var cancelConfirmTitle: String { localized("orders.cancelConfirmTitle") }
         static var cancelFailed: String { localized("orders.cancelFailed") }
+        static var amendOrder: String { localized("orders.amendOrder") }
+        static var amendConfirmTitle: String { localized("orders.amendConfirmTitle") }
+        static var amendFailed: String { localized("orders.amendFailed") }
+        static func amendConfirmMessage(
+            _ symbol: String,
+            _ side: String,
+            _ quantity: String,
+            _ price: String,
+            _ environment: String
+        ) -> String {
+            String(format: localized("orders.amendConfirmMessage"), symbol, side, quantity, price, environment)
+        }
         static var statusNew: String { localized("orders.status.new") }
         static var statusPartiallyFilled: String { localized("orders.status.partiallyFilled") }
         static var statusFilled: String { localized("orders.status.filled") }

@@ -53,6 +53,9 @@ private struct RootSwitcher: View {
                         }
                     }
                 }
+                .safeAreaInset(edge: .top) {
+                    TradingNoticeBanner()
+                }
         }
     }
 }

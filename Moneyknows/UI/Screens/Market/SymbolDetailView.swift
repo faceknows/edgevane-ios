@@ -19,6 +19,8 @@ struct SymbolDetailView: View {
     @State private var secondStyle: ChartStyle = .candle
     @State private var subscriptionBusy = false
     @State private var subscriptionError: String?
+    @State private var tradeAction: TradeActionKind?
+    @State private var sliderPrice: Double?
 
     private var isSubscribed: Bool {
         subscriptions.contains(symbol)
@@ -33,6 +35,7 @@ struct SymbolDetailView: View {
                 header
                 if isSubscribed {
                     quoteRow
+                    TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
                 }
                 indicators
                 ChartChrome(
@@ -135,7 +138,34 @@ struct SymbolDetailView: View {
                 colors: ChartPalette.colors(scheme: colorScheme),
                 height: 180
             )
+            if let sliderRange {
+                PriceSliderTradeView(range: sliderRange) { price in
+                    sliderPrice = price
+                    tradeAction = .slider
+                }
+            }
         }
+    }
+
+    private var sliderRange: ClosedRange<Double>? {
+        _ = seconds.revision
+        let bars = SecondChartAssembler.model(
+            bars1s: seconds.bars(for: symbol),
+            interval: secondInterval,
+            style: secondStyle
+        ).bars
+        let highs = bars.map(\.high)
+        let lows = bars.map(\.low)
+        guard let min = lows.min(), let max = highs.max(), max >= min, max > 0 else {
+            if let last = quotes.quote(for: symbol)?.last, last > 0 {
+                return (last * 0.99)...(last * 1.01)
+            }
+            return nil
+        }
+        if max == min {
+            return (min * 0.99)...(max * 1.01)
+        }
+        return min...max
     }
 
     private var secondModel: ChartModel {

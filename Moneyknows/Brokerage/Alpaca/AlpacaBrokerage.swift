@@ -78,6 +78,24 @@ final class AlpacaBrokerage: BrokerageServing {
         AppLog.brokerage.info("canceled order \(orderId, privacy: .public)")
     }
 
+    func place(_ order: NewOrder) async throws -> [Order] {
+        try mapOrders(try await api.place(order))
+    }
+
+    func replace(orderId: String, amendment: OrderAmendment) async throws -> [Order] {
+        try mapOrders(try await api.replace(orderId: orderId, amendment: amendment))
+    }
+
+    func closePosition(symbol: String, percentage: Double, cancelOpenOrders: Bool) async throws -> [Order] {
+        try mapOrders(
+            try await api.closePosition(
+                symbol: symbol,
+                percentage: percentage,
+                cancelOpenOrders: cancelOpenOrders
+            )
+        )
+    }
+
     private func mapOrders(_ dtos: [AlpacaOrderDTO]) throws -> [Order] {
         try dtos.map(Self.mapOrder)
     }
@@ -101,45 +119,9 @@ final class AlpacaBrokerage: BrokerageServing {
             submittedAt: dto.submittedAt,
             updatedAt: dto.updatedAt,
             createdAt: dto.createdAt,
-            clientOrderId: dto.clientOrderId
+            clientOrderId: dto.clientOrderId,
+            orderClass: dto.orderClass,
+            parentOrderId: dto.parentOrderId
         )
-    }
-}
-
-extension OrderStatus {
-    init(brokerValue: String) {
-        switch brokerValue.lowercased() {
-        case "new": self = .new
-        case "partially_filled": self = .partiallyFilled
-        case "filled": self = .filled
-        case "done_for_day": self = .doneForDay
-        case "canceled", "cancelled": self = .canceled
-        case "expired": self = .expired
-        case "replaced": self = .replaced
-        case "pending_cancel": self = .pendingCancel
-        case "pending_replace": self = .pendingReplace
-        case "accepted": self = .accepted
-        case "pending_new": self = .pendingNew
-        case "accepted_for_bidding": self = .acceptedForBidding
-        case "stopped": self = .stopped
-        case "rejected": self = .rejected
-        case "suspended": self = .suspended
-        case "calculated": self = .calculated
-        case "held": self = .held
-        default: self = .other
-        }
-    }
-}
-
-extension OrderType {
-    init(brokerValue: String) {
-        switch brokerValue.lowercased() {
-        case "market": self = .market
-        case "limit": self = .limit
-        case "stop": self = .stop
-        case "stop_limit": self = .stopLimit
-        case "trailing_stop": self = .trailingStop
-        default: self = .other
-        }
     }
 }

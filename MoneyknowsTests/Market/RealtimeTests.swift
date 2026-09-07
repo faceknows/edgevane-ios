@@ -49,6 +49,20 @@ final class MarketStreamPayloadTests: XCTestCase {
         XCTAssertEqual(MarketStreamPayload.snapshotQuotes(from: snapshot).first?.bid, 1)
         XCTAssertEqual(MarketStreamPayload.snapshotTrades(from: snapshot).first?.price, 1.5)
     }
+
+    func testParsesNestedTradeUpdateOrder() {
+        let order = MarketStreamPayload.order(from: Data(#"""
+        {"data":{"event":"fill","order":{"id":"o1","symbol":"msft","side":"sell","type":"limit","status":"filled","qty":"3","filled_qty":"3","filled_avg_price":"9.5","limit_price":"9.4","client_order_id":"auto-tp-1","parent_order_id":"parent-1"}}}
+        """#.utf8))
+        XCTAssertEqual(order?.id, "o1")
+        XCTAssertEqual(order?.symbol, "MSFT")
+        XCTAssertEqual(order?.side, "sell")
+        XCTAssertEqual(order?.status, "filled")
+        XCTAssertEqual(order?.filledAvgPrice, 9.5)
+        XCTAssertEqual(order?.clientOrderId, "auto-tp-1")
+        XCTAssertEqual(order?.parentOrderId, "parent-1")
+        XCTAssertNil(MarketStreamPayload.order(from: Data(#"{"hello":"nope"}"#.utf8)))
+    }
 }
 
 @MainActor
@@ -141,6 +155,11 @@ final class MarketRealtimeSessionTests: XCTestCase {
         XCTAssertEqual(session.quotes.quote(for: "AAPL")?.last, 11)
         XCTAssertEqual(session.quotes.quote(for: "AAPL")?.bid, 10.9)
         XCTAssertEqual(session.seconds.bars(for: "AAPL").count, 1)
+        var received: Data?
+        session.onTradeUpdate = { received = $0 }
+        let payload = Data(#"{"order":{"id":"o1","symbol":"AAPL"}}"#.utf8)
+        session.handle(event: MarketStreamEvent.tradeUpdates, data: payload)
+        XCTAssertEqual(received, payload)
         try await session.unsubscribe(["AAPL"])
         XCTAssertFalse(session.subscriptions.contains("AAPL"))
         XCTAssertNil(session.quotes.quote(for: "AAPL"))

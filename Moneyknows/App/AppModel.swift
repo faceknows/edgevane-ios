@@ -19,6 +19,7 @@ final class AppModel: ObservableObject {
     let bars: BarStore
     let realtime: MarketRealtimeSession
     let trading: TradingSession
+    let autoExit: AutoExit
     let router: AppRouter
     private var isTradingForeground = false
 
@@ -50,6 +51,7 @@ final class AppModel: ObservableObject {
         brokerage = CurrentBrokerageStore()
         if let userId = session.user?.id {
             brokerage.prepareForUser(userId)
+            blacklist.prepareForUser(userId)
         }
         profile = ProfileStore(api: userAPI, session: session)
         pushPreference = PushPreferenceStore()
@@ -73,7 +75,9 @@ final class AppModel: ObservableObject {
             barsAPI: BarsAPI(client: authorized)
         )
         trading = TradingSession()
+        autoExit = AutoExit()
         router = AppRouter()
+        bindTradingHooks()
         session.cleanup.register { [weak brokerage] in
             do {
                 try brokerage?.clearAll()
@@ -99,7 +103,11 @@ final class AppModel: ObservableObject {
         session.cleanup.register { [weak realtime] in
             realtime?.reset()
         }
-        session.cleanup.register { [weak trading] in
+        session.cleanup.register { [weak blacklist] in
+            blacklist?.resetSession()
+        }
+        session.cleanup.register { [weak trading, weak autoExit] in
+            autoExit?.reset()
             trading?.reset()
         }
         session.cleanup.register { [weak router] in
@@ -133,6 +141,7 @@ final class AppModel: ObservableObject {
         Task { await realtime.refreshSubscriptions() }
         if let userId = session.user?.id {
             brokerage.prepareForUser(userId)
+            blacklist.prepareForUser(userId)
         }
         syncTrading()
         applyTradingForeground()
@@ -150,6 +159,7 @@ final class AppModel: ObservableObject {
             return
         }
         brokerage.prepareForUser(userId)
+        blacklist.prepareForUser(userId)
         syncTrading()
         applyTradingForeground()
         preferences.prepareForUser(userId)
@@ -190,5 +200,36 @@ final class AppModel: ObservableObject {
             return
         }
         trading.setForeground(true)
+    }
+
+    private func bindTradingHooks() {
+        autoExit.trading = trading
+        autoExit.takeProfitPercent = { [weak preferences] in
+            preferences?.values.autoTakeProfitPercent ?? 0
+        }
+        autoExit.stopLossPercent = { [weak preferences] in
+            preferences?.values.autoStopLossPercent ?? 0
+        }
+        autoExit.protectionMinutes = { [weak preferences] in
+            preferences?.values.allowTradeInMinutesAfterOpen ?? UserPreferences.defaults.allowTradeInMinutesAfterOpen
+        }
+        autoExit.maxOrderValue = { [weak profile] in
+            profile?.roleConfiguration?.maxOrderValue
+        }
+        autoExit.isTakeProfitBlocked = { [weak blacklist] symbol in
+            blacklist?.isTakeProfitBlocked(symbol) ?? false
+        }
+        autoExit.isStopLossBlocked = { [weak blacklist] symbol in
+            blacklist?.isStopLossBlocked(symbol) ?? false
+        }
+        realtime.onTradeUpdate = { [weak trading] data in
+            trading?.applyStreamData(data)
+        }
+        trading.onEntryFill = { [weak autoExit] order in
+            autoExit?.scheduleFill(order)
+        }
+        trading.onReset = { [weak autoExit] in
+            autoExit?.reset()
+        }
     }
 }
