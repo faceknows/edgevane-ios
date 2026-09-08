@@ -212,3 +212,32 @@ enum ChartLibraryOptions {
         !alreadyInstalled
     }
 }
+
+/// Overlay volume in a bottom strip of `ChartSurface.height`. Callers pass `volumeHeight` to size that strip; otherwise a default fraction of the total height is used.
+enum ChartVolumeLayout {
+    static let priceTop: Double = 0.06
+    static let priceBottomWithoutVolume: Double = 0.08
+    static let volumeBottom: Double = 0.02
+    static let gap: Double = 0.06
+    static let defaultVolumeFraction: Double = 0.22
+    private static let maxVolumeFraction: Double = 0.5
+
+    static func defaultVolumeHeight(in totalHeight: CGFloat) -> CGFloat {
+        max(0, totalHeight) * CGFloat(defaultVolumeFraction)
+    }
+
+    static func priceMargins(volumeHeight: CGFloat?, totalHeight: CGFloat) -> (top: Double, bottom: Double) {
+        guard let volumeHeight else {
+            return (priceTop, priceBottomWithoutVolume)
+        }
+        return (priceTop, volumeFraction(volumeHeight, totalHeight: totalHeight) + gap + volumeBottom)
+    }
+
+    static func volumeMargins(volumeHeight: CGFloat, totalHeight: CGFloat) -> (top: Double, bottom: Double) {
+        (1 - volumeFraction(volumeHeight, totalHeight: totalHeight) - volumeBottom, volumeBottom)
+    }
+
+    private static func volumeFraction(_ volumeHeight: CGFloat, totalHeight: CGFloat) -> Double {
+        min(maxVolumeFraction, max(0, Double(volumeHeight / max(totalHeight, 1))))
+    }
+}

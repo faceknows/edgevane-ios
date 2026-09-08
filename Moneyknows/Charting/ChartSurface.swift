@@ -4,6 +4,7 @@ struct ChartSurface: View {
     var model: ChartModel
     var colors: ChartColors
     var height: CGFloat = 260
+    var volumeHeight: CGFloat? = nil
     var isLoading = false
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
@@ -43,9 +44,20 @@ struct ChartSurface: View {
         } else if engineFailed {
             EmptyStateView(title: L10n.Chart.loadFailed, retry: retryEngine)
         } else {
-            LightweightChartView(model: model, colors: colors, onEvent: handle)
-                .id(engineGeneration)
+            LightweightChartView(
+                model: model,
+                colors: colors,
+                volumeHeight: resolvedVolumeHeight,
+                chartHeight: height,
+                onEvent: handle
+            )
+            .id(engineGeneration)
         }
+    }
+
+    private var resolvedVolumeHeight: CGFloat? {
+        guard model.showVolume else { return nil }
+        return volumeHeight ?? ChartVolumeLayout.defaultVolumeHeight(in: height)
     }
 
     private func staleBanner(_ text: String) -> some View {

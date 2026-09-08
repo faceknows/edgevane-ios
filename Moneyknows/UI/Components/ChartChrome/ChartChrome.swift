@@ -50,6 +50,7 @@ struct ChartPanel: View {
     var title: String
     var model: ChartModel
     var height: CGFloat
+    var volumeHeight: CGFloat? = nil
     var isLoading = false
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
@@ -70,6 +71,7 @@ struct ChartPanel: View {
                 model: model,
                 colors: ChartPalette.colors(scheme: colorScheme),
                 height: height,
+                volumeHeight: volumeHeight,
                 isLoading: isLoading,
                 errorText: errorText,
                 retry: retry,

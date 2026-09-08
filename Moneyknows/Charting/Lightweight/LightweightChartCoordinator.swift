@@ -5,6 +5,8 @@ import LightweightCharts
 struct LightweightChartSnapshot: Equatable {
     var model: ChartModel
     var colors: ChartColors
+    var volumeHeight: CGFloat?
+    var chartHeight: CGFloat
 }
 
 final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, ChartDelegate, TimeScaleDelegate {
@@ -48,8 +50,19 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         onEvent(.loadFailed)
     }
 
-    func applyIfNeeded(_ model: ChartModel, colors: ChartColors, on chart: LightweightCharts) {
-        let snapshot = LightweightChartSnapshot(model: model, colors: colors)
+    func applyIfNeeded(
+        _ model: ChartModel,
+        colors: ChartColors,
+        volumeHeight: CGFloat?,
+        chartHeight: CGFloat,
+        on chart: LightweightCharts
+    ) {
+        let snapshot = LightweightChartSnapshot(
+            model: model,
+            colors: colors,
+            volumeHeight: volumeHeight,
+            chartHeight: chartHeight
+        )
         pending = snapshot
         guard isLoaded, applied != snapshot else { return }
         apply(snapshot, on: chart)
@@ -94,19 +107,18 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         _ colors: ChartColors,
         includeFormatters: Bool,
         lockLeftEdge: Bool,
-        showVolume: Bool = false
+        volumeHeight: CGFloat? = nil,
+        chartHeight: CGFloat = 0
     ) -> ChartOptions {
         let grid = chartColor(colors.grid)
+        let price = ChartVolumeLayout.priceMargins(volumeHeight: volumeHeight, totalHeight: chartHeight)
         return ChartOptions(
             layout: LayoutOptions(
                 background: .solid(color: chartColor(colors.background)),
                 textColor: chartColor(colors.text)
             ),
             rightPriceScale: PriceScaleOptions(
-                scaleMargins: PriceScaleMargins(
-                    top: 0.1,
-                    bottom: showVolume ? 0.25 : 0.05
-                ),
+                scaleMargins: PriceScaleMargins(top: price.top, bottom: price.bottom),
                 borderColor: grid
             ),
             timeScale: TimeScaleOptions(
@@ -140,7 +152,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             colors,
             includeFormatters: attachFormatters,
             lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging),
-            showVolume: model.showVolume
+            volumeHeight: snapshot.volumeHeight,
+            chartHeight: snapshot.chartHeight
         ))
         if attachFormatters {
             didInstallFormatters = true
@@ -177,6 +190,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
         syncOverlays(model.overlays, colors: colors, on: chart)
         syncVolume(model, colors: colors, on: chart)
+        applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
         appliedBars = model.bars
         if !didFitContent {
             ChartTimeScalePaging.beginIgnoringFitContent(&paging)
@@ -270,11 +284,6 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         if volumeSeries != nil {
             series.applyOptions(options: options)
         }
-        chart.priceScale(priceScaleId: "volume").applyOptions(options: PriceScaleOptions(
-            scaleMargins: PriceScaleMargins(top: 0.8, bottom: 0),
-            borderVisible: false,
-            visible: false
-        ))
         volumeSeries = series
         series.setData(data: model.bars.map { bar in
             HistogramData(
@@ -283,6 +292,28 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 color: volumeBarColor(bar, colors: colors)
             )
         })
+    }
+
+    private func applyVolumeLayout(volumeHeight: CGFloat?, chartHeight: CGFloat) {
+        let price = ChartVolumeLayout.priceMargins(volumeHeight: volumeHeight, totalHeight: chartHeight)
+        applyPriceScale(
+            PriceScaleOptions(scaleMargins: PriceScaleMargins(top: price.top, bottom: price.bottom)),
+            to: mainSeries?.series
+        )
+        guard let volumeHeight, let volumeSeries else { return }
+        let volume = ChartVolumeLayout.volumeMargins(volumeHeight: volumeHeight, totalHeight: chartHeight)
+        volumeSeries.priceScale().applyOptions(options: PriceScaleOptions(
+            scaleMargins: PriceScaleMargins(top: volume.top, bottom: volume.bottom),
+            borderVisible: false
+        ))
+    }
+
+    private func applyPriceScale(_ options: PriceScaleOptions, to series: SeriesObject?) {
+        if let candle = series as? CandlestickSeries {
+            candle.priceScale().applyOptions(options: options)
+        } else if let line = series as? LineSeries {
+            line.priceScale().applyOptions(options: options)
+        }
     }
 
     private func volumeOptions(_ colors: ChartColors) -> HistogramSeriesOptions {
@@ -296,9 +327,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     }
 
     private func volumeBarColor(_ bar: Bar, colors: ChartColors) -> ChartColor {
-        var rgba = bar.close >= bar.open ? colors.up : colors.down
-        rgba.alpha = 0.5
-        return chartColor(rgba)
+        chartColor(bar.close >= bar.open ? colors.up : colors.down)
     }
 
     private func applyPriceLines<Series: SeriesApi>(_ lines: [ChartModel.PriceLine], colors: ChartColors, on series: Series) {

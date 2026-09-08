@@ -60,7 +60,7 @@ ChartModel
   priceLines    [PriceLine]
   markers       [ChartMarker]   可空；蜡烛和折线都要画
   followLatest  Bool    秒图 true；分钟主图 / 复盘 false
-  showVolume    Bool    由组装方按场景传入；图表只画，不猜
+  showVolume    Bool    由组装方按场景传入；图表只画，不猜。true 时成交量在底部独立条带，不与 K 线共用价格轴
 ```
 
 空 `bars`：组件显示空态（由外层也可以先挡），**不准**画一条假平线。  
@@ -130,6 +130,8 @@ ChartEvent
 - 唯一 `import LightweightCharts` 的地方。
 - SwiftUI 用 `UIViewRepresentable` 包官方 iOS 封装。
 - `PriceLine` → `createPriceLine`；`OverlayLine` → `LineSeries`；`ChartMarker` → series markers（买/卖不同形状与色 token）。
+- `showVolume`：histogram 用独立 overlay 价格轴（`volumeSeries.priceScale()`），固定在图底部；K 线价格轴留出下边距。不要设全局 `overlayPriceScales`，也不要把成交量画在蜡烛同一价格轴上。
+- `ChartSurface.height` 是图区总高度。成交量条带是其中一块，可用 `volumeHeight` 指定；不传则按总高的默认比例切。
 - 蜡烛 / 折线切换拆/建 series，**markers 跟着当前主 series**，不要两套 View。
 - 主题：背景、涨跌色跟 `UI/Theme`，经 `ChartModel` 或环境传入。
 

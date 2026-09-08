@@ -97,4 +97,24 @@ final class ChartLibraryOptionsTests: XCTestCase {
         XCTAssertTrue(ChartLibraryOptions.attachFormatters(alreadyInstalled: false))
         XCTAssertFalse(ChartLibraryOptions.attachFormatters(alreadyInstalled: true))
     }
+
+    func testVolumeStripSitsBelowPriceAndLeavesAGap() {
+        let total: CGFloat = 260
+        let volumeHeight = ChartVolumeLayout.defaultVolumeHeight(in: total)
+        let price = ChartVolumeLayout.priceMargins(volumeHeight: volumeHeight, totalHeight: total)
+        let volume = ChartVolumeLayout.volumeMargins(volumeHeight: volumeHeight, totalHeight: total)
+        XCTAssertGreaterThan(volume.top, 1 - price.bottom)
+        XCTAssertLessThan(volume.top + volume.bottom, 1)
+        let without = ChartVolumeLayout.priceMargins(volumeHeight: nil, totalHeight: total)
+        XCTAssertEqual(without.bottom, ChartVolumeLayout.priceBottomWithoutVolume)
+        XCTAssertEqual(ChartVolumeLayout.defaultVolumeHeight(in: total), total * CGFloat(ChartVolumeLayout.defaultVolumeFraction))
+    }
+
+    func testCustomVolumeHeightChangesPriceBottomMargin() {
+        let total: CGFloat = 200
+        let compact = ChartVolumeLayout.priceMargins(volumeHeight: 20, totalHeight: total)
+        let tall = ChartVolumeLayout.priceMargins(volumeHeight: 80, totalHeight: total)
+        XCTAssertGreaterThan(tall.bottom, compact.bottom)
+        XCTAssertEqual(ChartVolumeLayout.priceMargins(volumeHeight: nil, totalHeight: total).bottom, ChartVolumeLayout.priceBottomWithoutVolume)
+    }
 }
