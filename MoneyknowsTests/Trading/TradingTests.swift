@@ -1609,6 +1609,29 @@ final class OrderSizingTests: XCTestCase {
         XCTAssertEqual(OrderSizing.protectedExitQuantity(symbol: "AAPL", positionSide: .long, orders: [parent, tp, sl]), 2)
     }
 
+    func testSliderBoundsAlwaysLeaveRoomForAPositiveStep() {
+        let tight = OrderSizing.sliderBounds(100.001...100.002)
+        let tightSpan = tight.upperBound - tight.lowerBound
+        let tightStep = OrderSizing.sliderStep(span: tightSpan)
+        XCTAssertGreaterThan(tightStep, 0)
+        XCTAssertGreaterThan(tightSpan, tightStep)
+
+        let equal = OrderSizing.sliderBounds(50...50)
+        XCTAssertGreaterThan(equal.upperBound - equal.lowerBound, OrderSizing.sliderStep(span: 0))
+
+        let wide = OrderSizing.sliderBounds(10...40)
+        XCTAssertEqual(wide.lowerBound, 10)
+        XCTAssertEqual(wide.upperBound, 40)
+        XCTAssertEqual(OrderSizing.sliderStep(span: 30), 0.05)
+
+        XCTAssertEqual(OrderSizing.clampSliderPrice(1, in: 10...20), 10)
+        XCTAssertEqual(OrderSizing.clampSliderPrice(25, in: 10...20), 20)
+        XCTAssertEqual(OrderSizing.clampSliderPrice(.nan, in: 10...20), 15)
+        let fallback = OrderSizing.sliderBounds((-1)...(-1))
+        XCTAssertGreaterThan(fallback.lowerBound, 0)
+        XCTAssertGreaterThan(fallback.upperBound, fallback.lowerBound)
+    }
+
     func testOCOSnapshotsGroupByParentIdNotClientId() {
         let tp = sampleOrder(
             id: "tp",

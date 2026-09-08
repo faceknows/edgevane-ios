@@ -213,6 +213,22 @@ enum ChartLibraryOptions {
     }
 }
 
+/// Details stacks several `ChartSurface`s. Vertical pans belong to the page; the chart keeps left/right and pinch.
+enum ChartTouchScrolling {
+    static let verticalTouchDrag = false
+    static let horizontalTouchDrag = true
+    static let lockDistance: Double = 8
+
+    static func hasLockedDirection(translationX: Double, translationY: Double) -> Bool {
+        hypot(translationX, translationY) >= lockDistance
+    }
+
+    /// Horizontal wins only when X is strictly larger; ties and vertical go to the page.
+    static func chartOwnsPan(translationX: Double, translationY: Double) -> Bool {
+        abs(translationX) > abs(translationY)
+    }
+}
+
 /// Overlay volume in a bottom strip of `ChartSurface.height`. Callers pass `volumeHeight` to size that strip; otherwise a default fraction of the total height is used.
 enum ChartVolumeLayout {
     static let priceTop: Double = 0.06

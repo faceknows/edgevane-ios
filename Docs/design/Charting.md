@@ -11,7 +11,7 @@
 | 它做 | 它不做 |
 | --- | --- |
 | 画蜡烛 / 折线、叠加线、价格线、**买卖点标记** | 拉 REST / Socket、拉成交 |
-| 缩放、平移、十字光标 | 算 VWAP / RSI（在 `Indicators`，由 Market 调用） |
+| 左右平移、双指缩放、十字光标 | 算 VWAP / RSI（在 `Indicators`，由 Market 调用） |
 | 日线触达最早一根时发「需要更早数据」 | 知道用户有没有订阅；不知道「复盘」是什么业务 |
 | 统一一套 `ChartSurface` | 仪表盘数字卡（那是 Swift Charts） |
 
@@ -75,7 +75,7 @@ ChartEvent
   reachedOldest         用户滑到已有数据最早端（日线用来再拉 100 天）
 ```
 
-缩放和平移由库内部消化，不必每帧回传。标记必须跟着缩放平移，不能用 SwiftUI 盖一层对不齐的点。
+左右平移和双指缩放由库内部消化，不必每帧回传。单指上下滑**不**给图表（详情叠了多张图，要滚整页）；左右滑仍平移 K 线。标记必须跟着缩放平移，不能用 SwiftUI 盖一层对不齐的点。
 
 ## 4. 谁组装 ChartModel
 
@@ -134,6 +134,7 @@ ChartEvent
 - `ChartSurface.height` 是图区总高度。成交量条带是其中一块，可用 `volumeHeight` 指定；不传则按总高的默认比例切。
 - 蜡烛 / 折线切换拆/建 series，**markers 跟着当前主 series**，不要两套 View。
 - 主题：背景、涨跌色跟 `UI/Theme`，经 `ChartModel` 或环境传入。
+- 手势：单指上下滑交给外层页面滚动（详情叠了多张图）；左右平移、双指缩放仍由图表消化。
 
 换库：只替换 `Lightweight/`，`ChartModel` / `ChartEvent` 不动。
 

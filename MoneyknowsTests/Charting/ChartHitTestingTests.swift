@@ -98,6 +98,28 @@ final class ChartLibraryOptionsTests: XCTestCase {
         XCTAssertFalse(ChartLibraryOptions.attachFormatters(alreadyInstalled: true))
     }
 
+    func testVerticalTouchDragIsOffSoThePageCanScroll() {
+        XCTAssertFalse(ChartTouchScrolling.verticalTouchDrag)
+        XCTAssertTrue(ChartTouchScrolling.horizontalTouchDrag)
+    }
+
+    func testVerticalPanBelongsToThePage() {
+        XCTAssertFalse(ChartTouchScrolling.chartOwnsPan(translationX: 2, translationY: 20))
+        XCTAssertFalse(ChartTouchScrolling.chartOwnsPan(translationX: 0, translationY: -12))
+        XCTAssertFalse(ChartTouchScrolling.chartOwnsPan(translationX: 10, translationY: 10))
+    }
+
+    func testHorizontalPanBelongsToTheChart() {
+        XCTAssertTrue(ChartTouchScrolling.chartOwnsPan(translationX: 20, translationY: 2))
+        XCTAssertTrue(ChartTouchScrolling.chartOwnsPan(translationX: -12, translationY: 0))
+    }
+
+    func testDirectionLockWaitsUntilTheFingerMovesFarEnough() {
+        XCTAssertFalse(ChartTouchScrolling.hasLockedDirection(translationX: 3, translationY: 4))
+        XCTAssertTrue(ChartTouchScrolling.hasLockedDirection(translationX: 10, translationY: 1))
+        XCTAssertTrue(ChartTouchScrolling.hasLockedDirection(translationX: 0, translationY: -8))
+    }
+
     func testVolumeStripSitsBelowPriceAndLeavesAGap() {
         let total: CGFloat = 260
         let volumeHeight = ChartVolumeLayout.defaultVolumeHeight(in: total)

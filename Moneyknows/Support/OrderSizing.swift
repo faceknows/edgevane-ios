@@ -4,6 +4,42 @@ enum OrderSizing {
     static let sliderLockDuration: TimeInterval = 10
     static let minimumPriceDelta = 0.01
 
+    /// SwiftUI `Slider(..., step:)` traps (`max stride must be positive`) when the
+    /// range has no room for a positive step — a tight second-chart high/low, or a
+    /// thumb sitting outside the bounds when the range updates.
+    static func sliderStep(span: Double) -> Double {
+        span > 20 ? 0.05 : 0.01
+    }
+
+    static func sliderBounds(_ range: ClosedRange<Double>) -> ClosedRange<Double> {
+        guard range.lowerBound.isFinite, range.upperBound.isFinite else {
+            return 0.99...1.01
+        }
+        var lower = min(range.lowerBound, range.upperBound)
+        var upper = max(range.lowerBound, range.upperBound)
+        if upper <= 0 {
+            return 0.01...0.03
+        }
+        if lower < 0 {
+            lower = 0
+        }
+        let minSpan = sliderStep(span: upper - lower) * 2
+        if upper - lower < minSpan {
+            let mid = (lower + upper) / 2
+            lower = max(0, mid - minSpan / 2)
+            upper = lower + minSpan
+        }
+        return lower...upper
+    }
+
+    static func clampSliderPrice(_ price: Double, in range: ClosedRange<Double>) -> Double {
+        let bounds = sliderBounds(range)
+        guard price.isFinite else {
+            return (bounds.lowerBound + bounds.upperBound) / 2
+        }
+        return min(max(price, bounds.lowerBound), bounds.upperBound)
+    }
+
     static let multipliers: [(label: String, value: Double)] = [
         ("1/3", 1.0 / 3.0),
         ("1/2", 0.5),

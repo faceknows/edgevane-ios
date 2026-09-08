@@ -13,6 +13,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     var chart: LightweightCharts?
     var onEvent: (ChartEvent) -> Void
     var pending: LightweightChartSnapshot?
+    let pageScrollPassthrough = ChartPageScrollPassthrough()
     private var applied: LightweightChartSnapshot?
     private var isLoaded = false
     private var mainSeries: (style: ChartStyle, series: SeriesObject)?
@@ -33,6 +34,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
 
     func lightweightChartsDidLoad(_ lightweightCharts: LightweightCharts) {
         Self.installHoveredObjectIdBridge(on: lightweightCharts)
+        Self.installVerticalPageScrollBridge(on: lightweightCharts)
         isLoaded = true
         lightweightCharts.subscribeCrosshairMove()
         lightweightCharts.subscribeClick()
@@ -134,7 +136,17 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             ),
             localization: includeFormatters
                 ? LocalizationOptions(timeFormatter: .closure(Self.easternCrosshairTime))
-                : nil
+                : nil,
+            handleScroll: .options(HandleScrollOptions.Options(
+                mouseWheel: true,
+                pressedMouseMove: true,
+                horzTouchDrag: ChartTouchScrolling.horizontalTouchDrag,
+                vertTouchDrag: ChartTouchScrolling.verticalTouchDrag
+            )),
+            handleScale: .options(HandleScaleOptions(
+                pinch: true,
+                axisPressedMouseMove: .options(AxisPressedMouseMoveOptions(time: true, price: false))
+            ))
         )
     }
 
@@ -455,6 +467,12 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             blue: CGFloat(rgba.blue),
             alpha: CGFloat(rgba.alpha)
         ))
+    }
+
+    /// Native WKWebView bounce would fight the enclosing page scroll.
+    private static func installVerticalPageScrollBridge(on chart: LightweightCharts) {
+        guard let webView = webView(in: chart) else { return }
+        webView.scrollView.bounces = false
     }
 
     /// LC iOS 4 decodes `hoveredObjectId` as `Int`. Marker / price-line ids are JSON strings,

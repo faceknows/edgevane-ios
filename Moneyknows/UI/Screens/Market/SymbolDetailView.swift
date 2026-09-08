@@ -214,16 +214,14 @@ struct SymbolDetailView: View {
         ).bars
         let highs = bars.map(\.high)
         let lows = bars.map(\.low)
-        guard let min = lows.min(), let max = highs.max(), max >= min, max > 0 else {
-            if let last = quotes.quote(for: symbol)?.last, last > 0 {
-                return (last * 0.99)...(last * 1.01)
+        guard let min = lows.min(), let max = highs.max(), max >= min, max > 0,
+              min.isFinite, max.isFinite else {
+            if let last = quotes.quote(for: symbol)?.last, last > 0, last.isFinite {
+                return OrderSizing.sliderBounds((last * 0.99)...(last * 1.01))
             }
             return nil
         }
-        if max == min {
-            return (min * 0.99)...(max * 1.01)
-        }
-        return min...max
+        return OrderSizing.sliderBounds(min...max)
     }
 
     private var secondModel: ChartModel {

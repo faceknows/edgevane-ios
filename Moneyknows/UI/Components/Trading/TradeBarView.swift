@@ -158,8 +158,9 @@ struct PriceSliderTradeView: View {
     init(range: ClosedRange<Double>, onConfirm: @escaping (Double) -> Void) {
         self.range = range
         self.onConfirm = onConfirm
-        _price = State(initialValue: (range.lowerBound + range.upperBound) / 2)
-        _lockedRange = State(initialValue: range)
+        let bounds = OrderSizing.sliderBounds(range)
+        _price = State(initialValue: (bounds.lowerBound + bounds.upperBound) / 2)
+        _lockedRange = State(initialValue: bounds)
     }
 
     var body: some View {
@@ -172,7 +173,7 @@ struct PriceSliderTradeView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.secondary)
                 Slider(
-                    value: $price,
+                    value: clampedPrice,
                     in: activeRange,
                     step: step,
                     onEditingChanged: editingChanged
@@ -181,7 +182,7 @@ struct PriceSliderTradeView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.secondary)
             }
-            Text(MarketFormat.price(price))
+            Text(MarketFormat.price(clampedPrice.wrappedValue))
                 .font(.headline.monospacedDigit())
                 .frame(maxWidth: .infinity)
         }
@@ -190,35 +191,38 @@ struct PriceSliderTradeView: View {
     }
 
     private var activeRange: ClosedRange<Double> {
-        if dragging || Date() < lockUntil {
-            return lockedRange
-        }
-        return range
+        let raw = dragging || Date() < lockUntil ? lockedRange : range
+        return OrderSizing.sliderBounds(raw)
     }
 
     private var step: Double {
-        let span = activeRange.upperBound - activeRange.lowerBound
-        return span > 20 ? 0.05 : 0.01
+        OrderSizing.sliderStep(span: activeRange.upperBound - activeRange.lowerBound)
+    }
+
+    private var clampedPrice: Binding<Double> {
+        Binding(
+            get: { OrderSizing.clampSliderPrice(price, in: activeRange) },
+            set: { price = $0 }
+        )
     }
 
     private func editingChanged(_ editing: Bool) {
         if editing {
             dragging = true
-            lockedRange = range
+            lockedRange = OrderSizing.sliderBounds(range)
             lockUntil = Date().addingTimeInterval(OrderSizing.sliderLockDuration)
-            if price < lockedRange.lowerBound { price = lockedRange.lowerBound }
-            if price > lockedRange.upperBound { price = lockedRange.upperBound }
+            price = OrderSizing.clampSliderPrice(price, in: lockedRange)
         } else {
             dragging = false
             lockUntil = Date().addingTimeInterval(OrderSizing.sliderLockDuration)
-            onConfirm(price)
+            onConfirm(OrderSizing.clampSliderPrice(price, in: activeRange))
         }
     }
 
     private func refreshRangeIfUnlocked() {
         guard !dragging, Date() >= lockUntil else { return }
-        lockedRange = range
-        price = min(max(price, range.lowerBound), range.upperBound)
+        lockedRange = OrderSizing.sliderBounds(range)
+        price = OrderSizing.clampSliderPrice(price, in: lockedRange)
     }
 }
 
