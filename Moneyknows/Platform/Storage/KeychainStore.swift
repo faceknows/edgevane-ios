@@ -33,12 +33,33 @@ struct KeychainStore: CredentialStoring {
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
         ]
-        SecItemDelete(query as CFDictionary)
+        let attributes: [String: Any] = [
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        let updated = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        if updated == errSecSuccess {
+            guard try stringIfPresent(account: account) == value else {
+                throw AppError.decoding
+            }
+            return
+        }
+        if updated != errSecItemNotFound {
+            throw AppError.decoding
+        }
         var add = query
         add[kSecValueData as String] = data
         add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        let status = SecItemAdd(add as CFDictionary, nil)
-        guard status == errSecSuccess else {
+        let added = SecItemAdd(add as CFDictionary, nil)
+        if added == errSecDuplicateItem {
+            let retried = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            guard retried == errSecSuccess else {
+                throw AppError.decoding
+            }
+        } else if added != errSecSuccess {
+            throw AppError.decoding
+        }
+        guard try stringIfPresent(account: account) == value else {
             throw AppError.decoding
         }
     }

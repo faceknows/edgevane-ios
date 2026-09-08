@@ -28,7 +28,26 @@ final class ProfileStore: ObservableObject {
         isLoading = true
         errorText = nil
         defer { isLoading = false }
+        await refreshIdentity(epoch: epoch, generation: generation)
+        await refreshRoleConfiguration(epoch: epoch, generation: generation)
+    }
 
+    func refreshIdentity() async {
+        let epoch = self.epoch
+        let generation = session.generation
+        isLoading = true
+        errorText = nil
+        defer { isLoading = false }
+        await refreshIdentity(epoch: epoch, generation: generation)
+    }
+
+    func refreshRoleConfiguration() async {
+        let epoch = self.epoch
+        let generation = session.generation
+        await refreshRoleConfiguration(epoch: epoch, generation: generation)
+    }
+
+    private func refreshIdentity(epoch: UInt64, generation: UInt64) async {
         do {
             let dto = try await api.me()
             guard isCurrent(epoch: epoch, generation: generation) else { return }
@@ -40,7 +59,9 @@ final class ProfileStore: ObservableObject {
                 AppLog.session.error("profile refresh failed")
             }
         }
+    }
 
+    private func refreshRoleConfiguration(epoch: UInt64, generation: UInt64) async {
         do {
             let configuration = try await api.roleConfiguration()
             guard isCurrent(epoch: epoch, generation: generation) else { return }

@@ -9,6 +9,22 @@ final class AppRouterTests: XCTestCase {
         XCTAssertEqual(router.overlay, .symbol("AAPL"))
         router.openNews("n1")
         XCTAssertEqual(router.overlay, .news("n1"))
+        router.handleNotification(
+            AppNotification(
+                id: "m",
+                title: "T",
+                body: "",
+                sentAt: 1,
+                data: [
+                    "type": NotificationKind.marketTrendUpReversal.rawValue,
+                    "symbols": "AMD,NVDA",
+                    "screen": "Markets",
+                ]
+            ),
+            versionPassed: true,
+            signedIn: true
+        )
+        XCTAssertEqual(router.overlay, .screenerCatalog(["AMD", "NVDA"]))
         router.dismissOverlay()
         XCTAssertNil(router.overlay)
     }

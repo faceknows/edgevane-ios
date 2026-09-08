@@ -57,10 +57,29 @@ private struct RootSwitcher: View {
                     VStack(spacing: 0) {
                         TradingNoticeBanner()
                         NewsToastBanner()
+                        NotificationToastBanner()
                     }
                 }
         case .news(let newsID):
             NewsDetailView(newsID: newsID)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Common.close) {
+                            router.dismissOverlay()
+                        }
+                    }
+                }
+        case .notifications:
+            NotificationsView()
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Common.close) {
+                            router.dismissOverlay()
+                        }
+                    }
+                }
+        case .screenerCatalog(let symbols):
+            ScreenerCatalogView(highlightedSymbols: symbols)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button(L10n.Common.close) {

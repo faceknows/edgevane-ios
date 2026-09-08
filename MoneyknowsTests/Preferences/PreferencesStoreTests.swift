@@ -228,6 +228,37 @@ final class ProfileStoreTests: XCTestCase {
         XCTAssertEqual(session.user?.email, "a@b.com")
         XCTAssertEqual(store.roleConfiguration?.maxOrderValue, 75)
     }
+
+    func testRefreshIdentityAppliesUserWithoutWaitingForRoleConfig() async throws {
+        let keychain = MemoryCredentialStore()
+        let disk = DiskStore(folder: "MoneyknowsTests-profile-identity-\(UUID().uuidString)")
+        try keychain.set("access", account: "session.accessToken")
+        try keychain.set(
+            String(Date().addingTimeInterval(3600).timeIntervalSince1970),
+            account: "session.expiresAt"
+        )
+        let session = SessionStore(
+            keychain: keychain,
+            disk: disk,
+            refreshSession: { _ in
+                XCTFail("refresh should not run")
+                throw AppError.network
+            }
+        )
+        XCTAssertNil(session.user)
+
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"{"id":"1","email":"a@b.com","nickname":"Ada"}"#.utf8)),
+            .success(Data(#"{"configuration":{"MAX_ORDER_VALUE":75}}"#.utf8)),
+        ]
+        let store = ProfileStore(api: UserAPI(client: http), session: session)
+        await store.refreshIdentity()
+
+        XCTAssertEqual(session.user?.id, "1")
+        XCTAssertNil(store.roleConfiguration)
+        XCTAssertEqual(http.requests.map(\.path), ["v1/users/me"])
+    }
 }
 
 private struct PreferenceMetaProbe: Codable {

@@ -8,6 +8,10 @@ final class SessionStore: ObservableObject {
     @Published private(set) var generation: UInt64 = 0
 
     let cleanup = LogoutCleanup()
+    var willClearSession: (() -> Void)? {
+        didSet { flushStartupClearIfPossible() }
+    }
+    var didDropSignedInSession: (() -> Void)?
 
     private let keychain: CredentialStoring
     private let disk: DiskStore
@@ -21,6 +25,7 @@ final class SessionStore: ObservableObject {
     }
 
     private let userFile = "session-user.json"
+    private var pendingStartupClearReason: String?
 
     init(
         keychain: CredentialStoring,
@@ -127,10 +132,27 @@ final class SessionStore: ObservableObject {
         }
 
         guard let refreshToken = keychain.string(account: Account.refresh), !refreshToken.isEmpty else {
-            clearSession(reason: "expired session without refresh")
+            scheduleStartupClear(reason: "expired session without refresh")
             return
         }
         isRestoringSession = true
+    }
+
+    private func scheduleStartupClear(reason: String) {
+        pendingStartupClearReason = reason
+        user = nil
+        isSignedIn = false
+        isRestoringSession = false
+        flushStartupClearIfPossible()
+    }
+
+    private func flushStartupClearIfPossible() {
+        guard willClearSession != nil, let reason = pendingStartupClearReason else { return }
+        pendingStartupClearReason = nil
+        if user == nil {
+            user = disk.read(AppUser.self, name: userFile)
+        }
+        clearSession(reason: reason)
     }
 
     private func persist(tokens: SessionTokens, user: AppUser?) throws {
@@ -196,7 +218,9 @@ final class SessionStore: ObservableObject {
     }
 
     private func clearSession(reason: String) {
+        let dropSignedInRoutes = !isRestoringSession
         generation += 1
+        willClearSession?()
         keychain.delete(account: Account.access)
         keychain.delete(account: Account.refresh)
         keychain.delete(account: Account.expiry)
@@ -205,6 +229,9 @@ final class SessionStore: ObservableObject {
         isSignedIn = false
         isRestoringSession = false
         cleanup.run()
+        if dropSignedInRoutes {
+            didDropSignedInSession?()
+        }
         AppLog.session.info("\(reason, privacy: .public)")
     }
 }

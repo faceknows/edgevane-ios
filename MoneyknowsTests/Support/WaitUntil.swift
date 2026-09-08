@@ -16,3 +16,21 @@ func waitUntil(
     }
     XCTFail("waitUntil timed out after \(timeoutSeconds)s", file: file, line: line)
 }
+
+@MainActor
+final class WaitGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    var isWaiting: Bool { continuation != nil }
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
+    }
+}

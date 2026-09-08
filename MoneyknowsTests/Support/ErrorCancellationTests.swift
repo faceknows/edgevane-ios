@@ -20,5 +20,9 @@ final class ErrorCancellationTests: XCTestCase {
         XCTAssertTrue((AppError.http(status: 401, message: nil, errorCode: nil) as Error).isUnauthorized)
         XCTAssertFalse(AppError.http(status: 403, message: nil, errorCode: nil).isUnauthorized)
         XCTAssertFalse(AppError.network.isUnauthorized)
+        XCTAssertTrue(AppError.http(status: 500, message: nil, errorCode: nil).isServerFailure)
+        XCTAssertTrue((AppError.http(status: 503, message: nil, errorCode: nil) as Error).isServerFailure)
+        XCTAssertFalse(AppError.http(status: 401, message: nil, errorCode: nil).isServerFailure)
+        XCTAssertFalse(AppError.network.isServerFailure)
     }
 }

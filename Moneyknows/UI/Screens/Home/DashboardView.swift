@@ -58,7 +58,7 @@ struct DashboardView: View {
                 NavigationLink(destination: AppRouter.destination(.calendar)) {
                     Label(L10n.Dashboard.events, systemImage: "calendar")
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.notifications)) {
+                NavigationLink(destination: AppRouter.destination(.notifications)) {
                     Label(L10n.Dashboard.notifications, systemImage: "bell")
                 }
                 NavigationLink(destination: AppRouter.destination(.news)) {

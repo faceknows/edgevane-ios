@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct MoneyknowsApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appModel = AppModel()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -34,6 +35,7 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.trading.orders)
             .environmentObject(appModel.insights)
             .environmentObject(appModel.news)
+            .environmentObject(appModel.notifications)
             .environmentObject(appModel.router)
             .task {
                 appModel.setTradingForeground(scenePhase == .active)

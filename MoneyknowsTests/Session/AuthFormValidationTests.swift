@@ -77,7 +77,43 @@ final class SessionRestorationTests: XCTestCase {
 
         XCTAssertFalse(store.isSignedIn)
         XCTAssertFalse(store.isRestoringSession)
+        XCTAssertEqual(store.accessToken, "expired-access")
+
+        store.willClearSession = {}
         XCTAssertNil(store.accessToken)
+        XCTAssertNil(store.user)
+    }
+
+    func testExpiredSessionWithoutRefreshUnregistersWhenHookIsInstalled() throws {
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(-60), refreshToken: nil)
+        defer { fixture.clear() }
+        fixture.disk.write(
+            AppUser(id: "user-a", email: "a@b.com", username: nil, nickname: nil, role: nil),
+            name: "session-user.json"
+        )
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { _ in
+                XCTFail("Refresh must not be called without a refresh token")
+                throw AppError.network
+            }
+        )
+        XCTAssertEqual(store.accessToken, "expired-access")
+        XCTAssertNil(store.user)
+
+        var capturedToken: String?
+        var capturedUserId: String?
+        store.willClearSession = {
+            capturedToken = store.accessToken
+            capturedUserId = store.user?.id
+        }
+
+        XCTAssertEqual(capturedToken, "expired-access")
+        XCTAssertEqual(capturedUserId, "user-a")
+        XCTAssertNil(store.accessToken)
+        XCTAssertNil(store.user)
+        XCTAssertFalse(store.isSignedIn)
     }
 
     func testRefreshAfterSignOutDoesNotRestoreSession() async throws {
@@ -165,6 +201,48 @@ final class SessionRestorationTests: XCTestCase {
         store.runCleanupIfInactive()
 
         XCTAssertTrue(cleaned)
+        XCTAssertFalse(store.isSignedIn)
+    }
+
+    func testRestoreFailureDoesNotDropPendingRoutes() async throws {
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(-60), refreshToken: "refresh")
+        defer { fixture.clear() }
+        var dropped = false
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { _ in throw AppError.network }
+        )
+        store.didDropSignedInSession = { dropped = true }
+        XCTAssertTrue(store.isRestoringSession)
+
+        do {
+            try await store.restoreIfNeeded()
+            XCTFail("restore must fail")
+        } catch {
+            XCTAssertEqual(error as? AppError, .network)
+        }
+
+        XCTAssertFalse(dropped)
+        XCTAssertFalse(store.isSignedIn)
+    }
+
+    func testSignOutDropsPendingRoutes() throws {
+        let fixture = try makeFixture(expiresAt: Date().addingTimeInterval(3600), refreshToken: "refresh")
+        defer { fixture.clear() }
+        var dropped = false
+        let store = SessionStore(
+            keychain: fixture.keychain,
+            disk: fixture.disk,
+            refreshSession: { _ in
+                XCTFail("refresh should not run")
+                throw AppError.network
+            }
+        )
+        store.didDropSignedInSession = { dropped = true }
+        XCTAssertTrue(store.isSignedIn)
+        store.signOut()
+        XCTAssertTrue(dropped)
         XCTAssertFalse(store.isSignedIn)
     }
 

@@ -3,6 +3,7 @@ import UIKit
 
 struct VersionGateView: View {
     @ObservedObject var model: VersionGateModel
+    @EnvironmentObject private var appModel: AppModel
 
     var body: some View {
         VStack(spacing: 16) {
@@ -16,7 +17,7 @@ struct VersionGateView: View {
                     .multilineTextAlignment(.center)
                     .padding(.horizontal)
                 Button(L10n.Common.retry) {
-                    Task { await model.check() }
+                    Task { await appModel.start() }
                 }
                 .buttonStyle(.borderedProminent)
             case let .blocked(message, storeURL):

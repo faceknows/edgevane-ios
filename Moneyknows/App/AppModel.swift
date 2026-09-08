@@ -22,6 +22,8 @@ final class AppModel: ObservableObject {
     let autoExit: AutoExit
     let insights: InsightsStore
     let news: NewsStore
+    let notifications: NotificationStore
+    let push: PushRegistration
     let router: AppRouter
     private let ibkrSocket: GatewaySocket
     private var isTradingForeground = false
@@ -81,10 +83,33 @@ final class AppModel: ObservableObject {
         autoExit = AutoExit()
         insights = InsightsStore(api: AIAPI(client: authorized))
         news = NewsStore()
+        notifications = NotificationStore(api: PushAPI(client: authorized))
+        push = PushRegistration(
+            api: PushAPI(client: authorized),
+            publicClient: publicClient,
+            preference: pushPreference,
+            tokens: InboxPushTokenProvider(),
+            credentials: KeychainStore(service: "com.byteknows.moneyknows.session")
+        )
         router = AppRouter()
         ibkrSocket = GatewaySocket(namespace: "/ibkr-stream")
+        push.isSessionActive = { [weak self] in self?.session.isSignedIn == true }
+        push.currentUserId = { [weak self] in self?.session.user?.id }
+        push.allowsRegistration = false
+        push.startNetworkRecovery()
         bindTradingHooks()
         bindNewsHooks()
+        bindPushHooks()
+        session.willClearSession = { [weak self] in
+            guard let self else { return }
+            self.push.unregisterBestEffort(
+                accessToken: self.session.accessToken,
+                userId: self.session.user?.id
+            )
+        }
+        session.didDropSignedInSession = { [weak self] in
+            self?.router.clearPending()
+        }
         session.cleanup.register { [weak brokerage] in
             do {
                 try brokerage?.clearAll()
@@ -119,12 +144,16 @@ final class AppModel: ObservableObject {
         }
         session.cleanup.register { [weak router] in
             router?.dismissOverlay()
+            router?.setViewingNotifications(false)
         }
         session.cleanup.register { [weak insights] in
             insights?.reset()
         }
         session.cleanup.register { [weak news] in
             news?.reset()
+        }
+        session.cleanup.register { [weak notifications] in
+            notifications?.reset()
         }
         session.cleanup.register { [weak ibkrSocket] in
             ibkrSocket?.disconnect()
@@ -133,21 +162,28 @@ final class AppModel: ObservableObject {
     }
 
     func start() async {
+        Task { await push.retryPendingDeletes() }
         await versionGate.check()
-        guard case .passed = versionGate.state else { return }
-        do {
-            try await session.restoreIfNeeded()
-        } catch {
-            AppLog.session.error("session restore failed")
+        if case .passed = versionGate.state {
+            push.allowsRegistration = true
+            do {
+                try await session.restoreIfNeeded()
+            } catch {
+                AppLog.session.error("session restore failed")
+            }
+            if session.isSignedIn {
+                await loadSignedInData()
+            }
         }
-        if session.isSignedIn {
-            await loadSignedInData()
-        }
+        consumeLaunchNotification()
     }
 
     func didSignIn(_ dto: AuthSessionDTO) throws {
         try session.applySignIn(dto)
-        Task { await loadSignedInData() }
+        Task {
+            await loadSignedInData()
+            consumeLaunchNotification()
+        }
     }
 
     func loadSignedInData() async {
@@ -156,8 +192,7 @@ final class AppModel: ObservableObject {
         connectStreams()
         Task { await realtime.refreshSubscriptions() }
         if let userId = session.user?.id {
-            brokerage.prepareForUser(userId)
-            blacklist.prepareForUser(userId)
+            prepareSignedInUser(userId)
         }
         syncTrading()
         applyTradingForeground()
@@ -167,22 +202,33 @@ final class AppModel: ObservableObject {
             async let prefs: Void = preferences.refresh(userId: userId)
             async let role: Void = profile.refresh()
             _ = await (prefs, role)
+            guard session.generation == generation, session.isSignedIn else { return }
+            if let userId = session.user?.id {
+                prepareSignedInUser(userId)
+            }
+            await finishSignedInLaunch()
+            consumeLaunchNotification()
             return
         }
 
-        await profile.refresh()
+        await profile.refreshIdentity()
         guard session.generation == generation, session.isSignedIn, let userId = session.user?.id else {
             return
         }
-        brokerage.prepareForUser(userId)
-        blacklist.prepareForUser(userId)
+        prepareSignedInUser(userId)
         syncTrading()
         applyTradingForeground()
         preferences.prepareForUser(userId)
-        await preferences.refresh(userId: userId)
+        async let prefs: Void = preferences.refresh(userId: userId)
+        async let role: Void = profile.refreshRoleConfiguration()
+        _ = await (prefs, role)
+        guard session.generation == generation, session.isSignedIn else { return }
+        await finishSignedInLaunch()
+        consumeLaunchNotification()
     }
 
     func ensureRealtimeConnected() {
+        Task { await push.retryIfNeeded() }
         guard session.isSignedIn else { return }
         connectStreams()
     }
@@ -259,8 +305,82 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func bindPushHooks() {
+        PushInbox.shared.onToken = { [weak self] token in
+            guard let self else { return }
+            Task {
+                await self.push.handleTokenRefresh(token, signedIn: self.session.isSignedIn)
+            }
+        }
+        PushInbox.shared.onForeground = { [weak self] item in
+            guard let self else { return }
+            guard self.session.isSignedIn, self.pushPreference.isEnabled else { return }
+            self.notifications.ingest(
+                item,
+                showToast: true,
+                volumeThreshold: self.preferences.values.notificationVolumeThreshold,
+                userId: self.session.user?.id
+            )
+        }
+        PushInbox.shared.onOpen = { [weak self] item in
+            guard let self else { return }
+            if self.session.isSignedIn, self.pushPreference.isEnabled {
+                self.notifications.ingest(
+                    item,
+                    showToast: false,
+                    volumeThreshold: self.preferences.values.notificationVolumeThreshold,
+                    userId: self.session.user?.id
+                )
+            }
+            self.router.handleNotification(
+                item,
+                versionPassed: self.versionGate.state == .passed,
+                signedIn: self.session.isSignedIn,
+                currentUserId: self.session.user?.id,
+                alreadyShowingHistory: self.router.isShowingNotificationHistory
+            )
+        }
+        pushPreference.onEnabledChange = { [weak self] enabled in
+            guard let self else { return }
+            Task {
+                await self.push.syncEnabled(enabled, signedIn: self.session.isSignedIn)
+            }
+        }
+    }
+
+    private func finishSignedInLaunch() async {
+        guard session.isSignedIn else { return }
+        await push.registerIfNeeded()
+    }
+
+    private func prepareSignedInUser(_ userId: String) {
+        brokerage.prepareForUser(userId)
+        blacklist.prepareForUser(userId)
+        notifications.activate(userId: userId)
+    }
+
+    private func consumeLaunchNotification() {
+        if let open = PushInbox.shared.consumePendingOpen() {
+            router.handleNotification(
+                open,
+                versionPassed: versionGate.state == .passed,
+                signedIn: session.isSignedIn,
+                currentUserId: session.user?.id
+            )
+            return
+        }
+        router.consumePending(
+            versionPassed: versionGate.state == .passed,
+            signedIn: session.isSignedIn,
+            currentUserId: session.user?.id
+        )
+    }
+
     private func connectStreams() {
         news.activate()
+        if let userId = session.user?.id {
+            notifications.activate(userId: userId)
+        }
         realtime.connect(token: session.accessToken)
         connectIBKR()
     }

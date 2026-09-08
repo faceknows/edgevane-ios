@@ -22,6 +22,11 @@ enum AppError: Error, Equatable {
         if case let .http(status, _, _) = self { return status == 404 }
         return false
     }
+
+    var isServerFailure: Bool {
+        if case let .http(status, _, _) = self { return status >= 500 }
+        return false
+    }
 }
 
 enum UserFacingError {
@@ -72,5 +77,9 @@ extension Error {
 
     var isNotFound: Bool {
         (self as? AppError)?.isNotFound == true
+    }
+
+    var isServerFailure: Bool {
+        (self as? AppError)?.isServerFailure == true
     }
 }

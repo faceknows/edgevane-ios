@@ -3,6 +3,10 @@ import Foundation
 enum L10n {
     private static var bundle: Bundle = .main
 
+    static func string(_ key: String) -> String {
+        localized(key)
+    }
+
     static func apply(localeCode: String?) {
         switch localeCode {
         case "en":
@@ -212,6 +216,33 @@ enum L10n {
         static func source(_ value: String) -> String {
             String(format: localized("news.source"), value)
         }
+    }
+
+    enum Notifications {
+        static var title: String { localized("notifications.title") }
+        static var emptyTitle: String { localized("notifications.emptyTitle") }
+        static var emptyBody: String { localized("notifications.emptyBody") }
+        static var filteredEmptyTitle: String { localized("notifications.filteredEmptyTitle") }
+        static var filteredEmptyBody: String { localized("notifications.filteredEmptyBody") }
+        static var filterAll: String { localized("notifications.filters.all") }
+        static var filterBreakout: String { localized("notifications.filters.breakout") }
+        static var filterIntradayHigh: String { localized("notifications.filters.intradayHigh") }
+        static var filterIntradayLow: String { localized("notifications.filters.intradayLow") }
+        static var filterSymbols: String { localized("notifications.filters.symbols") }
+        static var symbolsPlaceholder: String { localized("notifications.filters.symbolsPlaceholder") }
+        static var filterTrendDown: String { localized("notifications.filters.trendDown") }
+        static var filterTrendUp: String { localized("notifications.filters.trendUp") }
+        static var filterType: String { localized("notifications.filters.type") }
+        static var filterWeakPullback: String { localized("notifications.filters.weakPullback") }
+        static var marketTrendUpReversalTitle: String { localized("notifications.marketTrendUpReversalTitle") }
+        static var marketTrendDownReversalTitle: String { localized("notifications.marketTrendDownReversalTitle") }
+        static var intradayHighRetestTitle: String { localized("notifications.intradayHighRetestTitle") }
+        static var intradayLowRetestTitle: String { localized("notifications.intradayLowRetestTitle") }
+        static var loadFailed: String { localized("notifications.loadFailed") }
+        static var loadMore: String { localized("notifications.loadMore") }
+        static var loadingMore: String { localized("notifications.loadingMore") }
+        static var retry: String { localized("notifications.retry") }
+        static var toastTitle: String { localized("notifications.toastTitle") }
     }
 
     enum Market {

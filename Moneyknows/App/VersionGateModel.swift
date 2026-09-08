@@ -17,10 +17,15 @@ final class VersionGateModel: ObservableObject {
         self.api = api
     }
 
+    private var checkGeneration: UInt64 = 0
+
     func check() async {
+        checkGeneration += 1
+        let generation = checkGeneration
         state = .checking
         do {
             let info = try await api.check()
+            guard generation == checkGeneration else { return }
             if info.forceUpgrade == true {
                 block(message: info.upgradeMessage, store: info.storeUrl)
                 return
@@ -28,8 +33,10 @@ final class VersionGateModel: ObservableObject {
             state = .passed
             AppLog.app.info("version check passed \(AppEnvironment.appVersion, privacy: .public)")
         } catch let AppError.versionUnsupported(message, storeURL) {
+            guard generation == checkGeneration else { return }
             block(message: message, store: storeURL?.absoluteString)
         } catch {
+            guard generation == checkGeneration else { return }
             let text = UserFacingError.message(from: error) ?? L10n.Version.failed
             state = .failed(text)
             AppLog.app.error("version check failed")

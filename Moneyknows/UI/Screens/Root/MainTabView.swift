@@ -23,6 +23,7 @@ struct MainTabView: View {
             VStack(spacing: 0) {
                 TradingNoticeBanner()
                 NewsToastBanner()
+                NotificationToastBanner()
             }
         }
     }

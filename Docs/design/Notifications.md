@@ -14,19 +14,19 @@
 
 `NotificationStore`：`GET /v1/notifications/history` 分页。
 
-筛选：类型（趋势上/下、日内高/低、突破、弱势回调）、symbol。  
+筛选：类型走 `GET /v1/notifications/history` 的 `type` 参数（趋势上/下、日内高/低、突破、弱势回调）；symbol 与成交量在客户端。
 空态分「完全没有」和「筛选后没有」。
 
 `notificationVolumeThreshold`（0 = 不过滤，否则 2–8）：**历史列表与前台 toast 用同一套过滤**。实现时与 RN 对齐过滤发生在服务端还是客户端。
 
 ## 3. 深链
 
-解析通知 `data`（与 RN `openNotificationTarget` 对齐）：
+- 解析通知 `data`（与 RN `openNotificationTarget` 对齐，**按此顺序**）：
 
 | 条件 | 去哪 |
 | --- | --- |
+| 趋势/高低点且 `screen=Markets` | 扫描器目录 + symbol chips（即使只有一个 symbol） |
 | 单 symbol | 股票详情 |
-| 趋势/高低点且 `screen=Markets` | 扫描器目录 + symbol chips |
 | 其它 | 通知中心 |
 
 未登录：记住一次目标，登录后再跳。  

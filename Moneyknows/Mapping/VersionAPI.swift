@@ -11,7 +11,7 @@ struct AppVersionInfo: Decodable, Equatable {
 }
 
 struct VersionAPI {
-    var client: HTTPClient
+    var client: HTTPSending
 
     func check() async throws -> AppVersionInfo {
         try await client.send(
