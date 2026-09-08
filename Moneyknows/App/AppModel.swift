@@ -20,7 +20,10 @@ final class AppModel: ObservableObject {
     let realtime: MarketRealtimeSession
     let trading: TradingSession
     let autoExit: AutoExit
+    let insights: InsightsStore
+    let news: NewsStore
     let router: AppRouter
+    private let ibkrSocket: GatewaySocket
     private var isTradingForeground = false
 
     init() {
@@ -76,8 +79,12 @@ final class AppModel: ObservableObject {
         )
         trading = TradingSession()
         autoExit = AutoExit()
+        insights = InsightsStore(api: AIAPI(client: authorized))
+        news = NewsStore()
         router = AppRouter()
+        ibkrSocket = GatewaySocket(namespace: "/ibkr-stream")
         bindTradingHooks()
+        bindNewsHooks()
         session.cleanup.register { [weak brokerage] in
             do {
                 try brokerage?.clearAll()
@@ -113,6 +120,15 @@ final class AppModel: ObservableObject {
         session.cleanup.register { [weak router] in
             router?.dismissOverlay()
         }
+        session.cleanup.register { [weak insights] in
+            insights?.reset()
+        }
+        session.cleanup.register { [weak news] in
+            news?.reset()
+        }
+        session.cleanup.register { [weak ibkrSocket] in
+            ibkrSocket?.disconnect()
+        }
         session.runCleanupIfInactive()
     }
 
@@ -137,7 +153,7 @@ final class AppModel: ObservableObject {
     func loadSignedInData() async {
         guard session.isSignedIn else { return }
         let generation = session.generation
-        realtime.connect(token: session.accessToken)
+        connectStreams()
         Task { await realtime.refreshSubscriptions() }
         if let userId = session.user?.id {
             brokerage.prepareForUser(userId)
@@ -168,7 +184,7 @@ final class AppModel: ObservableObject {
 
     func ensureRealtimeConnected() {
         guard session.isSignedIn else { return }
-        realtime.connect(token: session.accessToken)
+        connectStreams()
     }
 
     func syncTrading() {
@@ -190,6 +206,7 @@ final class AppModel: ObservableObject {
 
     func setTradingForeground(_ foreground: Bool) {
         isTradingForeground = foreground
+        news.isForeground = foreground
         brokerage.setForeground(foreground)
         applyTradingForeground()
     }
@@ -225,11 +242,34 @@ final class AppModel: ObservableObject {
         realtime.onTradeUpdate = { [weak trading] data in
             trading?.applyStreamData(data)
         }
+        realtime.onNews = { [weak news] data in
+            news?.ingest(data, source: .alpaca)
+        }
         trading.onEntryFill = { [weak autoExit] order in
             autoExit?.scheduleFill(order)
         }
         trading.onReset = { [weak autoExit] in
             autoExit?.reset()
         }
+    }
+
+    private func bindNewsHooks() {
+        ibkrSocket.on(MarketStreamEvent.news) { [weak news] data in
+            news?.ingest(data, source: .ibkr)
+        }
+    }
+
+    private func connectStreams() {
+        news.activate()
+        realtime.connect(token: session.accessToken)
+        connectIBKR()
+    }
+
+    private func connectIBKR() {
+        guard let token = session.accessToken, !token.isEmpty else {
+            ibkrSocket.disconnect()
+            return
+        }
+        ibkrSocket.connect(token: token)
     }
 }

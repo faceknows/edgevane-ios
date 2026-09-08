@@ -7,6 +7,8 @@ final class AppRouterTests: XCTestCase {
         let router = AppRouter()
         router.openSymbol(" aapl ")
         XCTAssertEqual(router.overlay, .symbol("AAPL"))
+        router.openNews("n1")
+        XCTAssertEqual(router.overlay, .news("n1"))
         router.dismissOverlay()
         XCTAssertNil(router.overlay)
     }

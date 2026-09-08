@@ -9,15 +9,22 @@ enum AppRoute: Hashable {
     case orders
     case credentials
     case historicalMinutes
+    case sentiment
+    case calendar
+    case news
+    case newsDetail(String)
 }
 
 enum AppOverlay: Identifiable, Equatable {
     case symbol(String)
+    case news(String)
 
     var id: String {
         switch self {
         case .symbol(let symbol):
             return "symbol:\(symbol)"
+        case .news(let newsID):
+            return "news:\(newsID)"
         }
     }
 }
@@ -28,6 +35,10 @@ final class AppRouter: ObservableObject {
 
     func openSymbol(_ raw: String) {
         overlay = .symbol(SymbolCode.normalize(raw))
+    }
+
+    func openNews(_ newsID: String) {
+        overlay = .news(newsID)
     }
 
     func dismissOverlay() {
@@ -53,6 +64,14 @@ final class AppRouter: ObservableObject {
             CredentialsView()
         case .historicalMinutes:
             HistoricalMinutesView()
+        case .sentiment:
+            MarketSentimentView()
+        case .calendar:
+            EconomicCalendarView()
+        case .news:
+            NewsListView()
+        case .newsDetail(let newsID):
+            NewsDetailView(newsID: newsID)
         }
     }
 }

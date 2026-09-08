@@ -128,6 +128,52 @@ enum MarketStreamPayload {
         return nil
     }
 
+    static func news(from data: Data, source: NewsSource, now: Date = Date()) -> NewsItem? {
+        guard let object = json(data) else { return nil }
+        let nested = object["news"] as? [String: Any]
+        let fields = nested ?? object
+        let symbols = stringArray(fields["symbols"])
+        let symbol = string(fields["symbol"]).map(SymbolCode.normalize)
+            ?? symbols.first
+        let headline = HTMLText.decode(string(fields["headline"]) ?? string(fields["title"]))
+        let summary = HTMLText.decode(
+            string(fields["summary"])
+                ?? string(fields["content"])
+                ?? string(fields["body"])
+                ?? string(fields["text"])
+        )
+        let defaultSource = source == .ibkr ? "IBKR" : nil
+        let newsSource = string(fields["source"]) ?? defaultSource
+        let url = string(fields["url"])
+        let published = date(fields["timestamp"])
+            ?? date(fields["publishedAt"])
+            ?? date(fields["published_at"])
+            ?? date(fields["created_at"])
+            ?? date(fields["createdAt"])
+        let idTime = published
+            ?? date(fields["updated_at"])
+            ?? date(fields["updatedAt"])
+            ?? now
+        let rawId = newsID(fields["id"])
+            ?? newsID(fields["newsId"])
+            ?? newsID(fields["guid"])
+            ?? [symbol, headline, String(idTime.timeIntervalSince1970)]
+            .compactMap { $0 }
+            .joined(separator: ":")
+        guard !rawId.isEmpty else { return nil }
+        let id = source == .ibkr && !rawId.hasPrefix("ibkr:") ? "ibkr:\(rawId)" : rawId
+        return NewsItem(
+            id: id,
+            symbol: symbol,
+            headline: headline,
+            summary: summary,
+            source: newsSource,
+            url: url,
+            publishedAt: published,
+            receivedAt: now
+        )
+    }
+
     private static func streamQuote(symbol: String?, fields: [String: Any]) -> StreamQuote? {
         guard let symbol else { return nil }
         let normalized = SymbolCode.normalize(symbol)
@@ -154,6 +200,27 @@ enum MarketStreamPayload {
             return nested
         }
         return value
+    }
+
+    private static func stringArray(_ value: Any?) -> [String] {
+        guard let items = value as? [Any] else { return [] }
+        return items.compactMap { string($0) }.map(SymbolCode.normalize).filter { !$0.isEmpty }
+    }
+
+    private static func newsID(_ value: Any?) -> String? {
+        if let text = string(value) { return text }
+        if value is Bool { return nil }
+        if let number = value as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            let value = number.doubleValue
+            guard value.isFinite, value == value.rounded(),
+                  value >= Double(Int64.min), value <= Double(Int64.max)
+            else { return nil }
+            return String(Int64(value))
+        }
+        if let value = value as? Int { return String(value) }
+        if let value = value as? Int64 { return String(value) }
+        return nil
     }
 
     private static func string(_ value: Any?) -> String? {

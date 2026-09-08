@@ -1,6 +1,22 @@
 import Foundation
 import SocketIO
 
+final class SocketCallbackGate {
+    private var generation: UInt64 = 0
+
+    func invalidate() {
+        generation += 1
+    }
+
+    func snapshot() -> UInt64 {
+        generation
+    }
+
+    func isCurrent(_ snapshot: UInt64) -> Bool {
+        snapshot == generation
+    }
+}
+
 final class GatewaySocket: MarketSocketing {
     private let host: URL
     private let namespace: String
@@ -9,6 +25,7 @@ final class GatewaySocket: MarketSocketing {
     private var socket: SocketIOClient?
     private var eventHandlers: [String: [(Data) -> Void]] = [:]
     private var statusHandlers: [(SocketStatus) -> Void] = []
+    private let callbacks = SocketCallbackGate()
     private(set) var status: SocketStatus = .closed
 
     init(
@@ -66,10 +83,11 @@ final class GatewaySocket: MarketSocketing {
             attach(event, on: socket)
         }
         socket.connect(withPayload: ["token": token])
-        AppLog.socket.info("connecting alpaca-stream")
+        AppLog.socket.info("connecting \(self.namespace, privacy: .public)")
     }
 
     func disconnect() {
+        callbacks.invalidate()
         socket?.removeAllHandlers()
         socket?.disconnect()
         manager?.disconnect()
@@ -95,9 +113,18 @@ final class GatewaySocket: MarketSocketing {
     private func attach(_ event: String, on socket: SocketIOClient) {
         socket.on(event) { [weak self] data, _ in
             guard let self, let payload = Self.encode(data.first) else { return }
-            let handlers = self.eventHandlers[event] ?? []
-            DispatchQueue.main.async {
-                handlers.forEach { $0(payload) }
+            let snapshot = self.callbacks.snapshot()
+            let deliver = { [weak self] in
+                guard let self, self.callbacks.isCurrent(snapshot) else { return }
+                let handlers = self.eventHandlers[event] ?? []
+                MainActor.assumeIsolated {
+                    handlers.forEach { $0(payload) }
+                }
+            }
+            if Thread.isMainThread {
+                deliver()
+            } else {
+                DispatchQueue.main.async(execute: deliver)
             }
         }
     }

@@ -52,16 +52,16 @@ struct DashboardView: View {
                 NavigationLink(destination: AppRouter.destination(.screenerCatalog)) {
                     Label(L10n.Dashboard.screeners, systemImage: "chart.bar")
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.sentiment)) {
+                NavigationLink(destination: AppRouter.destination(.sentiment)) {
                     Label(L10n.Dashboard.sentiment, systemImage: "brain")
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.events)) {
+                NavigationLink(destination: AppRouter.destination(.calendar)) {
                     Label(L10n.Dashboard.events, systemImage: "calendar")
                 }
                 NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.notifications)) {
                     Label(L10n.Dashboard.notifications, systemImage: "bell")
                 }
-                NavigationLink(destination: ComingSoonView(title: L10n.Dashboard.news)) {
+                NavigationLink(destination: AppRouter.destination(.news)) {
                     Label(L10n.Dashboard.news, systemImage: "newspaper")
                 }
                 NavigationLink(destination: AppRouter.destination(.historicalMinutes)) {

@@ -33,6 +33,7 @@ enum L10n {
         static var version: String { localized("common.version") }
         static var build: String { localized("common.build") }
         static var none: String { localized("common.none") }
+        static var aiDisclaimer: String { localized("common.aiDisclaimer") }
     }
 
     enum Errors {
@@ -100,6 +101,117 @@ enum L10n {
         static var notifications: String { localized("dashboard.notifications") }
         static var news: String { localized("dashboard.news") }
         static var historical: String { localized("dashboard.historical") }
+    }
+
+    enum Sentiment {
+        static var title: String { localized("sentiment.title") }
+        static var loading: String { localized("sentiment.loading") }
+        static var loadFailed: String { localized("sentiment.loadFailed") }
+        static var retry: String { localized("sentiment.retry") }
+        static var unavailableTitle: String { localized("sentiment.unavailableTitle") }
+        static var confidence: String { localized("sentiment.confidence") }
+        static var intradayBias: String { localized("sentiment.intradayBias") }
+        static var bestTradingStyle: String { localized("sentiment.bestTradingStyle") }
+        static var scenarios: String { localized("sentiment.scenarios") }
+        static var evidence: String { localized("sentiment.evidence") }
+        static var confirmationAfterOpen: String { localized("sentiment.confirmationAfterOpen") }
+        static var invalidation: String { localized("sentiment.invalidation") }
+        static var keyDrivers: String { localized("sentiment.keyDrivers") }
+        static var keyLevels: String { localized("sentiment.keyLevels") }
+        static var plan: String { localized("sentiment.plan") }
+        static var stayOutConditions: String { localized("sentiment.stayOutConditions") }
+        static var risks: String { localized("sentiment.risks") }
+        static var sources: String { localized("sentiment.sources") }
+        static var noSources: String { localized("sentiment.noSources") }
+
+        static func allowedWindow(_ value: String) -> String {
+            String(format: localized("sentiment.allowedWindow"), value)
+        }
+
+        static func currentTime(_ value: String) -> String {
+            String(format: localized("sentiment.currentTime"), value)
+        }
+
+        static func label(_ kind: MarketSentimentKind) -> String {
+            switch kind {
+            case .bullish: return localized("sentiment.bullish")
+            case .bearish: return localized("sentiment.bearish")
+            case .neutral: return localized("sentiment.neutral")
+            case .mixed: return localized("sentiment.mixed")
+            }
+        }
+
+        static func scenarioLabel(_ label: String) -> String {
+            let key = "sentiment.scenario.\(label)"
+            let value = localized(key)
+            return value == key ? label.replacingOccurrences(of: "_", with: " ") : value
+        }
+    }
+
+    enum Calendar {
+        static var title: String { localized("calendar.title") }
+        static var loading: String { localized("calendar.loading") }
+        static var loadFailed: String { localized("calendar.loadFailed") }
+        static var retry: String { localized("calendar.retry") }
+        static var emptyTitle: String { localized("calendar.emptyTitle") }
+        static var emptyBody: String { localized("calendar.emptyBody") }
+        static var todayUsEvents: String { localized("calendar.todayUsEvents") }
+        static var totalEvents: String { localized("calendar.totalEvents") }
+        static var highImpact: String { localized("calendar.highImpact") }
+        static var dayRisk: String { localized("calendar.dayRisk") }
+        static var topEvents: String { localized("calendar.topEvents") }
+        static var volatilityWindows: String { localized("calendar.volatilityWindows") }
+        static var biasChangingEvents: String { localized("calendar.biasChangingEvents") }
+        static var cautionNotes: String { localized("calendar.cautionNotes") }
+        static var cleanerMarketPhase: String { localized("calendar.cleanerMarketPhase") }
+        static var actual: String { localized("calendar.actual") }
+        static var forecast: String { localized("calendar.forecast") }
+        static var previous: String { localized("calendar.previous") }
+        static var choppinessRisk: String { localized("calendar.choppinessRisk") }
+        static var expectedMarketImpact: String { localized("calendar.expectedMarketImpact") }
+        static var traderNote: String { localized("calendar.traderNote") }
+        static var description: String { localized("calendar.description") }
+        static var marketFocus: String { localized("calendar.marketFocus") }
+        static var marketFocusFallback: String { localized("calendar.marketFocusFallback") }
+        static var source: String { localized("calendar.source") }
+    }
+
+    enum News {
+        static var title: String { localized("news.title") }
+        static var emptyTitle: String { localized("news.emptyTitle") }
+        static var emptyBody: String { localized("news.emptyBody") }
+        static var fallbackSymbol: String { localized("news.fallbackSymbol") }
+        static var justNow: String { localized("news.justNow") }
+        static var detailTitle: String { localized("news.detailTitle") }
+        static var untitled: String { localized("news.untitled") }
+        static var notFoundTitle: String { localized("news.notFoundTitle") }
+        static var notFoundBody: String { localized("news.notFoundBody") }
+        static var openSymbol: String { localized("news.openSymbol") }
+        static var openLink: String { localized("news.openLink") }
+
+        static func minutesAgo(_ count: Int) -> String {
+            String(format: localized("news.minutesAgo"), count)
+        }
+
+        static func hoursAgo(_ count: Int) -> String {
+            String(format: localized("news.hoursAgo"), count)
+        }
+
+        static func daysAgo(_ count: Int) -> String {
+            String(format: localized("news.daysAgo"), count)
+        }
+
+        static func published(_ value: String) -> String {
+            String(format: localized("news.published"), value)
+        }
+
+        static func received(_ value: String) -> String {
+            String(format: localized("news.received"), value)
+        }
+
+        static func source(_ value: String) -> String {
+            String(format: localized("news.source"), value)
+        }
     }
 
     enum Market {

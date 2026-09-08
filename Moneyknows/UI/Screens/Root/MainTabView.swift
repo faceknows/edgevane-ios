@@ -20,7 +20,10 @@ struct MainTabView: View {
             .tabItem { Label(L10n.Tabs.settings, systemImage: "gearshape") }
         }
         .safeAreaInset(edge: .top) {
-            TradingNoticeBanner()
+            VStack(spacing: 0) {
+                TradingNoticeBanner()
+                NewsToastBanner()
+            }
         }
     }
 }

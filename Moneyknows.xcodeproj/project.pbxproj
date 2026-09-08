@@ -137,6 +137,16 @@
 		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
 		C7D0F111111111111111000A /* DayFillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110009 /* DayFillsTests.swift */; };
 		C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111000B /* HistoricalMinutesTests.swift */; };
+		C8D0F1111111111111110002 /* AIAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110001 /* AIAPI.swift */; };
+		C8D0F1111111111111110004 /* InsightModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110003 /* InsightModels.swift */; };
+		C8D0F1111111111111110006 /* InsightsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110005 /* InsightsStore.swift */; };
+		C8D0F1111111111111110008 /* NewsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110007 /* NewsStore.swift */; };
+		C8D0F111111111111111000A /* MarketSentimentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110009 /* MarketSentimentView.swift */; };
+		C8D0F111111111111111000C /* EconomicCalendarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F111111111111111000B /* EconomicCalendarView.swift */; };
+		C8D0F111111111111111000E /* NewsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F111111111111111000D /* NewsListView.swift */; };
+		C8D0F1111111111111110010 /* NewsToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F111111111111111000F /* NewsToastBanner.swift */; };
+		C8D0F1111111111111110012 /* InsightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110011 /* InsightsTests.swift */; };
+		C8D0F1111111111111110014 /* NewsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D0F1111111111111110013 /* NewsTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -284,6 +294,16 @@
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110009 /* DayFillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFillsTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111000B /* HistoricalMinutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesTests.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110001 /* AIAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIAPI.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110003 /* InsightModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightModels.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110005 /* InsightsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsStore.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110007 /* NewsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsStore.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110009 /* MarketSentimentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarketSentimentView.swift; sourceTree = "<group>"; };
+		C8D0F111111111111111000B /* EconomicCalendarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EconomicCalendarView.swift; sourceTree = "<group>"; };
+		C8D0F111111111111111000D /* NewsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsListView.swift; sourceTree = "<group>"; };
+		C8D0F111111111111111000F /* NewsToastBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsToastBanner.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110011 /* InsightsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsTests.swift; sourceTree = "<group>"; };
+		C8D0F1111111111111110013 /* NewsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -398,6 +418,7 @@
 				BBA70A6CBD70FA41191C80C8 /* App */,
 				6839ABD5E0C790E8863E9B44 /* Brokerage */,
 				C4D305CB0967DCF120BD3CC9 /* Charting */,
+				C8D0F1111111111111110015 /* Insights */,
 				420715F8ADC341209070F4FC /* Mapping */,
 				8D2FED35ACB61F4DB5E2ECD7 /* Market */,
 				A21A36610D16F16899AAACE1 /* Notifications */,
@@ -416,6 +437,7 @@
 			children = (
 				EE21A6CAEB83DEF31F241081 /* Brokerage */,
 				F64BBA04A0D03B4647C66CC6 /* Charting */,
+				C8D0F1111111111111110017 /* Insights */,
 				B73899937CB3D611F37AA773 /* Market */,
 				088A8B4BF01B7B9799809DCB /* Preferences */,
 				DC6CE5EA08D1D7BE87ECEC1D /* Session */,
@@ -438,6 +460,7 @@
 			children = (
 				463B965834389845EFBB31C3 /* Auth */,
 				FA155A27D62B2BF063D27844 /* Home */,
+				C8D0F1111111111111110016 /* Insights */,
 				63A6D381A19E69F5D6ABCD3E /* Market */,
 				8ADFF7209F925886FBA67DA6 /* Portfolio */,
 				1584C15F037CD218B4D662DF /* Root */,
@@ -450,6 +473,7 @@
 		420715F8ADC341209070F4FC /* Mapping */ = {
 			isa = PBXGroup;
 			children = (
+				C8D0F1111111111111110001 /* AIAPI.swift */,
 				20FD623C9803DCDEE689C68C /* AuthAPI.swift */,
 				499808FB49EEC90BE819313F /* BarsAPI.swift */,
 				B6F62B7F5276B2D94FB7F0CD /* BarTime.swift */,
@@ -815,6 +839,36 @@
 			path = Socket;
 			sourceTree = "<group>";
 		};
+		C8D0F1111111111111110015 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				C8D0F1111111111111110003 /* InsightModels.swift */,
+				C8D0F1111111111111110005 /* InsightsStore.swift */,
+				C8D0F1111111111111110007 /* NewsStore.swift */,
+			);
+			path = Insights;
+			sourceTree = "<group>";
+		};
+		C8D0F1111111111111110016 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				C8D0F111111111111111000B /* EconomicCalendarView.swift */,
+				C8D0F1111111111111110009 /* MarketSentimentView.swift */,
+				C8D0F111111111111111000D /* NewsListView.swift */,
+				C8D0F111111111111111000F /* NewsToastBanner.swift */,
+			);
+			path = Insights;
+			sourceTree = "<group>";
+		};
+		C8D0F1111111111111110017 /* Insights */ = {
+			isa = PBXGroup;
+			children = (
+				C8D0F1111111111111110011 /* InsightsTests.swift */,
+				C8D0F1111111111111110013 /* NewsTests.swift */,
+			);
+			path = Insights;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -943,6 +997,7 @@
 				E9151CC35B6628482F73AC38 /* CredentialsView.swift in Sources */,
 				9C181482E66CE699D6A95AA5 /* CurrentBrokerageStore.swift in Sources */,
 				147BA311720422CC6BB5D2E6 /* DashboardView.swift in Sources */,
+				C8D0F1111111111111110002 /* AIAPI.swift in Sources */,
 				C7D0F1111111111111110002 /* DayFills.swift in Sources */,
 				5F2D5BEF3845AD130C532232 /* DiskStore.swift in Sources */,
 				4F639A7DCC10D1F2D7D30F8D /* EmptyStateView.swift in Sources */,
@@ -954,6 +1009,9 @@
 				C7D0F1111111111111110004 /* HistoricalMinutesSession.swift in Sources */,
 				C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */,
 				70C4A20D82EF76150EFD4AB4 /* IndicatorChips.swift in Sources */,
+				C8D0F111111111111111000C /* EconomicCalendarView.swift in Sources */,
+				C8D0F1111111111111110004 /* InsightModels.swift in Sources */,
+				C8D0F1111111111111110006 /* InsightsStore.swift in Sources */,
 				C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */,
 				D6997A407E3950C125053650 /* KeychainStore.swift in Sources */,
 				70199D529C905B71C104E8D0 /* L10n.swift in Sources */,
@@ -1002,6 +1060,10 @@
 				1ECE196DAD8181BD8D8258D2 /* SubscriptionStore.swift in Sources */,
 				B376F028F872E6C165379213 /* SubscriptionsView.swift in Sources */,
 				3550FE12EAE5E5B362A7AB77 /* SymbolChartSession.swift in Sources */,
+				C8D0F111111111111111000A /* MarketSentimentView.swift in Sources */,
+				C8D0F111111111111111000E /* NewsListView.swift in Sources */,
+				C8D0F1111111111111110008 /* NewsStore.swift in Sources */,
+				C8D0F1111111111111110010 /* NewsToastBanner.swift in Sources */,
 				B18F02244AB0701C2F62768B /* SymbolDetailView.swift in Sources */,
 				1E8C1B0D662C94E02ABE9EB6 /* SymbolRow.swift in Sources */,
 				F1944697529966A4DC80F481 /* SymbolSearchField.swift in Sources */,
@@ -1035,6 +1097,8 @@
 				C7D0F111111111111111000A /* DayFillsTests.swift in Sources */,
 				218CE37513BA014645226A2F /* ErrorCancellationTests.swift in Sources */,
 				C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */,
+				C8D0F1111111111111110012 /* InsightsTests.swift in Sources */,
+				C8D0F1111111111111110014 /* NewsTests.swift in Sources */,
 				DE0AD3787E9C6C11119AE78F /* MemoryCredentialStore.swift in Sources */,
 				4F3BDF7ECDD39E20F4D9660F /* PreferencesStoreTests.swift in Sources */,
 				9F705F133B6382462D515718 /* RealtimeTests.swift in Sources */,

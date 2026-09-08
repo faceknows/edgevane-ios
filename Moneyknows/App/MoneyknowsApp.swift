@@ -32,6 +32,8 @@ struct MoneyknowsApp: App {
             .environmentObject(appModel.trading.portfolio)
             .environmentObject(appModel.trading.positions)
             .environmentObject(appModel.trading.orders)
+            .environmentObject(appModel.insights)
+            .environmentObject(appModel.news)
             .environmentObject(appModel.router)
             .task {
                 appModel.setTradingForeground(scenePhase == .active)

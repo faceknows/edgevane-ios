@@ -54,7 +54,19 @@ private struct RootSwitcher: View {
                     }
                 }
                 .safeAreaInset(edge: .top) {
-                    TradingNoticeBanner()
+                    VStack(spacing: 0) {
+                        TradingNoticeBanner()
+                        NewsToastBanner()
+                    }
+                }
+        case .news(let newsID):
+            NewsDetailView(newsID: newsID)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.Common.close) {
+                            router.dismissOverlay()
+                        }
+                    }
                 }
         }
     }

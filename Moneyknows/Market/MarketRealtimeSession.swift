@@ -5,6 +5,7 @@ enum MarketStreamEvent {
     static let quote = "quote"
     static let secondTrade = "second-trade"
     static let tradeUpdates = "trade_updates"
+    static let news = "news"
 }
 
 @MainActor
@@ -20,6 +21,7 @@ final class MarketRealtimeSession: ObservableObject {
     private var snapshotTask: Task<Void, Never>?
     private var didBindSocket = false
     var onTradeUpdate: ((Data) -> Void)?
+    var onNews: ((Data) -> Void)?
 
     init(
         subscriptions: SubscriptionStore,
@@ -107,6 +109,8 @@ final class MarketRealtimeSession: ObservableObject {
             seconds.apply(bar)
         case MarketStreamEvent.tradeUpdates:
             onTradeUpdate?(data)
+        case MarketStreamEvent.news:
+            onNews?(data)
         default:
             break
         }
@@ -131,6 +135,9 @@ final class MarketRealtimeSession: ObservableObject {
         }
         socket.on(MarketStreamEvent.tradeUpdates) { [weak self] data in
             Task { @MainActor in self?.handle(event: MarketStreamEvent.tradeUpdates, data: data) }
+        }
+        socket.on(MarketStreamEvent.news) { [weak self] data in
+            self?.handle(event: MarketStreamEvent.news, data: data)
         }
         socketStatus = socket.status
     }
