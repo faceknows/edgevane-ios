@@ -14,6 +14,43 @@ enum MinuteBars {
     }
 }
 
+enum DailyBars {
+    static let pageCalendarDays = 100
+
+    static func fromDTOs(_ dtos: [BarDTO]) -> [Bar] {
+        var byDay: [String: Bar] = [:]
+        for dto in dtos {
+            guard let raw = dto.d, let time = BarTime.parse(raw),
+                  let open = dto.o, let high = dto.h, let low = dto.l, let close = dto.c, let volume = dto.v
+            else {
+                continue
+            }
+            byDay[MarketClock.usDateString(from: time)] = Bar(
+                time: time,
+                open: open,
+                high: high,
+                low: low,
+                close: close,
+                volume: volume
+            )
+        }
+        return byDay.values.sorted { $0.time < $1.time }
+    }
+
+    static func merge(_ existing: [Bar], with incoming: [Bar]) -> [Bar] {
+        var byDay: [String: Bar] = [:]
+        for bar in existing + incoming {
+            byDay[MarketClock.usDateString(from: bar.time)] = bar
+        }
+        return byDay.values.sorted { $0.time < $1.time }
+    }
+
+    static func needsLatest(_ bars: [Bar], now: Date = Date()) -> Bool {
+        guard let last = bars.last else { return true }
+        return MarketClock.usDateString(from: last.time) != MarketClock.lastTradingDate(from: now)
+    }
+}
+
 enum BarAggregator {
     static func aggregate(_ bars: [Bar], minutes: Int) -> [Bar] {
         guard minutes > 1 else { return bars }

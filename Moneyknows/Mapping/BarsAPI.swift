@@ -17,6 +17,31 @@ struct IntradayBarsDTO: Decodable {
     }
 }
 
+struct DailyBarsDTO: Decodable {
+    var symbol: String?
+    var timeFrame: String?
+    var startDate: String?
+    var bars: [BarDTO]?
+    var hasBarsKey = false
+
+    enum CodingKeys: String, CodingKey {
+        case symbol, timeFrame, startDate, bars
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
+        timeFrame = try container.decodeIfPresent(String.self, forKey: .timeFrame)
+        startDate = try container.decodeIfPresent(String.self, forKey: .startDate)
+        hasBarsKey = container.contains(.bars)
+        bars = try container.decodeIfPresent([BarDTO].self, forKey: .bars)
+    }
+
+    var isDailyEnvelope: Bool {
+        hasBarsKey || symbol != nil || startDate != nil || timeFrame != nil
+    }
+}
+
 struct BarsAPI {
     var client: HTTPSending
 
@@ -52,6 +77,15 @@ struct BarsAPI {
         ])
     }
 
+    func daily(symbol: String, startDate: String, timeFrame: String = "1Day", market: String = "us") async throws -> [BarDTO] {
+        try await get("alpaca/market/daily-bars", [
+            "symbol": symbol,
+            "startDate": startDate,
+            "timeFrame": timeFrame,
+            "market": market,
+        ])
+    }
+
     func latestSnapshot(symbols: [String]) async throws -> Data {
         let joined = symbols.map(SymbolCode.normalize).filter { !$0.isEmpty }.joined(separator: ",")
         guard !joined.isEmpty else { return Data("{}".utf8) }
@@ -82,9 +116,17 @@ struct BarsAPI {
                 return envelope.data.bars ?? []
             }
         }
+        if let envelope = try? decoder.decode(JSONEnvelope<DailyBarsDTO>.self, from: data) {
+            if envelope.data.isDailyEnvelope {
+                return envelope.data.bars ?? []
+            }
+        }
         if let payload = try? decoder.decode(IntradayBarsDTO.self, from: data),
            payload.hasBarsKey || payload.symbol != nil
         {
+            return payload.bars ?? []
+        }
+        if let payload = try? decoder.decode(DailyBarsDTO.self, from: data), payload.isDailyEnvelope {
             return payload.bars ?? []
         }
         throw AppError.decoding

@@ -48,7 +48,8 @@ enum MinuteChartAssembler {
             priceLines: priceLines,
             markers: aligned(markers, to: bars, duration: TimeInterval(interval.minutes * 60)),
             followLatest: followLatest,
-            showVolume: showVolume
+            showVolume: showVolume,
+            usesCalendarDays: false
         )
     }
 
@@ -77,5 +78,20 @@ enum MinuteChartAssembler {
             next.time = bar.time
             return next
         }
+    }
+}
+
+enum DailyChartAssembler {
+    static func model(bars: [Bar], style: ChartStyle, showVolume: Bool) -> ChartModel {
+        ChartModel(
+            bars: bars,
+            style: style,
+            overlays: [],
+            priceLines: [],
+            markers: [],
+            followLatest: false,
+            showVolume: showVolume,
+            usesCalendarDays: true
+        )
     }
 }

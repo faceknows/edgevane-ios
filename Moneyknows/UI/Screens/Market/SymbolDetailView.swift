@@ -16,6 +16,7 @@ struct SymbolDetailView: View {
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var charts = SymbolChartSession()
     @StateObject private var indexCharts = IndexChartSession()
+    @StateObject private var dailyCharts = DailyChartSession()
     @StateObject private var dayFills = DayFillsSession()
     @State private var summary: SymbolSummary?
     @State private var errorText: String?
@@ -31,6 +32,10 @@ struct SymbolDetailView: View {
         subscriptions.contains(symbol)
     }
 
+    private var showsDaily: Bool {
+        preferences.values.showDailyBarInDetail
+    }
+
     private var showsIndex: Bool {
         preferences.values.showIndexBarInDetail && !BarSession.isIndexSymbol(symbol)
     }
@@ -38,6 +43,10 @@ struct SymbolDetailView: View {
     private var fillTaskID: String {
         let days = DayFills.chartDays(regularDate: charts.regularDate, extendedDate: charts.extendedDate).joined(separator: ",")
         return "\(SymbolCode.normalize(symbol))|\(days)|\(brokerage.current?.id ?? "")|\(trading.sessionEpoch)"
+    }
+
+    private var dailyTaskID: String {
+        DailyChartSession.taskID(symbol: symbol, enabled: showsDaily)
     }
 
     private var indexTaskID: String {
@@ -87,6 +96,20 @@ struct SymbolDetailView: View {
                     Text(fillErrorText)
                         .font(.footnote)
                         .foregroundColor(.red)
+                }
+                if showsDaily {
+                    VStack(alignment: .leading, spacing: 8) {
+                        DailyChartChrome(style: $dailyCharts.style)
+                        ChartPanel(
+                            title: L10n.Chart.daily,
+                            model: dailyCharts.model,
+                            height: 220,
+                            isLoading: dailyCharts.isLoading,
+                            errorText: dailyCharts.errorText,
+                            retry: { Task { await dailyCharts.retry() } },
+                            onEvent: handleDailyChartEvent
+                        )
+                    }
                 }
                 if showsIndex {
                     VStack(alignment: .leading, spacing: 8) {
@@ -144,6 +167,9 @@ struct SymbolDetailView: View {
             guard !days.isEmpty else { return }
             await dayFills.load(symbol: symbol, days: days, trading: trading)
             refreshMarkers()
+        }
+        .task(id: dailyTaskID) {
+            await refreshDailyChart()
         }
         .task(id: indexTaskID) {
             await refreshIndexChart()
@@ -315,6 +341,20 @@ struct SymbolDetailView: View {
 
     private func refreshMarkers() {
         charts.fills = dayFills.fills
+    }
+
+    private func refreshDailyChart() async {
+        guard showsDaily else {
+            dailyCharts.reset()
+            return
+        }
+        await dailyCharts.start(symbol: symbol, store: bars)
+    }
+
+    private func handleDailyChartEvent(_ event: ChartEvent) {
+        if case .reachedOldest = event {
+            Task { await dailyCharts.loadOlder() }
+        }
     }
 
     private func refreshIndexChart() async {

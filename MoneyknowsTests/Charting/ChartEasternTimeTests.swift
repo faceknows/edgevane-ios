@@ -45,4 +45,17 @@ final class ChartEasternTimeTests: XCTestCase {
         XCTAssertEqual(ChartEasternTime.crosshairLabel(utc: date, calendarDay: nil), "16:00")
         XCTAssertEqual(ChartEasternTime.tickLabel(utc: date, calendarDay: nil, kind: .dayOfMonth), "4")
     }
+
+    func testCalendarDayFromEasternDateKeepsThatCalendarDate() {
+        var parts = DateComponents()
+        parts.calendar = Calendar(identifier: .gregorian)
+        parts.timeZone = MarketClock.easternTimeZone
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 4
+        parts.hour = 16
+        let date = parts.date!
+        XCTAssertEqual(ChartEasternTime.calendarDay(for: date), ChartEasternTime.CalendarDay(year: 2026, month: 9, day: 4))
+        XCTAssertEqual(MarketClock.addingCalendarDays(-100, to: "2026-09-04"), "2026-05-27")
+    }
 }

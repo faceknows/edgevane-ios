@@ -29,6 +29,26 @@ final class BarsAPIDecodingTests: XCTestCase {
         XCTAssertTrue(try BarsAPI.decodeBars(from: Data(#"{"symbol":"AAPL","bars":null}"#.utf8)).isEmpty)
     }
 
+    func testDecodesDailyBarsEnvelopeWithDateOnlyBars() throws {
+        let payload = Data(#"""
+        {"symbol":"AAPL","timeFrame":"1Day","startDate":"2026-05-27","bars":[
+          {"d":"2026-09-04","o":1,"h":2,"l":0.5,"c":1.5,"v":10,"direction":"up"}
+        ]}
+        """#.utf8)
+        let dtos = try BarsAPI.decodeBars(from: payload)
+        XCTAssertEqual(dtos.count, 1)
+        let bars = DailyBars.fromDTOs(dtos)
+        XCTAssertEqual(bars.count, 1)
+        XCTAssertEqual(MarketClock.usDateString(from: bars[0].time), "2026-09-04")
+        XCTAssertEqual(bars[0].close, 1.5)
+
+        let nested = Data(#"""
+        {"data":{"timeFrame":"1Day","startDate":"2026-05-27","bars":[{"d":"2026-09-03","o":1,"h":1,"l":1,"c":1,"v":1}]}}
+        """#.utf8)
+        XCTAssertEqual(try BarsAPI.decodeBars(from: nested).count, 1)
+        XCTAssertTrue(try BarsAPI.decodeBars(from: Data(#"{"timeFrame":"1Day","startDate":"2026-05-27","bars":null}"#.utf8)).isEmpty)
+    }
+
     func testDropsIncompleteAndNonFiniteBars() throws {
         let json = Data(#"""
         [
@@ -225,5 +245,32 @@ final class BarStoreTests: XCTestCase {
         XCTAssertEqual(http.requests.first?.query["symbol"], "COMP")
         XCTAssertEqual(store.cached(symbol: "COMP", date: "2026-09-04", session: .index)?.first?.close, 1)
         XCTAssertNil(store.cached(symbol: "COMP", date: "2026-09-04", session: .regular))
+    }
+
+    func testLoadsAndMergesDailyBarsWithoutCappingOldest() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"2026-09-03","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"[{"d":"2026-09-04","o":2,"h":2,"l":2,"c":2,"v":2}]"#.utf8)),
+            .success(Data(#"[]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let first = try await store.loadDaily(symbol: " aapl ", startDate: "2026-05-27")
+        XCTAssertEqual(first.map(\.close), [1])
+        XCTAssertEqual(http.requests.first?.path, "alpaca/market/daily-bars")
+        XCTAssertEqual(http.requests.first?.query["symbol"], "AAPL")
+        XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Day")
+        XCTAssertEqual(http.requests.first?.query["market"], "us")
+        XCTAssertEqual(http.requests.first?.query["startDate"], "2026-05-27")
+        XCTAssertEqual(store.cachedDaily(symbol: "AAPL")?.map(\.close), [1])
+        XCTAssertNil(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular))
+
+        let merged = try await store.loadDaily(symbol: "AAPL", startDate: "2026-09-03")
+        XCTAssertEqual(merged.map { MarketClock.usDateString(from: $0.time) }, ["2026-09-03", "2026-09-04"])
+        XCTAssertEqual(merged.map(\.close), [1, 2])
+
+        let kept = try await store.loadDaily(symbol: "AAPL", startDate: "2026-06-01")
+        XCTAssertEqual(kept.map(\.close), [1, 2])
+        XCTAssertEqual(http.requests.count, 3)
     }
 }

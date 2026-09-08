@@ -61,6 +61,7 @@ ChartModel
   markers       [ChartMarker]   可空；蜡烛和折线都要画
   followLatest  Bool    秒图 true；分钟主图 / 复盘 false
   showVolume    Bool    由组装方按场景传入；图表只画，不猜。true 时成交量在底部独立条带，不与 K 线共用价格轴
+  usesCalendarDays Bool 日线 true（横轴按日历日）；分钟 / 秒 false
 ```
 
 空 `bars`：组件显示空态（由外层也可以先挡），**不准**画一条假平线。  

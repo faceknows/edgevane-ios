@@ -110,7 +110,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         includeFormatters: Bool,
         lockLeftEdge: Bool,
         volumeHeight: CGFloat? = nil,
-        chartHeight: CGFloat = 0
+        chartHeight: CGFloat = 0,
+        timeVisible: Bool = true
     ) -> ChartOptions {
         let grid = chartColor(colors.grid)
         let price = ChartVolumeLayout.priceMargins(volumeHeight: volumeHeight, totalHeight: chartHeight)
@@ -126,7 +127,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             timeScale: TimeScaleOptions(
                 fixLeftEdge: lockLeftEdge,
                 borderColor: grid,
-                timeVisible: true,
+                timeVisible: timeVisible,
                 secondsVisible: false,
                 tickMarkFormatter: includeFormatters ? .closure(Self.easternTickMark) : nil
             ),
@@ -165,7 +166,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             includeFormatters: attachFormatters,
             lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging),
             volumeHeight: snapshot.volumeHeight,
-            chartHeight: snapshot.chartHeight
+            chartHeight: snapshot.chartHeight,
+            timeVisible: !model.usesCalendarDays
         ))
         if attachFormatters {
             didInstallFormatters = true
@@ -189,13 +191,13 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         switch model.style {
         case .candle:
             if let series = main.series as? CandlestickSeries {
-                series.setData(data: model.bars.map(Self.candlestickData))
+                series.setData(data: model.bars.map { Self.candlestickData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
                 series.setMarkers(data: libraryMarkers)
             }
         case .line:
             if let series = main.series as? LineSeries {
-                series.setData(data: model.bars.map(Self.lineData))
+                series.setData(data: model.bars.map { Self.lineData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
                 series.setMarkers(data: libraryMarkers)
             }
@@ -278,7 +280,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 overlaySeries[overlay.id] = series
             }
             series.setData(data: overlay.points.map {
-                LineData(time: .utc(timestamp: $0.time.timeIntervalSince1970), value: $0.value)
+                LineData(time: Self.libraryTime($0.time, usesCalendarDays: applied?.model.usesCalendarDays ?? false), value: $0.value)
             })
         }
     }
@@ -299,7 +301,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         volumeSeries = series
         series.setData(data: model.bars.map { bar in
             HistogramData(
-                time: .utc(timestamp: bar.time.timeIntervalSince1970),
+                time: Self.libraryTime(bar.time, usesCalendarDays: model.usesCalendarDays),
                 value: bar.volume,
                 color: volumeBarColor(bar, colors: colors)
             )
@@ -510,9 +512,9 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         return nil
     }
 
-    private static func candlestickData(_ bar: Bar) -> CandlestickData {
+    private static func candlestickData(_ bar: Bar, usesCalendarDays: Bool) -> CandlestickData {
         CandlestickData(
-            time: .utc(timestamp: bar.time.timeIntervalSince1970),
+            time: libraryTime(bar.time, usesCalendarDays: usesCalendarDays),
             open: bar.open,
             high: bar.high,
             low: bar.low,
@@ -520,8 +522,15 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         )
     }
 
-    private static func lineData(_ bar: Bar) -> LineData {
-        LineData(time: .utc(timestamp: bar.time.timeIntervalSince1970), value: bar.close)
+    private static func lineData(_ bar: Bar, usesCalendarDays: Bool) -> LineData {
+        LineData(time: libraryTime(bar.time, usesCalendarDays: usesCalendarDays), value: bar.close)
+    }
+
+    static func libraryTime(_ date: Date, usesCalendarDays: Bool) -> Time {
+        if usesCalendarDays, let day = ChartEasternTime.calendarDay(for: date) {
+            return .businessDay(BusinessDay(year: day.year, month: day.month, day: day.day))
+        }
+        return .utc(timestamp: date.timeIntervalSince1970)
     }
 
     private static func marker(_ marker: ChartMarker, colors: ChartColors, libraryID: String) -> SeriesMarker {
@@ -537,7 +546,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         let shape: SeriesMarkerShape = marker.kind == .buy ? .arrowUp : (marker.kind == .sell ? .arrowDown : .circle)
         let token: ChartColorToken = marker.kind == .buy ? .buy : (marker.kind == .sell ? .sell : .other)
         return SeriesMarker(
-            time: .utc(timestamp: marker.time.timeIntervalSince1970),
+            time: Self.libraryTime(marker.time, usesCalendarDays: false),
             position: position,
             shape: shape,
             color: ChartColor(UIColor(

@@ -69,6 +69,15 @@ enum MarketClock {
         return regularSessionEndTime(from: now)
     }
 
+    static func addingCalendarDays(_ days: Int, to dateString: String) -> String {
+        guard let date = date(fromUSDate: dateString),
+              let shifted = easternCalendar.date(byAdding: .day, value: days, to: date)
+        else {
+            return dateString
+        }
+        return usDateString(from: shifted)
+    }
+
     static func lastTradingDate(from date: Date = Date()) -> String {
         let today = usDateString(from: date)
         let time = usTimeString(from: date)

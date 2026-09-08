@@ -145,6 +145,7 @@ struct ChartModel: Equatable {
     var markers: [ChartMarker]
     var followLatest: Bool
     var showVolume: Bool
+    var usesCalendarDays: Bool
 
     static let empty = ChartModel(
         bars: [],
@@ -153,7 +154,8 @@ struct ChartModel: Equatable {
         priceLines: [],
         markers: [],
         followLatest: false,
-        showVolume: false
+        showVolume: false,
+        usesCalendarDays: false
     )
 }
 

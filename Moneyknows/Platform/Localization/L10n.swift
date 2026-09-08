@@ -317,6 +317,7 @@ enum L10n {
         static var tenSeconds: String { localized("chart.tenSeconds") }
         static var thirtySeconds: String { localized("chart.thirtySeconds") }
         static var nasdaq: String { localized("chart.nasdaq") }
+        static var daily: String { localized("chart.daily") }
     }
 
     enum Historical {

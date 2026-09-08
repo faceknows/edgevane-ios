@@ -14,7 +14,8 @@ enum SecondChartAssembler {
             priceLines: [],
             markers: [],
             followLatest: true,
-            showVolume: showVolume
+            showVolume: showVolume,
+            usesCalendarDays: false
         )
     }
 }

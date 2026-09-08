@@ -55,7 +55,7 @@ final class GatewaySocket: MarketSocketing {
                 .reconnectWait(reconnectWait),
                 .reconnectAttempts(-1),
                 .connectParams(["token": token]),
-                .log(AppEnvironment.enableLogging),
+                .log(false),
             ]
         )
         let socket = manager.socket(forNamespace: namespace)

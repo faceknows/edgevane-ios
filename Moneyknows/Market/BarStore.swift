@@ -28,6 +28,10 @@ final class BarStore: ObservableObject {
         return cache[cacheKey(symbol: symbol, date: date, session: session)]
     }
 
+    func cachedDaily(symbol: String) -> [Bar]? {
+        cache[dailyKey(symbol: Self.normalized(symbol, session: .regular))]
+    }
+
     func load(symbol: String, date: String, session: BarSession, caches: Bool = true) async throws -> [Bar] {
         let symbol = Self.normalized(symbol, session: session)
         let storeKey = cacheKey(symbol: symbol, date: date, session: session)
@@ -70,6 +74,37 @@ final class BarStore: ObservableObject {
         return try await task.value
     }
 
+    func loadDaily(symbol: String, startDate: String) async throws -> [Bar] {
+        let symbol = Self.normalized(symbol, session: .regular)
+        let storeKey = dailyKey(symbol: symbol)
+        let inflightKey = "\(storeKey):\(startDate)"
+        if let existing = inflight[inflightKey] {
+            return try await existing.task.value
+        }
+
+        let epoch = self.epoch
+        nextInflightID += 1
+        let inflightID = nextInflightID
+        let task = Task { @MainActor in
+            defer {
+                if self.inflight[inflightKey]?.id == inflightID {
+                    self.inflight[inflightKey] = nil
+                }
+            }
+            let dtos = try await self.api.daily(symbol: symbol, startDate: startDate)
+            guard self.epoch == epoch else { throw AppError.cancelled }
+            let incoming = DailyBars.fromDTOs(dtos)
+            if incoming.isEmpty, let existing = self.cache[storeKey], !existing.isEmpty {
+                return existing
+            }
+            let bars = DailyBars.merge(self.cache[storeKey] ?? [], with: incoming)
+            self.remember(storeKey, bars: bars)
+            return bars
+        }
+        inflight[inflightKey] = InFlight(id: inflightID, task: task)
+        return try await task.value
+    }
+
     private func remember(_ key: String, bars: [Bar]) {
         cache[key] = bars
         order.removeAll { $0 == key }
@@ -87,6 +122,10 @@ final class BarStore: ObservableObject {
 
     private func cacheKey(symbol: String, date: String, session: BarSession) -> String {
         "us:\(symbol):\(date):\(session.rawValue):1Min"
+    }
+
+    private func dailyKey(symbol: String) -> String {
+        "us:\(symbol):daily:1Day"
     }
 
     private static func normalized(_ symbol: String, session: BarSession) -> String {

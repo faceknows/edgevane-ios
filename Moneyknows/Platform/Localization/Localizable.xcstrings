@@ -898,6 +898,23 @@
         }
       }
     },
+    "chart.daily" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日线"
+          }
+        }
+      }
+    },
     "chart.empty" : {
       "extractionState" : "manual",
       "localizations" : {

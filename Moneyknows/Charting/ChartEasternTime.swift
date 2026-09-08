@@ -22,6 +22,10 @@ enum ChartEasternTime {
         return (nil, calendarDay(fromDateOnly: raw))
     }
 
+    static func calendarDay(for date: Date) -> CalendarDay? {
+        calendarDay(fromDateOnly: MarketClock.usDateString(from: date))
+    }
+
     static func calendarDay(fromDateOnly raw: String) -> CalendarDay? {
         let parts = raw.split(separator: "-")
         guard parts.count == 3,

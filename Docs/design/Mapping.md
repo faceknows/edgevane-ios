@@ -55,7 +55,7 @@
 | 盘中分钟 | `GET /alpaca/market/intraday-bars` `symbol, date, startTime?, timeFrame?` |
 | 盘前 | `GET /alpaca/market/intraday/pre/bars` |
 | 盘后 | `GET /alpaca/market/intraday/after/bars` |
-| 日线 | `GET /alpaca/market/daily-bars` `symbol, startDate?, timeFrame?` |
+| 日线 | `GET /alpaca/market/daily-bars` `symbol, startDate?, timeFrame?, market`（第一期固定 `us`） |
 | 快照 | `GET /alpaca/market/latest-snapshot` `symbols`。盘口字段 `bp` / `ap`（或等价 quotes map）。**已订阅作 `quote` 兜底** |
 | 纳指分钟 | `GET ibkr/market/intraday-bars` 符号 `COMP`（产品侧 NASDAQ）。**不拉 VXX** |
 | 摘要 | `GET /stocks/summaries` `market, symbols` |

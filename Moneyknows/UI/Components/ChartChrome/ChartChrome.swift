@@ -21,6 +21,24 @@ struct ChartChrome: View {
     }
 }
 
+struct DailyChartChrome: View {
+    @Binding var style: ChartStyle
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(style == .candle ? L10n.Chart.line : L10n.Chart.candle) {
+                style = style == .candle ? .line : .candle
+            }
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .cornerRadius(AppTheme.fieldCorner)
+            Spacer()
+        }
+    }
+}
+
 struct SecondChartChrome: View {
     @Binding var interval: SecondInterval
     @Binding var style: ChartStyle

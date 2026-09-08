@@ -90,6 +90,9 @@ struct ChartSurface: View {
     }
 
     private func readout(_ bar: Bar) -> String {
-        "\(MarketClock.usTimeString(from: bar.time))  O \(MarketFormat.price(bar.open))  H \(MarketFormat.price(bar.high))  L \(MarketFormat.price(bar.low))  C \(MarketFormat.price(bar.close))  V \(MarketFormat.compact(bar.volume))"
+        let stamp = model.usesCalendarDays
+            ? MarketClock.usDateString(from: bar.time)
+            : MarketClock.usTimeString(from: bar.time)
+        return "\(stamp)  O \(MarketFormat.price(bar.open))  H \(MarketFormat.price(bar.high))  L \(MarketFormat.price(bar.low))  C \(MarketFormat.price(bar.close))  V \(MarketFormat.compact(bar.volume))"
     }
 }
