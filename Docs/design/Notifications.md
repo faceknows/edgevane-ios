@@ -1,6 +1,6 @@
 # 推送与通知中心
 
-**状态：** 待验收  
+**状态：** 已验收  
 **落点：** `Notifications/`、`UI/Screens/Notifications/`、`App` 深链
 
 ## 1. 开关与注册
