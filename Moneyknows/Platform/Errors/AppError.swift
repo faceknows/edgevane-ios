@@ -27,6 +27,25 @@ enum AppError: Error, Equatable {
         if case let .http(status, _, _) = self { return status >= 500 }
         return false
     }
+
+    /// Safe for `.public` logs: case + HTTP status/errorCode, never backend message bodies.
+    var logCode: String {
+        switch self {
+        case .network:
+            return "network"
+        case .cancelled:
+            return "cancelled"
+        case .decoding:
+            return "decoding"
+        case .orderHistoryIncomplete:
+            return "orderHistoryIncomplete"
+        case let .http(status, _, errorCode):
+            let code = errorCode?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return code.isEmpty ? "http \(status)" : "http \(status) \(code)"
+        case .versionUnsupported:
+            return "versionUnsupported"
+        }
+    }
 }
 
 enum UserFacingError {
@@ -81,5 +100,9 @@ extension Error {
 
     var isServerFailure: Bool {
         (self as? AppError)?.isServerFailure == true
+    }
+
+    var logCode: String {
+        (self as? AppError)?.logCode ?? "unknown"
     }
 }

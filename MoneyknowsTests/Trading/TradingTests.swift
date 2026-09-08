@@ -185,6 +185,36 @@ final class AlpacaTradingAPIDecodingTests: XCTestCase {
         }
     }
 
+    func testDecodesSimpleOrderWithNullLegs() throws {
+        let rows = try AlpacaTradingAPI.decodeOrders(from: Data(#"""
+        [{
+          "id":"simple","client_order_id":"cli-1","created_at":"2024-01-15T14:30:01Z",
+          "updated_at":"2024-01-15T14:30:02Z","submitted_at":"2024-01-15T14:30:01Z",
+          "filled_at":"2024-01-15T14:30:02Z","expired_at":null,"canceled_at":null,
+          "failed_at":null,"replaced_at":null,"replaced_by":null,"replaces":null,
+          "symbol":"AAPL","notional":null,"qty":"1","filled_qty":"1",
+          "filled_avg_price":"10.5","order_class":"","type":"market","side":"buy",
+          "time_in_force":"day","limit_price":null,"stop_price":null,
+          "status":"filled","extended_hours":false,"legs":null,
+          "trail_percent":null,"trail_price":null,"hwm":null
+        }]
+        """#.utf8))
+        XCTAssertEqual(rows.map(\.id), ["simple"])
+        XCTAssertEqual(rows[0].qty, 1)
+        XCTAssertEqual(rows[0].filledQty, 1)
+        XCTAssertEqual(rows[0].filledAvgPrice, 10.5)
+        XCTAssertNil(rows[0].orderClass)
+        XCTAssertNil(rows[0].parentOrderId)
+    }
+
+    func testRejectsNonArrayLegs() {
+        XCTAssertThrowsError(try AlpacaTradingAPI.decodeOrders(from: Data(#"""
+        [{"id":"bad","symbol":"AAPL","side":"buy","type":"limit","status":"new","qty":"1","legs":"nope"}]
+        """#.utf8))) { error in
+            XCTAssertEqual(error as? AppError, .decoding)
+        }
+    }
+
     func testDecodesNestedLegs() throws {
         let rows = try AlpacaTradingAPI.decodeOrders(from: Data(#"""
         [

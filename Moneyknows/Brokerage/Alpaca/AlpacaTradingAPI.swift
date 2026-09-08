@@ -424,8 +424,7 @@ struct AlpacaTradingAPI {
             row.parentOrderId = inheritedParentId
         }
         var rows = [row]
-        if let legs = object["legs"] {
-            guard let items = legs as? [Any] else { throw AppError.decoding }
+        if let items = try arrayValue(object["legs"]) {
             for item in items {
                 guard let child = item as? [String: Any] else { throw AppError.decoding }
                 rows.append(contentsOf: try decodeOrderTree(
@@ -495,6 +494,13 @@ struct AlpacaTradingAPI {
 
     private static func jsonObject(_ data: Data) -> [String: Any]? {
         (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    /// Alpaca simple orders send `"legs": null`. JSON null is `NSNull`, which is not `nil`.
+    private static func arrayValue(_ value: Any?) throws -> [Any]? {
+        guard let value, !(value is NSNull) else { return nil }
+        guard let items = value as? [Any] else { throw AppError.decoding }
+        return items
     }
 
     private static func array(_ data: Data) throws -> [Any] {

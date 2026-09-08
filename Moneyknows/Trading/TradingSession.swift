@@ -747,7 +747,9 @@ final class TradingSession: ObservableObject {
             return
         }
         store.errorText = UserFacingError.message(from: error)
-        AppLog.trading.error("trading refresh failed")
+        AppLog.trading.error(
+            "trading refresh failed \(String(describing: type(of: store)), privacy: .public) \(error.logCode, privacy: .public)"
+        )
     }
 
     private func markUnauthorized() {

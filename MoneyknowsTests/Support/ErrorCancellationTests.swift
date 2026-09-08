@@ -24,5 +24,18 @@ final class ErrorCancellationTests: XCTestCase {
         XCTAssertTrue((AppError.http(status: 503, message: nil, errorCode: nil) as Error).isServerFailure)
         XCTAssertFalse(AppError.http(status: 401, message: nil, errorCode: nil).isServerFailure)
         XCTAssertFalse(AppError.network.isServerFailure)
+        XCTAssertEqual(AppError.decoding.logCode, "decoding")
+        XCTAssertEqual(
+            AppError.http(status: 422, message: "order abc123 rejected", errorCode: "invalid_qty").logCode,
+            "http 422 invalid_qty"
+        )
+        XCTAssertEqual(
+            AppError.http(status: 500, message: "account 99 exploded", errorCode: nil).logCode,
+            "http 500"
+        )
+        XCTAssertFalse(
+            AppError.http(status: 500, message: "account 99 exploded", errorCode: nil).logCode.contains("account")
+        )
+        XCTAssertEqual((NSError(domain: "test", code: 1) as Error).logCode, "unknown")
     }
 }
