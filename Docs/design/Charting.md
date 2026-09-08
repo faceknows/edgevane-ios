@@ -60,7 +60,7 @@ ChartModel
   priceLines    [PriceLine]
   markers       [ChartMarker]   可空；蜡烛和折线都要画
   followLatest  Bool    秒图 true；分钟主图 / 复盘 false
-  showVolume    Bool    日线 true，其它默认 false
+  showVolume    Bool    由组装方按场景传入；图表只画，不猜
 ```
 
 空 `bars`：组件显示空态（由外层也可以先挡），**不准**画一条假平线。  
@@ -81,14 +81,14 @@ ChartEvent
 
 `Market`（或详情 Store）组装，**不在 View 里算 VWAP**。
 
-| 图 | bars 来源 | overlays | priceLines | followLatest |
-| --- | --- | --- | --- | --- |
-| 盘中分钟 1/3/5 | 1 分钟仓库，3/5 现场聚合 | VWAP（开关开） | 昨收、今开（有快照才有） | false |
-| 盘前 / 盘后 | 对应会话棒，展示按 5 分钟聚合 | 无（第一期） | 可选 | false |
-| 日线 | 日线仓库 | 无 | 无 | false |
-| 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true |
-| 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴 | — | — | false |
-| 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** |
+| 图 | bars 来源 | overlays | priceLines | followLatest | showVolume |
+| --- | --- | --- | --- | --- | --- |
+| 盘中分钟 1/3/5 | 1 分钟仓库，3/5 现场聚合 | VWAP（开关开） | 昨收、今开（有快照才有） | false | 股票 true；正在看 COMP / NASDAQ 则 false |
+| 盘前 / 盘后 | 对应会话棒，展示按 5 分钟聚合 | 无（第一期） | 可选 | false | true |
+| 日线 | 日线仓库 | 无 | 无 | false | 股票 true；COMP / NASDAQ false |
+| 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true | true |
+| 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴 | — | — | false | false |
+| 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** | 与盘中分钟相同 |
 
 ### 聚合
 

@@ -141,6 +141,37 @@ final class MinuteChartAssemblerTests: XCTestCase {
         XCTAssertTrue(hidden.overlays.isEmpty)
         XCTAssertTrue(hidden.priceLines.isEmpty)
         XCTAssertEqual(hidden.bars.count, 6)
+        XCTAssertFalse(hidden.showVolume)
+    }
+
+    func testShowVolumeFollowsCallerAndExtendedHoursDefaultOn() {
+        let bars1m = [
+            Bar(time: Date(timeIntervalSince1970: 1_700_000_100), open: 10, high: 11, low: 9, close: 10, volume: 4)
+        ]
+        XCTAssertTrue(
+            MinuteChartAssembler.model(
+                bars1m: bars1m,
+                interval: .one,
+                style: .candle,
+                showVWAP: false,
+                previousClose: nil,
+                sessionOpen: nil,
+                showVolume: true
+            ).showVolume
+        )
+        XCTAssertFalse(
+            MinuteChartAssembler.model(
+                bars1m: bars1m,
+                interval: .one,
+                style: .candle,
+                showVWAP: false,
+                previousClose: nil,
+                sessionOpen: nil,
+                showVolume: false
+            ).showVolume
+        )
+        XCTAssertTrue(MinuteChartAssembler.extendedHours(bars1m: bars1m).showVolume)
+        XCTAssertFalse(MinuteChartAssembler.extendedHours(bars1m: bars1m, showVolume: false).showVolume)
     }
 
     func testMarkersSnapOntoAggregatedBars() {

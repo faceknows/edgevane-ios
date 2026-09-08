@@ -29,7 +29,8 @@ final class SymbolChartSession: ObservableObject {
             previousClose: summary?.previousClose,
             sessionOpen: summary?.sessionOpen,
             markers: DayFills.markers(fills, bars: regularBars, session: .regular),
-            followLatest: false
+            followLatest: false,
+            showVolume: !BarSession.isIndexSymbol(symbol)
         )
     }
 

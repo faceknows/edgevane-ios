@@ -52,7 +52,7 @@ enum MinuteChartAssembler {
         )
     }
 
-    static func extendedHours(bars1m: [Bar], markers: [ChartMarker] = []) -> ChartModel {
+    static func extendedHours(bars1m: [Bar], markers: [ChartMarker] = [], showVolume: Bool = true) -> ChartModel {
         model(
             bars1m: bars1m,
             interval: .five,
@@ -61,7 +61,8 @@ enum MinuteChartAssembler {
             previousClose: nil,
             sessionOpen: nil,
             markers: markers,
-            followLatest: false
+            followLatest: false,
+            showVolume: showVolume
         )
     }
 

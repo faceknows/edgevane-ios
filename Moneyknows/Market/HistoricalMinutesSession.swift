@@ -34,7 +34,8 @@ final class HistoricalMinutesSession: ObservableObject {
             previousClose: nil,
             sessionOpen: nil,
             markers: dayFills.markers(bars: regularBars, session: .regular),
-            followLatest: false
+            followLatest: false,
+            showVolume: !BarSession.isIndexSymbol(symbol)
         )
     }
 

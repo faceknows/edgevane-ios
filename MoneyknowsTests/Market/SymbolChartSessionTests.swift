@@ -60,6 +60,8 @@ final class SymbolChartSessionTests: XCTestCase {
         await waitUntil { session.regularBars.first?.close == 1 }
         session.updateSummary(SymbolSummary(symbol: "AAPL", previousClose: 100, sessionOpen: 101))
         XCTAssertEqual(session.regularModel.priceLines.map(\.id), ["prevClose", "sessionOpen"])
+        XCTAssertTrue(session.regularModel.showVolume)
+        XCTAssertTrue(session.preModel.showVolume)
         first.cancel()
 
         http.pauseSends = true
@@ -135,6 +137,24 @@ final class SymbolChartSessionTests: XCTestCase {
         http.releasePaused()
     }
 
+    func testIndexSymbolHidesVolumeOnRegularAndKeepsItOnExtendedHours() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"15:00","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"[{"d":"04:00","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"[]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let session = SymbolChartSession()
+        let task = Task {
+            await session.start(symbol: "COMP", store: store, now: Self.eastern(2026, 9, 4, 8))
+        }
+        await waitUntil { session.regularBars.count == 1 }
+        XCTAssertFalse(session.regularModel.showVolume)
+        XCTAssertTrue(session.preModel.showVolume)
+        task.cancel()
+    }
+
     private static func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
@@ -186,9 +206,11 @@ final class IndexChartSessionTests: XCTestCase {
         let loadID = session.loadID
         XCTAssertGreaterThan(loadID, 0)
         await session.reload(date: "2026-09-03")
+        await waitUntil { session.bars.first?.close == 2 }
         XCTAssertEqual(session.loadID, loadID)
         XCTAssertEqual(session.bars.first?.close, 2)
         XCTAssertFalse(session.isLoading)
+        XCTAssertFalse(session.model.showVolume)
         task.cancel()
     }
 

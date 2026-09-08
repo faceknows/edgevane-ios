@@ -201,7 +201,7 @@ final class MarketRealtimeSessionTests: XCTestCase {
 }
 
 final class SecondChartAssemblerTests: XCTestCase {
-    func testFollowsLatestWithoutVWAPOrVolume() {
+    func testFollowsLatestWithVolumeAndWithoutVWAP() {
         let start = Date(timeIntervalSince1970: 1_700_000_100)
         let bars = (0..<5).map { offset in
             Bar(
@@ -214,8 +214,11 @@ final class SecondChartAssemblerTests: XCTestCase {
         XCTAssertTrue(model.followLatest)
         XCTAssertTrue(model.overlays.isEmpty)
         XCTAssertTrue(model.priceLines.isEmpty)
-        XCTAssertFalse(model.showVolume)
+        XCTAssertTrue(model.showVolume)
         XCTAssertEqual(model.style, .line)
+        XCTAssertFalse(
+            SecondChartAssembler.model(bars1s: bars, interval: .five, style: .line, showVolume: false).showVolume
+        )
     }
 }
 

@@ -93,7 +93,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private func chartOptions(
         _ colors: ChartColors,
         includeFormatters: Bool,
-        lockLeftEdge: Bool
+        lockLeftEdge: Bool,
+        showVolume: Bool = false
     ) -> ChartOptions {
         let grid = chartColor(colors.grid)
         return ChartOptions(
@@ -102,6 +103,10 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 textColor: chartColor(colors.text)
             ),
             rightPriceScale: PriceScaleOptions(
+                scaleMargins: PriceScaleMargins(
+                    top: 0.1,
+                    bottom: showVolume ? 0.25 : 0.05
+                ),
                 borderColor: grid
             ),
             timeScale: TimeScaleOptions(
@@ -134,7 +139,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         chart.applyOptions(options: chartOptions(
             colors,
             includeFormatters: attachFormatters,
-            lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging)
+            lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging),
+            showVolume: model.showVolume
         ))
         if attachFormatters {
             didInstallFormatters = true
@@ -259,33 +265,40 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             }
             return
         }
-        let series = volumeSeries ?? chart.addHistogramSeries(options: HistogramSeriesOptions(
-            lastValueVisible: false,
-            priceScaleId: "volume",
-            priceLineVisible: false,
-            color: chartColor(colors.volume)
-        ))
-        if volumeSeries == nil {
-            chart.priceScale(priceScaleId: "volume").applyOptions(options: PriceScaleOptions(
-                scaleMargins: PriceScaleMargins(top: 0.8, bottom: 0),
-                visible: false
-            ))
-        } else {
-            series.applyOptions(options: HistogramSeriesOptions(
-                lastValueVisible: false,
-                priceScaleId: "volume",
-                priceLineVisible: false,
-                color: chartColor(colors.volume)
-            ))
+        let options = volumeOptions(colors)
+        let series = volumeSeries ?? chart.addHistogramSeries(options: options)
+        if volumeSeries != nil {
+            series.applyOptions(options: options)
         }
+        chart.priceScale(priceScaleId: "volume").applyOptions(options: PriceScaleOptions(
+            scaleMargins: PriceScaleMargins(top: 0.8, bottom: 0),
+            borderVisible: false,
+            visible: false
+        ))
         volumeSeries = series
         series.setData(data: model.bars.map { bar in
             HistogramData(
                 time: .utc(timestamp: bar.time.timeIntervalSince1970),
                 value: bar.volume,
-                color: chartColor(bar.close >= bar.open ? colors.up : colors.down)
+                color: volumeBarColor(bar, colors: colors)
             )
         })
+    }
+
+    private func volumeOptions(_ colors: ChartColors) -> HistogramSeriesOptions {
+        HistogramSeriesOptions(
+            lastValueVisible: false,
+            priceScaleId: "volume",
+            priceLineVisible: false,
+            priceFormat: .builtIn(BuiltInPriceFormat(type: .volume, precision: nil, minMove: 1)),
+            color: chartColor(colors.volume)
+        )
+    }
+
+    private func volumeBarColor(_ bar: Bar, colors: ChartColors) -> ChartColor {
+        var rgba = bar.close >= bar.open ? colors.up : colors.down
+        rgba.alpha = 0.5
+        return chartColor(rgba)
     }
 
     private func applyPriceLines<Series: SeriesApi>(_ lines: [ChartModel.PriceLine], colors: ChartColors, on series: Series) {

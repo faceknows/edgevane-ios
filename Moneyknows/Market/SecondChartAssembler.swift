@@ -1,7 +1,12 @@
 import Foundation
 
 enum SecondChartAssembler {
-    static func model(bars1s: [Bar], interval: SecondInterval, style: ChartStyle) -> ChartModel {
+    static func model(
+        bars1s: [Bar],
+        interval: SecondInterval,
+        style: ChartStyle,
+        showVolume: Bool = true
+    ) -> ChartModel {
         ChartModel(
             bars: BarAggregator.aggregate(bars1s, seconds: interval.seconds),
             style: style,
@@ -9,7 +14,7 @@ enum SecondChartAssembler {
             priceLines: [],
             markers: [],
             followLatest: true,
-            showVolume: false
+            showVolume: showVolume
         )
     }
 }

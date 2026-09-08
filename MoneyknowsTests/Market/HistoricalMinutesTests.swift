@@ -26,6 +26,8 @@ final class HistoricalMinutesTests: XCTestCase {
         XCTAssertEqual(session.regularModel.markers.map(\.kind), [.buy])
         XCTAssertEqual(session.regularModel.markers.first?.position, .belowBar)
         XCTAssertTrue(session.regularModel.priceLines.isEmpty)
+        XCTAssertTrue(session.regularModel.showVolume)
+        XCTAssertTrue(session.preModel.showVolume)
         XCTAssertNil(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular))
         XCTAssertEqual(
             Set(http.requests.map(\.path)),

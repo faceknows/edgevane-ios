@@ -30,7 +30,8 @@ final class IndexChartSession: ObservableObject {
             showVWAP: false,
             previousClose: nil,
             sessionOpen: nil,
-            followLatest: false
+            followLatest: false,
+            showVolume: false
         )
     }
 
