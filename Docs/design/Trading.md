@@ -76,7 +76,7 @@ Alpaca 直连路径只在 `Brokerage/Alpaca`：
 | 止损 | stop；数量：可用/全部/自定义 | 同上 |
 | 市价全平 | `closePosition` 100%，可撤挂单 | — |
 | 限价平 | 反向 limit | — |
-| 滑条 | 仅已订阅；limit 在用户价；松手确认；拖动锁区间 10s | 滑条价 |
+| 滑条 | 仅已订阅且有秒图；limit 在用户价；松手确认；拖动锁区间 10s | 滑条价 |
 
 `showMarketTrade` **只控制「市价全平」是否出现**。限价买/卖始终有；不要因此加市价开仓。OTO 按钮跟 `showOTOAction`，默认关。
 

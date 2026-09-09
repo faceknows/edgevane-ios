@@ -61,16 +61,6 @@ struct SymbolDetailView: View {
                     if !realtime.isSocketConnected {
                         MarketDisconnectedBanner()
                     }
-                    if isSubscribed {
-                        LastTradeQuoteStrip(
-                            lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
-                            quote: quotes.quote(for: symbol)
-                        )
-                    } else {
-                        Text(MarketFormat.price(headerPrice))
-                            .font(.title.bold())
-                            .monospacedDigit()
-                    }
                     if !charts.preBars.isEmpty {
                         ChartPanel(
                             title: L10n.Chart.preMarket,
@@ -105,28 +95,15 @@ struct SymbolDetailView: View {
                         }
                     }
                     if showsIndex {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ChartChrome(
-                                interval: $indexCharts.interval,
-                                style: $indexCharts.style,
-                                showVWAP: .constant(false),
-                                showsVWAPToggle: false
-                            )
-                            ChartPanel(
-                                title: L10n.Chart.nasdaq,
-                                model: indexCharts.model,
-                                height: 160,
-                                isLoading: indexCharts.isLoading,
-                                errorText: indexCharts.errorText,
-                                retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
-                            )
-                        }
+                        ChartPanel(
+                            title: L10n.Chart.nasdaq,
+                            model: indexCharts.model(interval: charts.interval, style: charts.style),
+                            height: 160,
+                            isLoading: indexCharts.isLoading,
+                            errorText: indexCharts.errorText,
+                            retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
+                        )
                     }
-                    ChartChrome(
-                        interval: $charts.interval,
-                        style: $charts.style,
-                        showVWAP: $charts.showVWAP
-                    )
                     ChartPanel(
                         title: L10n.Detail.chart,
                         model: charts.regularModel,
@@ -135,13 +112,30 @@ struct SymbolDetailView: View {
                         errorText: charts.errorText,
                         retry: { Task { await charts.retryRegular() } }
                     )
+                    ChartChrome(
+                        interval: $charts.interval,
+                        style: $charts.style,
+                        showVWAP: $charts.showVWAP
+                    )
                     MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
                     if isSubscribed {
-                        secondChart
-                        if let sliderRange {
-                            PriceSliderTradeView(range: sliderRange) { price in
-                                sliderPrice = price
-                                tradeAction = .slider
+                        LastTradeQuoteStrip(
+                            lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
+                            quote: quotes.quote(for: symbol)
+                        )
+                    } else {
+                        Text(MarketFormat.price(headerPrice))
+                            .font(.title.bold())
+                            .monospacedDigit()
+                    }
+                    if isSubscribed {
+                        if hasSecondBars {
+                            secondChart
+                            if let sliderRange {
+                                PriceSliderTradeView(range: sliderRange) { price in
+                                    sliderPrice = price
+                                    tradeAction = .slider
+                                }
                             }
                         }
                         TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
@@ -243,6 +237,11 @@ struct SymbolDetailView: View {
         }
     }
 
+    private var hasSecondBars: Bool {
+        _ = seconds.revision
+        return !seconds.bars(for: symbol).isEmpty
+    }
+
     private var sliderRange: ClosedRange<Double>? {
         _ = seconds.revision
         let bars = SecondChartAssembler.model(
@@ -254,9 +253,6 @@ struct SymbolDetailView: View {
         let lows = bars.map(\.low)
         guard let min = lows.min(), let max = highs.max(), max >= min, max > 0,
               min.isFinite, max.isFinite else {
-            if let last = quotes.quote(for: symbol)?.last, last > 0, last.isFinite {
-                return OrderSizing.sliderBounds((last * 0.99)...(last * 1.01))
-            }
             return nil
         }
         return OrderSizing.sliderBounds(min...max)

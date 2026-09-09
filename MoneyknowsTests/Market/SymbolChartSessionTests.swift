@@ -210,7 +210,7 @@ final class IndexChartSessionTests: XCTestCase {
         XCTAssertEqual(session.loadID, loadID)
         XCTAssertEqual(session.bars.first?.close, 2)
         XCTAssertFalse(session.isLoading)
-        XCTAssertFalse(session.model.showVolume)
+        XCTAssertFalse(session.model(interval: .five, style: .candle).showVolume)
         task.cancel()
     }
 

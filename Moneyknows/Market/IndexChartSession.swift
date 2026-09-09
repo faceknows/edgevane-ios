@@ -4,8 +4,6 @@ import Foundation
 final class IndexChartSession: ObservableObject {
     static let symbol = BarSession.indexSymbol
 
-    @Published var interval: MinuteInterval = .five
-    @Published var style: ChartStyle = .candle
     @Published private(set) var bars: [Bar] = []
     @Published private(set) var isLoading = false
     @Published private(set) var errorText: String?
@@ -22,7 +20,7 @@ final class IndexChartSession: ObservableObject {
         "\(date)|\(enabled)"
     }
 
-    var model: ChartModel {
+    func model(interval: MinuteInterval, style: ChartStyle) -> ChartModel {
         MinuteChartAssembler.model(
             bars1m: bars,
             interval: interval,

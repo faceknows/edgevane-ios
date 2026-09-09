@@ -88,7 +88,7 @@ ChartEvent
 | 盘前 / 盘后 | 对应会话棒，展示按 5 分钟聚合 | 无（第一期） | 可选 | false | true |
 | 日线 | 日线仓库 | 无 | 无 | false | 股票 true；COMP / NASDAQ false |
 | 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true | true |
-| 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴 | — | — | false | false |
+| 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴。**1/3/5 与蜡烛/线跟盘中分钟同一套 `ChartChrome`**；没有自己的周期开关，也不画 VWAP | — | — | false | false |
 | 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** | 与盘中分钟相同 |
 
 ### 聚合
@@ -148,11 +148,11 @@ ChartEvent
 2. 成交价条 + **Q 盘口**（买/卖价与数量；`quote` 为主，快照兜底，没有盘口才显示 —）
 3. 盘前 / 盘后（有数据才出现）
 4. 日线（偏好默认关）chrome + surface
-5. **纳指对照矮图**（偏好默认开，无 VXX）chrome + surface
-6. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP + 盘中 `ChartSurface`（可叠今日成交 `markers`）
+5. **纳指对照矮图**（偏好默认开，无 VXX）surface，**没有自己的 chrome**
+6. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP（只作用分钟主图）+ 盘中 `ChartSurface`（可叠今日成交 `markers`）。切周期/形态时纳指矮图一起变，VWAP 不画在纳指上
 7. RSI/ADX/+DI/-DI/ATR/AtcPct 数字徽标（随当前分钟周期重算，不是副图、不用 summaries 上的指标）
-8. 秒图 chrome + surface
-9. 价格滑条
+8. 秒图 chrome + surface（有秒线才出现）
+9. 价格滑条（仅有秒图时；区间来自秒图高低，不要用最新价兜底出滑条）
 10. 交易条（有仓则 Type / Qty / Filled 与相对中间价%；Liquidate @ Limit / Take Profit / Stop / Buy @ Bid / Sell @ Ask）；可退订
 
 未订阅：无 2 的盘口、无 8–10 的秒图/滑条/交易条；正文顶部仍显示摘要最新价；底部「加入实时订阅」。
