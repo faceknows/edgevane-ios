@@ -128,6 +128,7 @@ struct SymbolDetailView: View {
                             .font(.title.bold())
                             .monospacedDigit()
                     }
+                    subscriptionIconButton
                     if isSubscribed {
                         if hasSecondBars {
                             secondChart
@@ -139,9 +140,6 @@ struct SymbolDetailView: View {
                             }
                         }
                         TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
-                        unsubscribeButton
-                    } else {
-                        subscribeButton
                     }
                     if let subscriptionError {
                         Text(subscriptionError)
@@ -267,26 +265,30 @@ struct SymbolDetailView: View {
         )
     }
 
-    private var subscribeButton: some View {
+    private var subscriptionIconButton: some View {
         Button {
-            Task { await changeSubscription(subscribe: true) }
+            Task { await changeSubscription(subscribe: !isSubscribed) }
         } label: {
-            Text(L10n.Detail.subscribe)
-                .frame(maxWidth: .infinity)
+            Group {
+                if subscriptionBusy {
+                    ProgressView()
+                        .scaleEffect(0.85)
+                } else {
+                    Image(systemName: isSubscribed ? "minus" : "plus")
+                        .font(.title3.weight(.bold))
+                        .foregroundColor(isSubscribed ? .red : .green)
+                }
+            }
+            .frame(width: 40, height: 40)
+            .overlay(
+                Circle()
+                    .stroke(Color(uiColor: .separator), lineWidth: 1)
+            )
+            .contentShape(Circle())
         }
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.plain)
         .disabled(subscriptionBusy)
-    }
-
-    private var unsubscribeButton: some View {
-        Button(role: .destructive) {
-            Task { await changeSubscription(subscribe: false) }
-        } label: {
-            Text(L10n.Detail.unsubscribe)
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.bordered)
-        .disabled(subscriptionBusy)
+        .accessibilityLabel(isSubscribed ? L10n.Detail.unsubscribe : L10n.Detail.subscribe)
     }
 
     private var headerPrice: Double? {

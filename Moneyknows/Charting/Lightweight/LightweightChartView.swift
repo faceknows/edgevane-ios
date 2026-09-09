@@ -10,7 +10,11 @@ struct LightweightChartView: UIViewRepresentable {
     var onEvent: (ChartEvent) -> Void
 
     func makeCoordinator() -> LightweightChartCoordinator {
-        LightweightChartCoordinator(onEvent: onEvent)
+        let coordinator = LightweightChartCoordinator(onEvent: onEvent)
+        coordinator.pageScrollPassthrough.onDoubleTap = { [weak coordinator] in
+            coordinator?.resetViewport()
+        }
+        return coordinator
     }
 
     func makeUIView(context: Context) -> LightweightCharts {
@@ -43,9 +47,12 @@ struct LightweightChartView: UIViewRepresentable {
 }
 
 /// Vertical pans cancel the WebView and go to the page. Horizontal pans stay on the chart.
+/// Double-tap fits every loaded bar into the current plot.
 final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
+    var onDoubleTap: (() -> Void)?
     private let chartPan = ChartDirectionLockGesture(ownsPan: { ChartTouchScrolling.chartOwnsPan(translationX: $0, translationY: $1) })
     private let pagePan = ChartDirectionLockGesture(ownsPan: { !ChartTouchScrolling.chartOwnsPan(translationX: $0, translationY: $1) })
+    private let resetTap = UITapGestureRecognizer()
     private let windowHook = ChartWindowHookView()
     private weak var installedOn: UIView?
     private weak var boundScroll: UIScrollView?
@@ -56,16 +63,26 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
         chartPan.delegate = self
         pagePan.cancelsTouchesInView = true
         pagePan.delegate = self
+        resetTap.numberOfTapsRequired = 2
+        resetTap.cancelsTouchesInView = true
+        resetTap.delegate = self
+        resetTap.addTarget(self, action: #selector(handleDoubleTap))
         windowHook.isUserInteractionEnabled = false
+    }
+
+    @objc private func handleDoubleTap() {
+        onDoubleTap?()
     }
 
     func install(on view: UIView) {
         if installedOn !== view {
             installedOn?.removeGestureRecognizer(chartPan)
             installedOn?.removeGestureRecognizer(pagePan)
+            installedOn?.removeGestureRecognizer(resetTap)
             windowHook.removeFromSuperview()
             view.addGestureRecognizer(chartPan)
             view.addGestureRecognizer(pagePan)
+            view.addGestureRecognizer(resetTap)
             view.insertSubview(windowHook, at: 0)
             installedOn = view
         }
@@ -80,7 +97,10 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
         _ gestureRecognizer: UIGestureRecognizer,
         shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer
     ) -> Bool {
-        gestureRecognizer === pagePan
+        if gestureRecognizer === resetTap {
+            return !(other is UIPanGestureRecognizer)
+        }
+        return gestureRecognizer === pagePan
             && other is UIPanGestureRecognizer
             && other.view is UIScrollView
     }

@@ -105,7 +105,9 @@ struct TradeBarView: View {
                     TradingBlockedBanner()
                 }
                 actionCard
-                blacklistToggles
+                if preferences.values.isAutoTakeProfitOn || preferences.values.isAutoStopLossOn {
+                    blacklistToggles
+                }
             }
         }
     }
@@ -266,33 +268,43 @@ struct TradeBarView: View {
         return MarketFormat.changeColor(percent)
     }
 
+    @ViewBuilder
     private var blacklistToggles: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button(
-                blacklist.isTakeProfitBlocked(symbol)
-                    ? L10n.Trading.allowTakeProfit
-                    : L10n.Trading.blockTakeProfit
-            ) {
-                if blacklist.isTakeProfitBlocked(symbol) {
+            if preferences.values.isAutoTakeProfitOn {
+                Toggle(L10n.Prefs.autoTakeProfit, isOn: takeProfitApplies)
+            }
+            if preferences.values.isAutoStopLossOn {
+                Toggle(L10n.Prefs.autoStopLoss, isOn: stopLossApplies)
+            }
+        }
+        .font(.footnote)
+    }
+
+    private var takeProfitApplies: Binding<Bool> {
+        Binding(
+            get: { !blacklist.isTakeProfitBlocked(symbol) },
+            set: { enabled in
+                if enabled {
                     blacklist.removeTakeProfit(symbol)
                 } else {
                     blacklist.addTakeProfit(symbol)
                 }
             }
-            .font(.footnote)
-            Button(
-                blacklist.isStopLossBlocked(symbol)
-                    ? L10n.Trading.allowStopLoss
-                    : L10n.Trading.blockStopLoss
-            ) {
-                if blacklist.isStopLossBlocked(symbol) {
+        )
+    }
+
+    private var stopLossApplies: Binding<Bool> {
+        Binding(
+            get: { !blacklist.isStopLossBlocked(symbol) },
+            set: { enabled in
+                if enabled {
                     blacklist.removeStopLoss(symbol)
                 } else {
                     blacklist.addStopLoss(symbol)
                 }
             }
-            .font(.footnote)
-        }
+        )
     }
 }
 

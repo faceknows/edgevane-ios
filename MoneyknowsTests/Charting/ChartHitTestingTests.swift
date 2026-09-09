@@ -92,6 +92,29 @@ final class ChartTimeScalePagingTests: XCTestCase {
     }
 }
 
+final class ChartViewportResetTests: XCTestCase {
+    func testFirstLayoutFitsOnlyWhenBarsAndSizeAreReady() {
+        XCTAssertFalse(ChartViewportReset.shouldFitOnFirstLayout(didFit: false, hasBars: false, hasSize: true))
+        XCTAssertFalse(ChartViewportReset.shouldFitOnFirstLayout(didFit: false, hasBars: true, hasSize: false))
+        XCTAssertFalse(ChartViewportReset.shouldFitOnFirstLayout(didFit: true, hasBars: true, hasSize: true))
+        XCTAssertTrue(ChartViewportReset.shouldFitOnFirstLayout(didFit: false, hasBars: true, hasSize: true))
+    }
+
+    func testUsablePlotSizeRejectsZeroAndAcceptsLaidOutBounds() {
+        XCTAssertFalse(ChartViewportReset.hasUsablePlotSize(width: 0, height: 260))
+        XCTAssertFalse(ChartViewportReset.hasUsablePlotSize(width: 390, height: 0))
+        XCTAssertFalse(ChartViewportReset.hasUsablePlotSize(width: 0, height: 0))
+        XCTAssertTrue(ChartViewportReset.hasUsablePlotSize(width: 390, height: 260))
+    }
+
+    func testFitPreparesPagingToIgnoreThePaddedLogicalRange() {
+        var state = ChartTimeScalePaging.State()
+        ChartTimeScalePaging.beginIgnoringFitContent(&state)
+        XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -0.5, hasBars: true, state: &state))
+        XCTAssertFalse(state.reachedOldest)
+    }
+}
+
 final class ChartLibraryOptionsTests: XCTestCase {
     func testAttachesFormattersOnlyUntilInstalled() {
         XCTAssertTrue(ChartLibraryOptions.attachFormatters(alreadyInstalled: false))

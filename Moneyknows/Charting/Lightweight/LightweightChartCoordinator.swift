@@ -23,6 +23,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var appliedBars: [Bar] = []
     private var appliedMarkers: [ChartMarker] = []
     private var didFitContent = false
+    private var hasTimeScaleSize = false
     private var paging = ChartTimeScalePaging.State()
     private var oldestBarTime: Date?
     private var timeScaleAPI: TimeScaleApi?
@@ -41,7 +42,9 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         let scale = lightweightCharts.timeScale()
         scale.delegate = self
         scale.subscribeVisibleLogicalRangeChange()
+        scale.subscribeSizeChange()
         timeScaleAPI = scale
+        notePlotSize(width: lightweightCharts.bounds.width, height: lightweightCharts.bounds.height)
         if let pending {
             apply(pending, on: lightweightCharts)
         }
@@ -66,7 +69,11 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             chartHeight: chartHeight
         )
         pending = snapshot
-        guard isLoaded, applied != snapshot else { return }
+        guard isLoaded else { return }
+        if !hasTimeScaleSize {
+            notePlotSize(width: chart.bounds.width, height: chart.bounds.height)
+        }
+        guard applied != snapshot else { return }
         apply(snapshot, on: chart)
     }
 
@@ -99,7 +106,15 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
-    func didReceiveTimeScaleSizeChangeWithParameters(onTimeScale timeScale: TimeScaleApi, parameters: Rectangle?) {}
+    func didReceiveTimeScaleSizeChangeWithParameters(onTimeScale timeScale: TimeScaleApi, parameters: Rectangle?) {
+        guard let parameters else { return }
+        notePlotSize(width: CGFloat(parameters.width), height: CGFloat(parameters.height))
+    }
+
+    func resetViewport() {
+        guard let chart, !appliedBars.isEmpty else { return }
+        fitAllContent(on: chart)
+    }
 
     func bootstrapOptions(_ colors: ChartColors) -> ChartOptions {
         chartOptions(colors, includeFormatters: false, lockLeftEdge: false)
@@ -206,14 +221,48 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         syncVolume(model, colors: colors, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
         appliedBars = model.bars
-        if !didFitContent {
-            ChartTimeScalePaging.beginIgnoringFitContent(&paging)
-            chart.timeScale().fitContent()
-            didFitContent = true
-        }
+        capturePlotSizeIfNeeded(from: chart)
+        fitAllContentIfNeeded()
         if model.followLatest {
             chart.timeScale().scrollToRealTime()
         }
+    }
+
+    private func capturePlotSizeIfNeeded(from chart: LightweightCharts) {
+        guard !hasTimeScaleSize else { return }
+        notePlotSize(width: chart.bounds.width, height: chart.bounds.height)
+    }
+
+    private func notePlotSize(width: CGFloat, height: CGFloat) {
+        let apply = { [weak self] in
+            guard let self else { return }
+            guard ChartViewportReset.hasUsablePlotSize(width: width, height: height) else { return }
+            self.hasTimeScaleSize = true
+            self.fitAllContentIfNeeded()
+        }
+        if Thread.isMainThread {
+            apply()
+        } else {
+            DispatchQueue.main.async(execute: apply)
+        }
+    }
+
+    private func fitAllContentIfNeeded() {
+        guard let chart else { return }
+        guard ChartViewportReset.shouldFitOnFirstLayout(
+            didFit: didFitContent,
+            hasBars: !appliedBars.isEmpty,
+            hasSize: hasTimeScaleSize
+        ) else { return }
+        fitAllContent(on: chart)
+    }
+
+    private func fitAllContent(on chart: LightweightCharts) {
+        ChartTimeScalePaging.beginIgnoringFitContent(&paging)
+        applyPriceScale(PriceScaleOptions(autoScale: true), to: mainSeries?.series)
+        volumeSeries?.priceScale().applyOptions(options: PriceScaleOptions(autoScale: true))
+        chart.timeScale().fitContent()
+        didFitContent = true
     }
 
     private func rebuildMainIfNeeded(_ style: ChartStyle, colors: ChartColors, on chart: LightweightCharts) {
@@ -471,10 +520,23 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         ))
     }
 
-    /// Native WKWebView bounce would fight the enclosing page scroll.
+    /// Native WKWebView bounce / double-tap zoom would fight page scroll and our reset gesture.
     private static func installVerticalPageScrollBridge(on chart: LightweightCharts) {
         guard let webView = webView(in: chart) else { return }
         webView.scrollView.bounces = false
+        webView.scrollView.bouncesZoom = false
+        webView.scrollView.minimumZoomScale = 1
+        webView.scrollView.maximumZoomScale = 1
+        disableDoubleTapZoom(on: webView)
+        disableDoubleTapZoom(on: webView.scrollView)
+    }
+
+    private static func disableDoubleTapZoom(on view: UIView) {
+        for recognizer in view.gestureRecognizers ?? [] {
+            if let tap = recognizer as? UITapGestureRecognizer, tap.numberOfTapsRequired == 2 {
+                tap.isEnabled = false
+            }
+        }
     }
 
     /// LC iOS 4 decodes `hoveredObjectId` as `Int`. Marker / price-line ids are JSON strings,

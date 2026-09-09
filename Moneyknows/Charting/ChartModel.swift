@@ -208,6 +208,18 @@ enum ChartTimeScalePaging {
     }
 }
 
+/// First paint and double-tap both fit every loaded bar into the current plot.
+enum ChartViewportReset {
+    static func shouldFitOnFirstLayout(didFit: Bool, hasBars: Bool, hasSize: Bool) -> Bool {
+        !didFit && hasBars && hasSize
+    }
+
+    /// `subscribeSizeChange` only reports later resizes; seed from the view's current bounds.
+    static func hasUsablePlotSize(width: CGFloat, height: CGFloat) -> Bool {
+        width > 0 && height > 0
+    }
+}
+
 enum ChartLibraryOptions {
     /// LightweightCharts iOS stores each formatter closure under a unique name and never removes it.
     static func attachFormatters(alreadyInstalled: Bool) -> Bool {
