@@ -60,7 +60,7 @@
 | 纳指分钟 | `GET ibkr/market/intraday-bars` 符号 `COMP`（产品侧 NASDAQ）。**不拉 VXX** |
 | 摘要 | `GET /stocks/summaries` `market, symbols` |
 
-棒：`d, o, h, l, c, v`，可选 `n, vw`。`d` 的日期/时刻解析集中在 Mapping，领域得到 `Date`。
+棒：`d, o, h, l, c, v`，可选 `n, vw`。`d` 的日期/时刻解析集中在 Mapping，领域得到 `Date`。`bars` 可以是数组、按 symbol 分组的 map，或夹着空位；Mapping 丢掉空位，不要当成整段失败。
 
 ## 5. 扫描器（第一期只接这些）
 

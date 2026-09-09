@@ -85,7 +85,7 @@ final class DailyChartSession: ObservableObject {
             lastOlderStartDate = nil
             if error.isCancellation { return }
             errorText = UserFacingError.message(from: error)
-            AppLog.market.error("daily bars older failed")
+            AppLog.market.error("daily bars older failed \(error.logCode, privacy: .public)")
         }
     }
 
@@ -117,7 +117,7 @@ final class DailyChartSession: ObservableObject {
             guard self.loadID == loadID, self.symbol == symbol else { return }
             if error.isCancellation { return }
             errorText = UserFacingError.message(from: error)
-            AppLog.market.error("daily bars failed")
+            AppLog.market.error("daily bars failed \(error.logCode, privacy: .public)")
         }
     }
 }

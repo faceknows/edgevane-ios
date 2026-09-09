@@ -45,7 +45,7 @@ enum FirebasePushRuntime {
             runningTests: runningTests
         ) else {
             if !runningTests {
-                AppLog.push.error("firebase plist bundle mismatch, skip FCM")
+                AppLog.push.info("firebase plist bundle mismatch, skip FCM")
             }
             return false
         }

@@ -1,47 +1,5 @@
 import Foundation
 
-struct IntradayBarsDTO: Decodable {
-    var symbol: String?
-    var bars: [BarDTO]?
-    var hasBarsKey = false
-
-    enum CodingKeys: String, CodingKey {
-        case symbol, bars
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
-        hasBarsKey = container.contains(.bars)
-        bars = try container.decodeIfPresent([BarDTO].self, forKey: .bars)
-    }
-}
-
-struct DailyBarsDTO: Decodable {
-    var symbol: String?
-    var timeFrame: String?
-    var startDate: String?
-    var bars: [BarDTO]?
-    var hasBarsKey = false
-
-    enum CodingKeys: String, CodingKey {
-        case symbol, timeFrame, startDate, bars
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        symbol = try container.decodeIfPresent(String.self, forKey: .symbol)
-        timeFrame = try container.decodeIfPresent(String.self, forKey: .timeFrame)
-        startDate = try container.decodeIfPresent(String.self, forKey: .startDate)
-        hasBarsKey = container.contains(.bars)
-        bars = try container.decodeIfPresent([BarDTO].self, forKey: .bars)
-    }
-
-    var isDailyEnvelope: Bool {
-        hasBarsKey || symbol != nil || startDate != nil || timeFrame != nil
-    }
-}
-
 struct BarsAPI {
     var client: HTTPSending
 
@@ -104,31 +62,100 @@ struct BarsAPI {
     }
 
     static func decodeBars(from data: Data) throws -> [BarDTO] {
-        let decoder = HTTPClient.makeDecoder()
-        if let items = try? decoder.decode([BarDTO].self, from: data) {
-            return items
-        }
-        if let envelope = try? decoder.decode(JSONEnvelope<[BarDTO]>.self, from: data) {
-            return envelope.data
-        }
-        if let envelope = try? decoder.decode(JSONEnvelope<IntradayBarsDTO>.self, from: data) {
-            if envelope.data.hasBarsKey || envelope.data.symbol != nil {
-                return envelope.data.bars ?? []
-            }
-        }
-        if let envelope = try? decoder.decode(JSONEnvelope<DailyBarsDTO>.self, from: data) {
-            if envelope.data.isDailyEnvelope {
-                return envelope.data.bars ?? []
-            }
-        }
-        if let payload = try? decoder.decode(IntradayBarsDTO.self, from: data),
-           payload.hasBarsKey || payload.symbol != nil
+        if let json = try? JSONSerialization.jsonObject(with: data),
+           let bars = bars(fromJSON: json)
         {
-            return payload.bars ?? []
+            return bars
         }
-        if let payload = try? decoder.decode(DailyBarsDTO.self, from: data), payload.isDailyEnvelope {
-            return payload.bars ?? []
-        }
+        logDecodeFailure(data)
         throw AppError.decoding
+    }
+
+    /// RN `parseIntradayBars` keeps going when a slot is null or `bars` is keyed by symbol.
+    /// JSONDecoder `[BarDTO]` throws on either, which the UI then shows as the generic error.
+    private static func bars(fromJSON json: Any) -> [BarDTO]? {
+        if json is NSNull {
+            return []
+        }
+        if let array = json as? [Any] {
+            return array.compactMap(barDTO(fromJSON:))
+        }
+        guard let object = json as? [String: Any] else { return nil }
+        if let nested = object["data"], let bars = bars(fromJSON: nested) {
+            return bars
+        }
+        if object.keys.contains("bars") {
+            return bars(fromJSON: object["bars"] as Any) ?? bars(fromKeyedBars: object["bars"])
+        }
+        if object["symbol"] != nil || object["timeFrame"] != nil || object["startDate"] != nil {
+            return []
+        }
+        return nil
+    }
+
+    private static func bars(fromKeyedBars raw: Any?) -> [BarDTO]? {
+        guard let object = raw as? [String: Any] else { return nil }
+        let flattened = object.values.flatMap { bars(fromJSON: $0) ?? [] }
+        return flattened
+    }
+
+    private static func barDTO(fromJSON json: Any) -> BarDTO? {
+        guard let object = json as? [String: Any] else { return nil }
+        return BarDTO(
+            d: stringValue(object["d"]) ?? stringValue(object["t"]),
+            o: doubleValue(object["o"]),
+            h: doubleValue(object["h"]),
+            l: doubleValue(object["l"]),
+            c: doubleValue(object["c"]),
+            v: doubleValue(object["v"]),
+            n: doubleValue(object["n"]),
+            vw: doubleValue(object["vw"])
+        )
+    }
+
+    private static func stringValue(_ raw: Any?) -> String? {
+        if let value = raw as? String {
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        if let number = finiteNumber(raw) {
+            if let exact = Int64(exactly: number) {
+                return String(exact)
+            }
+            return String(number)
+        }
+        return nil
+    }
+
+    private static func doubleValue(_ raw: Any?) -> Double? {
+        finiteNumber(raw)
+    }
+
+    private static func finiteNumber(_ raw: Any?) -> Double? {
+        if raw is Bool { return nil }
+        if let number = raw as? NSNumber {
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            let value = number.doubleValue
+            return value.isFinite ? value : nil
+        }
+        if let raw = raw as? String,
+           let value = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+           value.isFinite
+        {
+            return value
+        }
+        return nil
+    }
+
+    private static func logDecodeFailure(_ data: Data) {
+        let keys: String
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            keys = object.keys.sorted().joined(separator: ",")
+        } else if let _ = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+            keys = "array"
+        } else {
+            keys = "invalid"
+        }
+        AppLog.market.error("bars decode failed keys \(keys, privacy: .public)")
     }
 }

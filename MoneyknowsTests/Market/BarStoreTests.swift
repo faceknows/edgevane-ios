@@ -49,6 +49,24 @@ final class BarsAPIDecodingTests: XCTestCase {
         XCTAssertTrue(try BarsAPI.decodeBars(from: Data(#"{"timeFrame":"1Day","startDate":"2026-05-27","bars":null}"#.utf8)).isEmpty)
     }
 
+    func testDecodesDailyBarsSkippingNullSlotsAndSymbolKeyedMaps() throws {
+        let withNulls = Data(#"""
+        {"symbol":"IREN","timeFrame":"1Day","startDate":"2026-05-31","bars":[
+          null,
+          {"d":"2026-09-04","o":1,"h":2,"l":0.5,"c":1.5,"v":10,"direction":"up"},
+          null
+        ]}
+        """#.utf8)
+        let skipped = DailyBars.fromDTOs(try BarsAPI.decodeBars(from: withNulls))
+        XCTAssertEqual(skipped.count, 1)
+        XCTAssertEqual(skipped[0].close, 1.5)
+
+        let keyed = Data(#"""
+        {"data":{"symbol":"IREN","bars":{"IREN":[{"d":"2026-09-03","o":1,"h":1,"l":1,"c":1,"v":1}]}}}
+        """#.utf8)
+        XCTAssertEqual(try BarsAPI.decodeBars(from: keyed).count, 1)
+    }
+
     func testDropsIncompleteAndNonFiniteBars() throws {
         let json = Data(#"""
         [
