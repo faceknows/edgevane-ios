@@ -108,12 +108,6 @@ struct TradeBarView: View {
                 blacklistToggles
             }
         }
-        .sheet(item: $action) { item in
-            NavigationView {
-                TradeTicketView(symbol: symbol, action: item, presetPrice: presetPrice)
-            }
-            .navigationViewStyle(.stack)
-        }
     }
 
     private var position: Position? {
@@ -386,6 +380,8 @@ struct TradeTicketView: View {
     let symbol: String
     let action: TradeActionKind
     var presetPrice: Double?
+    var onDismiss: (() -> Void)? = nil
+    var onBusyChange: ((Bool) -> Void)? = nil
 
     @EnvironmentObject private var trading: TradingSession
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
@@ -406,85 +402,170 @@ struct TradeTicketView: View {
     @State private var stopMode: StopQuantityMode = .available
     @State private var errorText: String?
     @State private var busy = false
-    @State private var pending: PendingTrade?
+    @FocusState private var focusedField: TradeTicketField?
 
     var body: some View {
-        Form {
-            if let environment = trading.environment ?? brokerage.current?.environment {
-                Section {
-                    EnvironmentBanner(environment: environment)
-                    if portfolio.snapshot?.tradingBlocked == true {
-                        TradingBlockedBanner()
-                    }
-                    if let remaining = remainingProtection {
-                        Text(L10n.Trading.protectionWindow(remaining))
-                            .font(.footnote)
-                            .foregroundColor(.red)
-                    }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                ticketHeader
+                quoteStrip
+                if let remaining = remainingProtection {
+                    Text(L10n.Trading.protectionWindow(remaining))
+                        .font(.footnote)
+                        .foregroundColor(.red)
                 }
-            }
-            if action == .marketClose {
-                marketCloseFields
-            } else {
-                orderFields
-            }
-            if let errorText {
-                Section {
+                if action == .marketClose {
+                    Toggle(L10n.Trading.cancelOpenOrders, isOn: $cancelOpenOrders)
+                } else {
+                    orderFields
+                }
+                if let errorText {
                     FormMessage(text: errorText)
                 }
+                actionButtons
             }
-            Section {
-                if action == .slider {
-                    PrimaryButton(title: L10n.Trading.buy, busy: busy) {
-                        prepareConfirm(side: .buy)
-                    }
-                    Button(L10n.Trading.sell) {
-                        prepareConfirm(side: .sell)
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(busy)
-                    .frame(maxWidth: .infinity)
-                } else {
-                    PrimaryButton(title: L10n.Trading.submit, busy: busy) {
-                        prepareConfirm(side: resolvedSide)
-                    }
-                }
-            }
+            .padding(20)
         }
-        .navigationTitle(action.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(L10n.Common.cancel) {
-                    presentationMode.wrappedValue.dismiss()
-                }
-            }
-        }
+        .frame(maxHeight: 620)
+        .background(Color(uiColor: .systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+        .padding(.horizontal, 18)
         .onAppear(perform: populate)
-        .alert(L10n.Trading.confirmTitle, isPresented: confirmBinding) {
-            Button(L10n.Common.cancel, role: .cancel) {
-                pending = nil
-            }
-            Button(L10n.Common.confirm) {
-                Task { await submitPending() }
-            }
-        } message: {
-            if let pending {
-                Text(pending.confirmMessage(environment: environment))
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(L10n.Common.done) {
+                    focusedField = nil
+                }
             }
         }
     }
 
+    private var ticketHeader: some View {
+        HStack(spacing: 8) {
+            Text(actionLabel)
+                .foregroundColor(actionTint)
+            Text(SymbolCode.normalize(symbol))
+                .foregroundColor(.primary)
+            Spacer(minLength: 8)
+            Text(environment.title)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 5)
+                .background(Color(uiColor: .secondarySystemFill))
+                .clipShape(Capsule())
+            Button(L10n.Common.close, action: dismiss)
+                .foregroundColor(.primary)
+                .disabled(busy)
+        }
+        .font(.title3.weight(.bold))
+    }
+
+    private var quoteStrip: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(MarketFormat.price(quote?.last))
+                .font(.title3.monospacedDigit())
+            Spacer(minLength: 8)
+            Text(L10n.Trading.quoteLabel)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.secondary)
+            quoteValue(quote?.liveBid, size: quote?.displayBidSize)
+            Text("|").foregroundColor(.secondary)
+            quoteValue(quote?.liveAsk, size: quote?.displayAskSize)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func quoteValue(_ price: Double?, size: Double?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 2) {
+            Text(MarketFormat.price(price))
+                .font(.headline.monospacedDigit())
+            if let size {
+                Text(MarketFormat.quantity(size))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var actionLabel: String {
+        guard action != .slider else { return action.title }
+        let side = resolvedSide == .buy ? L10n.Trading.buy : L10n.Trading.sell
+        return "(\(side.uppercased())) \(action.title)"
+    }
+
+    private var actionTint: Color {
+        action.isBuyTint(positionSide: position?.side) ? TradeBarPalette.buy : TradeBarPalette.sell
+    }
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        HStack(spacing: 12) {
+            if action == .slider {
+                submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
+                submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
+            } else {
+                submitButton(title: L10n.Common.confirm, side: resolvedSide, tint: actionTint)
+            }
+            Button(L10n.Common.cancel, action: dismiss)
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 8)
+                .disabled(busy)
+        }
+    }
+
+    private func submitButton(title: String, side: OrderSide, tint: Color) -> some View {
+        Button {
+            guard !busy else { return }
+            setBusy(true)
+            Task { await submit(side: side) }
+        } label: {
+            Group {
+                if busy {
+                    ProgressView().tint(.white)
+                } else {
+                    Text(title).fontWeight(.semibold)
+                }
+            }
+            .frame(minWidth: 70)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .foregroundColor(.white)
+            .background(tint)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(busy)
+    }
+
     @ViewBuilder
     private var orderFields: some View {
-        Section {
-            TextField(L10n.Trading.quantity, text: $quantityInput)
-                .keyboardType(.decimalPad)
+        VStack(spacing: 16) {
             if action != .stopLoss {
-                QuantityMultiplierBar(selected: multiplier) { value in
-                    multiplier = value
-                    applyMultiplier()
+                HStack(spacing: 8) {
+                    ForEach(OrderSizing.multipliers, id: \.label) { item in
+                        Button(item.label) {
+                            multiplier = item.value
+                            applyMultiplier()
+                        }
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .foregroundColor(isSelected(item.value) ? .white : .secondary)
+                        .background(isSelected(item.value) ? Color.accentColor : Color(uiColor: .secondarySystemFill))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
                 }
+                inputRow(
+                    title: L10n.Trading.quantity,
+                    text: $quantityInput,
+                    field: .quantity,
+                    decrement: { adjustQuantity(by: -1) },
+                    increment: { adjustQuantity(by: 1) }
+                )
             } else {
                 Picker(L10n.Trading.quantity, selection: $stopMode) {
                     ForEach(StopQuantityMode.allCases) { mode in
@@ -493,27 +574,71 @@ struct TradeTicketView: View {
                 }
                 .pickerStyle(.segmented)
                 .onChange(of: stopMode) { _ in applyStopQuantity() }
+                inputRow(
+                    title: L10n.Trading.quantity,
+                    text: $quantityInput,
+                    field: .quantity,
+                    decrement: { adjustQuantity(by: -1) },
+                    increment: { adjustQuantity(by: 1) }
+                )
             }
-        }
-        if action != .marketClose {
-            Section {
-                TextField(L10n.Trading.price, text: $priceInput)
-                    .keyboardType(.decimalPad)
-                if action == .otoBuy || action == .otoSell {
-                    TextField(L10n.Trading.takeProfitPrice, text: $takeProfitInput)
-                        .keyboardType(.decimalPad)
-                }
-                if showsExtendedHours {
-                    Toggle(L10n.Trading.extendedHours, isOn: $extendedHours)
-                }
+            inputRow(
+                title: L10n.Trading.price,
+                text: $priceInput,
+                field: .price,
+                decrement: { adjustPrice(by: -OrderSizing.minimumPriceDelta) },
+                increment: { adjustPrice(by: OrderSizing.minimumPriceDelta) }
+            )
+            if action == .otoBuy || action == .otoSell {
+                inputRow(
+                    title: L10n.Trading.takeProfitPrice,
+                    text: $takeProfitInput,
+                    field: .takeProfit,
+                    decrement: { adjustTakeProfit(by: -OrderSizing.minimumPriceDelta) },
+                    increment: { adjustTakeProfit(by: OrderSizing.minimumPriceDelta) }
+                )
+            }
+            if showsExtendedHours {
+                Toggle(L10n.Trading.extendedHours, isOn: $extendedHours)
             }
         }
     }
 
-    private var marketCloseFields: some View {
-        Section {
-            Toggle(L10n.Trading.cancelOpenOrders, isOn: $cancelOpenOrders)
+    private func inputRow(
+        title: String,
+        text: Binding<String>,
+        field: TradeTicketField,
+        decrement: @escaping () -> Void,
+        increment: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 14) {
+            Text(title)
+                .foregroundColor(.secondary)
+                .frame(width: 112, alignment: .leading)
+            TextField(title, text: text)
+                .keyboardType(.decimalPad)
+                .focused($focusedField, equals: field)
+                .multilineTextAlignment(.leading)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(Color(uiColor: .secondarySystemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(uiColor: .separator), lineWidth: 1)
+                )
+            stepButton(systemName: "minus", action: decrement)
+            stepButton(systemName: "plus", action: increment)
         }
+    }
+
+    private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.headline.weight(.bold))
+                .frame(width: 30, height: 34)
+        }
+        .buttonStyle(.plain)
+        .foregroundColor(.primary)
     }
 
     private var showsExtendedHours: Bool {
@@ -548,13 +673,6 @@ struct TradeTicketView: View {
             return position.side == .short ? .buy : .sell
         }
         return .sell
-    }
-
-    private var confirmBinding: Binding<Bool> {
-        Binding(
-            get: { pending != nil },
-            set: { if !$0 { pending = nil } }
-        )
     }
 
     private func populate() {
@@ -603,6 +721,26 @@ struct TradeTicketView: View {
         ))
     }
 
+    private func isSelected(_ value: Double) -> Bool {
+        abs(value - multiplier) < 0.0001
+    }
+
+    private func adjustQuantity(by delta: Double) {
+        let current = TradeInput.parse(quantityInput) ?? 1
+        quantityInput = format(max(1, current + delta))
+        stopMode = action == .stopLoss ? .custom : stopMode
+    }
+
+    private func adjustPrice(by delta: Double) {
+        let current = TradeInput.parse(priceInput) ?? quote?.referencePrice(for: resolvedSide) ?? 0
+        priceInput = format(max(0.01, current + delta))
+    }
+
+    private func adjustTakeProfit(by delta: Double) {
+        let current = TradeInput.parse(takeProfitInput) ?? TradeInput.parse(priceInput) ?? 0
+        takeProfitInput = format(max(0.01, current + delta))
+    }
+
     private func applyStopQuantity() {
         guard let position else {
             quantityInput = ""
@@ -620,11 +758,27 @@ struct TradeTicketView: View {
         }
     }
 
-    private func prepareConfirm(side: OrderSide?) {
+    private func submit(side: OrderSide) async {
         errorText = nil
+        defer { setBusy(false) }
         do {
-            pending = try makePending(side: side ?? resolvedSide)
+            let pending = try makePending(side: side)
+            switch pending {
+            case let .place(order):
+                _ = try await trading.place(
+                    order,
+                    protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen,
+                    maxOrderValue: maxOrderValue
+                )
+            case let .close(command, _, _, _):
+                try await trading.closePosition(
+                    command,
+                    protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen
+                )
+            }
+            dismiss()
         } catch {
+            if error.isCancellation { return }
             errorText = UserFacingError.message(from: error) ?? L10n.Trading.submitFailed
         }
     }
@@ -699,31 +853,17 @@ struct TradeTicketView: View {
         return price
     }
 
-    private func submitPending() async {
-        guard let pending else { return }
-        self.pending = nil
-        busy = true
-        defer { busy = false }
-        do {
-            switch pending {
-            case let .place(order):
-                _ = try await trading.place(
-                    order,
-                    protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen,
-                    maxOrderValue: maxOrderValue
-                )
-            case let .close(command, _, _, _):
-                try await trading.closePosition(
-                    command,
-                    protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen
-                )
-            }
-            errorText = nil
+    private func dismiss() {
+        if let onDismiss {
+            onDismiss()
+        } else {
             presentationMode.wrappedValue.dismiss()
-        } catch {
-            if error.isCancellation { return }
-            errorText = UserFacingError.message(from: error) ?? L10n.Trading.submitFailed
         }
+    }
+
+    private func setBusy(_ value: Bool) {
+        busy = value
+        onBusyChange?(value)
     }
 
     private func format(_ value: Double) -> String {
@@ -732,6 +872,12 @@ struct TradeTicketView: View {
         }
         return String(format: "%.2f", value)
     }
+}
+
+private enum TradeTicketField: Hashable {
+    case quantity
+    case price
+    case takeProfit
 }
 
 enum TradeInput {

@@ -27,6 +27,7 @@ struct SymbolDetailView: View {
     @State private var subscriptionError: String?
     @State private var tradeAction: TradeActionKind?
     @State private var sliderPrice: Double?
+    @State private var tradeTicketBusy = false
 
     private var isSubscribed: Bool {
         subscriptions.contains(symbol)
@@ -54,101 +55,120 @@ struct SymbolDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if !realtime.isSocketConnected {
-                    MarketDisconnectedBanner()
-                }
-                header
-                if isSubscribed {
-                    LastTradeQuoteStrip(
-                        lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
-                        quote: quotes.quote(for: symbol)
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if !realtime.isSocketConnected {
+                        MarketDisconnectedBanner()
+                    }
+                    header
+                    if isSubscribed {
+                        LastTradeQuoteStrip(
+                            lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
+                            quote: quotes.quote(for: symbol)
+                        )
+                        TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
+                    }
+                    ChartChrome(
+                        interval: $charts.interval,
+                        style: $charts.style,
+                        showVWAP: $charts.showVWAP
                     )
-                    TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
-                }
-                ChartChrome(
-                    interval: $charts.interval,
-                    style: $charts.style,
-                    showVWAP: $charts.showVWAP
-                )
-                MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
-                ChartPanel(
-                    title: L10n.Detail.chart,
-                    model: charts.regularModel,
-                    height: 260,
-                    isLoading: charts.isLoadingRegular,
-                    errorText: charts.errorText,
-                    retry: { Task { await charts.retryRegular() } }
-                )
-                if !charts.preBars.isEmpty {
+                    MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
                     ChartPanel(
-                        title: L10n.Chart.preMarket,
-                        model: charts.preModel,
-                        height: 180
+                        title: L10n.Detail.chart,
+                        model: charts.regularModel,
+                        height: 260,
+                        isLoading: charts.isLoadingRegular,
+                        errorText: charts.errorText,
+                        retry: { Task { await charts.retryRegular() } }
                     )
-                }
-                if !charts.afterBars.isEmpty {
-                    ChartPanel(
-                        title: L10n.Chart.afterMarket,
-                        model: charts.afterModel,
-                        height: 180
-                    )
-                }
-                if let fillErrorText = dayFills.errorText {
-                    Text(fillErrorText)
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                }
-                if showsDaily {
-                    VStack(alignment: .leading, spacing: 8) {
-                        DailyChartChrome(style: $dailyCharts.style)
+                    if !charts.preBars.isEmpty {
                         ChartPanel(
-                            title: L10n.Chart.daily,
-                            model: dailyCharts.model,
-                            height: 220,
-                            isLoading: dailyCharts.isLoading,
-                            errorText: dailyCharts.errorText,
-                            retry: { Task { await dailyCharts.retry() } },
-                            onEvent: handleDailyChartEvent
+                            title: L10n.Chart.preMarket,
+                            model: charts.preModel,
+                            height: 180
                         )
                     }
-                }
-                if showsIndex {
-                    VStack(alignment: .leading, spacing: 8) {
-                        ChartChrome(
-                            interval: $indexCharts.interval,
-                            style: $indexCharts.style,
-                            showVWAP: .constant(false),
-                            showsVWAPToggle: false
-                        )
+                    if !charts.afterBars.isEmpty {
                         ChartPanel(
-                            title: L10n.Chart.nasdaq,
-                            model: indexCharts.model,
-                            height: 160,
-                            isLoading: indexCharts.isLoading,
-                            errorText: indexCharts.errorText,
-                            retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
+                            title: L10n.Chart.afterMarket,
+                            model: charts.afterModel,
+                            height: 180
                         )
                     }
+                    if let fillErrorText = dayFills.errorText {
+                        Text(fillErrorText)
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                    }
+                    if showsDaily {
+                        VStack(alignment: .leading, spacing: 8) {
+                            DailyChartChrome(style: $dailyCharts.style)
+                            ChartPanel(
+                                title: L10n.Chart.daily,
+                                model: dailyCharts.model,
+                                height: 220,
+                                isLoading: dailyCharts.isLoading,
+                                errorText: dailyCharts.errorText,
+                                retry: { Task { await dailyCharts.retry() } },
+                                onEvent: handleDailyChartEvent
+                            )
+                        }
+                    }
+                    if showsIndex {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ChartChrome(
+                                interval: $indexCharts.interval,
+                                style: $indexCharts.style,
+                                showVWAP: .constant(false),
+                                showsVWAPToggle: false
+                            )
+                            ChartPanel(
+                                title: L10n.Chart.nasdaq,
+                                model: indexCharts.model,
+                                height: 160,
+                                isLoading: indexCharts.isLoading,
+                                errorText: indexCharts.errorText,
+                                retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
+                            )
+                        }
+                    }
+                    if isSubscribed {
+                        secondChart
+                        unsubscribeButton
+                    } else {
+                        subscribeButton
+                    }
+                    if let subscriptionError {
+                        Text(subscriptionError)
+                            .font(.footnote)
+                            .foregroundColor(.red)
+                    }
+                    if let errorText {
+                        EmptyStateView(title: errorText)
+                    }
                 }
-                if isSubscribed {
-                    secondChart
-                    unsubscribeButton
-                } else {
-                    subscribeButton
-                }
-                if let subscriptionError {
-                    Text(subscriptionError)
-                        .font(.footnote)
-                        .foregroundColor(.red)
-                }
-                if let errorText {
-                    EmptyStateView(title: errorText)
-                }
+                .padding()
             }
-            .padding()
+            if let tradeAction {
+                Color.black.opacity(0.32)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        guard !tradeTicketBusy else { return }
+                        dismissTradeTicket()
+                    }
+                TradeTicketView(
+                    symbol: symbol,
+                    action: tradeAction,
+                    presetPrice: sliderPrice,
+                    onDismiss: dismissTradeTicket,
+                    onBusyChange: { tradeTicketBusy = $0 }
+                )
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
+            }
         }
+        .animation(.easeOut(duration: 0.16), value: tradeAction != nil)
         .navigationTitle(symbol)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: symbol) {
@@ -316,6 +336,11 @@ struct SymbolDetailView: View {
 
     private func refreshMarkers() {
         charts.fills = dayFills.fills
+    }
+
+    private func dismissTradeTicket() {
+        tradeAction = nil
+        sliderPrice = nil
     }
 
     private func refreshDailyChart() async {
