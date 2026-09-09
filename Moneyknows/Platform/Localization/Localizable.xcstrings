@@ -2088,6 +2088,23 @@
         }
       }
     },
+    "detail.adxPeriod" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADX(%d)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADX(%d)"
+          }
+        }
+      }
+    },
     "detail.ask" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2118,6 +2135,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ATR"
+          }
+        }
+      }
+    },
+    "detail.atrPct" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AtcPct"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AtcPct"
+          }
+        }
+      }
+    },
+    "detail.atrPeriod" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATR(%d)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ATR(%d)"
           }
         }
       }
@@ -2190,6 +2241,40 @@
         }
       }
     },
+    "detail.minusDI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "-DI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "-DI"
+          }
+        }
+      }
+    },
+    "detail.plusDI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+DI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "+DI"
+          }
+        }
+      }
+    },
     "detail.rsi" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2203,6 +2288,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RSI"
+          }
+        }
+      }
+    },
+    "detail.rsiPeriod" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSI(%d)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSI(%d)"
           }
         }
       }

@@ -64,12 +64,12 @@ struct SymbolDetailView: View {
                     quoteRow
                     TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
                 }
-                indicators
                 ChartChrome(
                     interval: $charts.interval,
                     style: $charts.style,
                     showVWAP: $charts.showVWAP
                 )
+                MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
                 ChartPanel(
                     title: L10n.Detail.chart,
                     model: charts.regularModel,
@@ -281,16 +281,6 @@ struct SymbolDetailView: View {
         .disabled(subscriptionBusy)
     }
 
-    private var indicators: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.Detail.indicators)
-                .font(.headline)
-            row(L10n.Detail.rsi, MarketFormat.compact(summary?.rsi))
-            row(L10n.Detail.adx, MarketFormat.compact(summary?.adx))
-            row(L10n.Detail.atr, MarketFormat.price(summary?.atr))
-        }
-    }
-
     private var accountPnlLabel: some View {
         HStack(spacing: 6) {
             Text(L10n.Detail.accountPnl)
@@ -329,14 +319,6 @@ struct SymbolDetailView: View {
             return summary?.changePercent
         }
         return (headerPrice - previous) / previous * 100
-    }
-
-    private func row(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title)
-            Spacer()
-            Text(value).foregroundColor(.secondary)
-        }
     }
 
     private func refreshMarkers() {

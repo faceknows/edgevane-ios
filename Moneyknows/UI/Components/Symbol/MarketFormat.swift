@@ -45,6 +45,11 @@ enum MarketFormat {
         return String(format: "%.0f", value)
     }
 
+    static func fixed(_ value: Double?, digits: Int) -> String {
+        guard let value, value.isFinite else { return "—" }
+        return String(format: "%.\(max(0, digits))f", value)
+    }
+
     private static let priceFormatter: NumberFormatter = {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal

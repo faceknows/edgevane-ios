@@ -290,6 +290,18 @@ enum L10n {
         static var rsi: String { localized("detail.rsi") }
         static var adx: String { localized("detail.adx") }
         static var atr: String { localized("detail.atr") }
+        static func rsiPeriod(_ period: Int) -> String {
+            String(format: localized("detail.rsiPeriod"), period)
+        }
+        static func adxPeriod(_ period: Int) -> String {
+            String(format: localized("detail.adxPeriod"), period)
+        }
+        static func atrPeriod(_ period: Int) -> String {
+            String(format: localized("detail.atrPeriod"), period)
+        }
+        static var plusDI: String { localized("detail.plusDI") }
+        static var minusDI: String { localized("detail.minusDI") }
+        static var atrPct: String { localized("detail.atrPct") }
         static var chart: String { localized("detail.chart") }
         static var bid: String { localized("detail.bid") }
         static var ask: String { localized("detail.ask") }

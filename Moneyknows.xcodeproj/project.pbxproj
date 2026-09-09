@@ -136,6 +136,9 @@
 		C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110005 /* IndexChartSession.swift */; };
 		C7D0F111111111111111001E /* DailyChartSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111001D /* DailyChartSession.swift */; };
 		C7D0F1111111111111110020 /* DailyChartSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111001F /* DailyChartSessionTests.swift */; };
+		C7D0F1111111111111110022 /* MinuteIndicators.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110021 /* MinuteIndicators.swift */; };
+		C7D0F1111111111111110024 /* MinuteIndicatorBadges.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110023 /* MinuteIndicatorBadges.swift */; };
+		C7D0F1111111111111110026 /* MinuteIndicatorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110025 /* MinuteIndicatorsTests.swift */; };
 		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
 		C7D0F111111111111111000A /* DayFillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110009 /* DayFillsTests.swift */; };
 		C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111000B /* HistoricalMinutesTests.swift */; };
@@ -305,6 +308,9 @@
 		C7D0F1111111111111110005 /* IndexChartSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IndexChartSession.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111001D /* DailyChartSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChartSession.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111001F /* DailyChartSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChartSessionTests.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110021 /* MinuteIndicators.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteIndicators.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110023 /* MinuteIndicatorBadges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteIndicatorBadges.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110025 /* MinuteIndicatorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteIndicatorsTests.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110009 /* DayFillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFillsTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111000B /* HistoricalMinutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesTests.swift; sourceTree = "<group>"; };
@@ -368,6 +374,7 @@
 				5CE8D98E9536EED722DDD68E /* ChangePercentText.swift */,
 				164B4C7CAE516DB5960DF64F /* IndicatorChips.swift */,
 				4B812F6ED5B66C5B4DA1FDD2 /* MarketFormat.swift */,
+				C7D0F1111111111111110023 /* MinuteIndicatorBadges.swift */,
 				DAF17B80DB6F7CB399F9DFFF /* SymbolRow.swift */,
 				86D803E89C98C27103A75A81 /* SymbolSearchField.swift */,
 			);
@@ -477,6 +484,7 @@
 			isa = PBXGroup;
 			children = (
 				584A53E70F1F72C09F632E41 /* VWAP.swift */,
+				C7D0F1111111111111110021 /* MinuteIndicators.swift */,
 			);
 			path = Indicators;
 			sourceTree = "<group>";
@@ -623,6 +631,7 @@
 			isa = PBXGroup;
 			children = (
 				BBB089734AEBC074FD0D2546 /* VWAPTests.swift */,
+				C7D0F1111111111111110025 /* MinuteIndicatorsTests.swift */,
 			);
 			path = Indicators;
 			sourceTree = "<group>";
@@ -1084,6 +1093,8 @@
 				9EB32FF4D64D3B820D219308 /* MarketRealtimeSession.swift in Sources */,
 				6447001F20CC46947E6D6572 /* MarketStreamPayload.swift in Sources */,
 				1F706579D2170B21363E67D7 /* MinuteChartAssembler.swift in Sources */,
+				C7D0F1111111111111110024 /* MinuteIndicatorBadges.swift in Sources */,
+				C7D0F1111111111111110022 /* MinuteIndicators.swift in Sources */,
 				06BF88B7FC65027E8B6A5B55 /* MoneyknowsApp.swift in Sources */,
 				A512129A7932D09EE2E01DAB /* NoBrokerageView.swift in Sources */,
 				4D3358311318A517DFDCC4AC /* OrderPlacement.swift in Sources */,
@@ -1174,6 +1185,7 @@
 				2E5CA7195DCDA35949E9D97A /* SymbolChartSessionTests.swift in Sources */,
 				E9DFE2312651BBF99E5939A9 /* TradingTests.swift in Sources */,
 				F526349B1D2B358C1D4D358B /* UserPreferencesTests.swift in Sources */,
+				C7D0F1111111111111110026 /* MinuteIndicatorsTests.swift in Sources */,
 				CAF3D8F5F475ADA10C8723BF /* VWAPTests.swift in Sources */,
 				5A24A3062ACB90DABA95087B /* WaitUntil.swift in Sources */,
 			);

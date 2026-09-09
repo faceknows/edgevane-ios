@@ -48,6 +48,10 @@ final class SymbolChartSession: ObservableObject {
         )
     }
 
+    var minuteIndicators: MinuteIndicatorSnapshot {
+        MinuteIndicators.snapshot(bars1m: regularBars, interval: interval)
+    }
+
     func updateSummary(_ summary: SymbolSummary?) {
         self.summary = summary
         objectWillChange.send()

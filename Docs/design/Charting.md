@@ -95,6 +95,7 @@ ChartEvent
 
 - 3 / 5 分钟、5 / 10 / 30 秒：在 `Market` 用同一套 `aggregate(bars:minutes:)` / `aggregate(seconds:)`。OHLC 取首开、最高、最低、末收，量相加。
 - VWAP：`Charting/Indicators/VWAP.swift`，典型价 `(h+l+c)/3`，按量累加。输入必须是 **1 分钟（或历史 1 分钟）原始棒**，不要对已聚合的 5 分钟再算一遍 VWAP。
+- RSI / ADX / +DI / -DI / ATR：对 **当前 1/3/5 分钟聚合棒** 算，周期 10（与 RN 详情一致）。ATR 是最近最多 10 根的平均真实波幅；AtcPct = ATR / 最新收盘 × 100。详情徽标只展示最新值，不要画副图。
 
 ### 价格线 id（第一期）
 
@@ -143,15 +144,16 @@ ChartEvent
 
 上到下（已订阅）：
 
-1. 标题 + 最新价 + **账户今日盈亏徽标**（组合盈亏，不是该标的）+ RSI/ADX/ATR（数字来自 Indicators，不是副图）
+1. 标题 + 最新价 + **账户今日盈亏徽标**（组合盈亏，不是该标的）
 2. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP
-3. 盘中 `ChartSurface`（可叠今日成交 `markers`）
-4. 盘前 / 盘后（有数据才出现）
-5. 日线（偏好默认关）、**纳指对照矮图**（偏好默认开，无 VXX）各一块 chrome + surface
-6. 秒图 chrome + surface + 价格滑条（仅已订阅）
-7. 交易条（仅已订阅）；可退订
+3. RSI/ADX/+DI/-DI/ATR/AtcPct 数字徽标（随当前分钟周期重算，不是副图、不用 summaries 上的指标）
+4. 盘中 `ChartSurface`（可叠今日成交 `markers`）
+5. 盘前 / 盘后（有数据才出现）
+6. 日线（偏好默认关）、**纳指对照矮图**（偏好默认开，无 VXX）各一块 chrome + surface
+7. 秒图 chrome + surface + 价格滑条（仅已订阅）
+8. 交易条（仅已订阅）；可退订
 
-未订阅：无 6、7；底部「加入实时订阅」。
+未订阅：无 7、8；底部「加入实时订阅」。
 
 ## 7. 刷新
 
