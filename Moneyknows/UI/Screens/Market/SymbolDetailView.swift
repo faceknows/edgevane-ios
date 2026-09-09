@@ -61,7 +61,10 @@ struct SymbolDetailView: View {
                 }
                 header
                 if isSubscribed {
-                    quoteRow
+                    LastTradeQuoteStrip(
+                        lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
+                        quote: quotes.quote(for: symbol)
+                    )
                     TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
                 }
                 ChartChrome(
@@ -201,16 +204,6 @@ struct SymbolDetailView: View {
                 ChangePercentText(percent: headerChangePercent)
             }
         }
-    }
-
-    private var quoteRow: some View {
-        HStack {
-            Text("\(L10n.Detail.bid) \(MarketFormat.price(quotes.quote(for: symbol)?.displayBid))")
-            Spacer()
-            Text("\(L10n.Detail.ask) \(MarketFormat.price(quotes.quote(for: symbol)?.displayAsk))")
-        }
-        .font(.subheadline.monospacedDigit())
-        .foregroundColor(.secondary)
     }
 
     private var secondChart: some View {

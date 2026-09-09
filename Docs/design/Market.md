@@ -42,7 +42,7 @@
 
 **始终：** 标题价（有订阅用 Quote 的 last；未订阅用摘要/快照）、**账户今日盈亏徽标**（Trading 组合盈亏，文案不要写成该标的盈亏）、RSI/ADX/ATR 等数字徽标（按当前 1/3/5 分钟棒现场算）、分钟图、盘前盘后、偏好控制的日线 / **纳指矮图**、加入订阅按钮。交易相关时间按美东。
 
-**仅 `me` 含此 symbol：** 秒图、滑条、交易条、**退订**、盘口 bid/ask（`quote` 为主，快照兜底；都没有才用成交价）。未订阅没有交易条；标题价用摘要/快照 last。
+**仅 `me` 含此 symbol：** 秒图、滑条、交易条、**退订**、盘口 bid/ask 与数量（`quote` 为主，快照兜底；都没有才用成交价，Q 条显示 —）。未订阅没有交易条；标题价用摘要/快照 last。
 
 VWAP 开关默认开（实现时若与 RN 默认不一致，跟 RN）。  
 3M/5M 不另存仓库，用 1 分钟聚合。
@@ -66,7 +66,7 @@ VWAP 开关默认开（实现时若与 RN 默认不一致，跟 RN）。
 登录后 `App` 打开 Platform Socket。
 
 - `trade` / `quote` / `second-trade`：仅当 symbol ∈ `me` 才写入 Quote / SecondBar。
-- 已订阅标的同时用 `latest-snapshot` 给 QuoteStore 兜底（RN 现状就是靠快照拿 `bp` / `ap`）。
+- 已订阅标的同时用 `latest-snapshot` 给 QuoteStore 兜底（`bp` / `ap` / `bs` / `as`；Socket `quote` 未到时盘口条也能显示数量）。
 - 订阅变更后：新 symbol 开始收；退订立即停写并丢缓冲与盘口。
 - 连接状态对 UI 可见。
 

@@ -32,6 +32,19 @@ struct Position: Equatable, Identifiable {
     var unrealizedPLPercent: Double
 
     var id: String { symbol }
+
+    var absQuantity: Double { abs(quantity) }
+
+    /// Alpaca `qty` is unsigned with `side`; the tape shows a signed share count.
+    var signedQuantity: Double {
+        side == .short ? -absQuantity : absQuantity
+    }
+
+    func unrealizedPercent(versus livePrice: Double) -> Double? {
+        guard averageEntry.isFinite, averageEntry != 0, livePrice.isFinite else { return nil }
+        let raw = side == .long ? livePrice - averageEntry : averageEntry - livePrice
+        return raw / averageEntry * 100
+    }
 }
 
 enum OrderSide: String, Equatable {
@@ -115,6 +128,16 @@ enum OrderStatus: Equatable {
     var isCancellable: Bool {
         switch self {
         case .new, .partiallyFilled, .accepted, .pendingNew, .acceptedForBidding:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Detail-bar Orders button: new / accepted / accepted_for_bidding.
+    var showsOnDetailTradeBar: Bool {
+        switch self {
+        case .new, .accepted, .acceptedForBidding:
             return true
         default:
             return false

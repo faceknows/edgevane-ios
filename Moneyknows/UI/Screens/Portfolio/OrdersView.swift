@@ -6,10 +6,14 @@ struct OrdersView: View {
     @EnvironmentObject private var portfolio: PortfolioStore
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
     @State private var filter: OrderListFilter = .all
-    @State private var symbolFilter = ""
+    @State private var symbolFilter: String
     @State private var pendingCancel: Order?
     @State private var pendingAmend: Order?
     @State private var cancelError: String?
+
+    init(initialSymbol: String = "") {
+        _symbolFilter = State(initialValue: initialSymbol)
+    }
 
     var body: some View {
         Group {

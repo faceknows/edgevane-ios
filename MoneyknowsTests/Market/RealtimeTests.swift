@@ -89,6 +89,51 @@ final class QuoteStoreTests: XCTestCase {
         store.remove(["MSFT"])
         XCTAssertNil(store.quote(for: "MSFT"))
     }
+
+    func testSnapshotKeepsSizesUntilSocketQuoteArrives() {
+        let store = QuoteStore()
+        store.applySnapshot(
+            quotes: [StreamQuote(symbol: "AAPL", bid: 17.87, ask: 17.88, bidSize: 300, askSize: 800)],
+            trades: []
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayBid, 17.87)
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayAsk, 17.88)
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayBidSize, 300)
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayAskSize, 800)
+        store.applyQuote(StreamQuote(symbol: "AAPL", bid: 17.86, ask: 17.89, bidSize: 100, askSize: 200))
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayBidSize, 100)
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayAskSize, 200)
+    }
+
+    func testSnapshotSizeNotUsedWithSocketPrice() {
+        var quote = SymbolQuote(
+            snapshotBid: 17.87,
+            snapshotAsk: 17.88,
+            snapshotBidSize: 300,
+            snapshotAskSize: 800
+        )
+        XCTAssertEqual(quote.displayBidSize, 300)
+        XCTAssertEqual(quote.displayAskSize, 800)
+
+        quote.bid = 17.85
+        quote.ask = 17.90
+        XCTAssertEqual(quote.liveBid, 17.85)
+        XCTAssertNil(quote.displayBidSize)
+        XCTAssertNil(quote.displayAskSize)
+
+        quote.bidSize = 100
+        XCTAssertEqual(quote.displayBidSize, 100)
+        XCTAssertNil(quote.displayAskSize)
+    }
+
+    func testSocketPriceWithoutSizeDoesNotKeepPriorSize() {
+        let store = QuoteStore()
+        store.applyQuote(StreamQuote(symbol: "AAPL", bid: 17.86, ask: 17.89, bidSize: 100, askSize: 200))
+        store.applyQuote(StreamQuote(symbol: "AAPL", bid: 17.85, ask: 17.90, bidSize: nil, askSize: nil))
+        XCTAssertEqual(store.quote(for: "AAPL")?.displayBid, 17.85)
+        XCTAssertNil(store.quote(for: "AAPL")?.displayBidSize)
+        XCTAssertNil(store.quote(for: "AAPL")?.displayAskSize)
+    }
 }
 
 @MainActor

@@ -8,11 +8,15 @@ struct SymbolQuote: Equatable {
     var askSize: Double?
     var snapshotBid: Double?
     var snapshotAsk: Double?
+    var snapshotBidSize: Double?
+    var snapshotAskSize: Double?
 
     var displayBid: Double? { bid ?? snapshotBid ?? last }
     var displayAsk: Double? { ask ?? snapshotAsk ?? last }
     var liveBid: Double? { bid ?? snapshotBid }
     var liveAsk: Double? { ask ?? snapshotAsk }
+    var displayBidSize: Double? { size(livePrice: bid, liveSize: bidSize, snapshotPrice: snapshotBid, snapshotSize: snapshotBidSize) }
+    var displayAskSize: Double? { size(livePrice: ask, liveSize: askSize, snapshotPrice: snapshotAsk, snapshotSize: snapshotAskSize) }
 
     var mid: Double? {
         if let bid = liveBid, let ask = liveAsk {
@@ -21,11 +25,36 @@ struct SymbolQuote: Equatable {
         return last
     }
 
+    /// Position P&L vs the live book; does not fall back to last trade.
+    var tapePrice: Double? {
+        if let bid = liveBid, let ask = liveAsk {
+            return (bid + ask) / 2
+        }
+        return liveAsk ?? liveBid
+    }
+
+    var hasTapeQuote: Bool {
+        liveBid != nil && liveAsk != nil
+    }
+
     func referencePrice(for side: OrderSide) -> Double? {
         switch side {
         case .buy: return displayBid
         case .sell: return displayAsk
         }
+    }
+
+    /// Size belongs to a price level. Snapshot size is only used when that side's
+    /// displayed book price is still the snapshot, never with a newer socket price.
+    private func size(
+        livePrice: Double?,
+        liveSize: Double?,
+        snapshotPrice: Double?,
+        snapshotSize: Double?
+    ) -> Double? {
+        if livePrice != nil { return liveSize }
+        if snapshotPrice != nil { return snapshotSize }
+        return nil
     }
 }
 
@@ -64,8 +93,16 @@ final class QuoteStore: ObservableObject {
         }
         current.bid = bid ?? current.bid
         current.ask = ask ?? current.ask
-        current.bidSize = quote.bidSize ?? current.bidSize
-        current.askSize = quote.askSize ?? current.askSize
+        if bid != nil {
+            current.bidSize = quote.bidSize
+        } else if let bidSize = quote.bidSize {
+            current.bidSize = bidSize
+        }
+        if ask != nil {
+            current.askSize = quote.askSize
+        } else if let askSize = quote.askSize {
+            current.askSize = askSize
+        }
         quotes[symbol] = current
     }
 
@@ -74,8 +111,18 @@ final class QuoteStore: ObservableObject {
             let symbol = SymbolCode.normalize(quote.symbol)
             guard !symbol.isEmpty else { continue }
             var current = quotes[symbol] ?? SymbolQuote()
-            current.snapshotBid = quote.bid ?? current.snapshotBid
-            current.snapshotAsk = quote.ask ?? current.snapshotAsk
+            if let bid = quote.bid {
+                current.snapshotBid = bid
+                current.snapshotBidSize = quote.bidSize
+            } else if let bidSize = quote.bidSize {
+                current.snapshotBidSize = bidSize
+            }
+            if let ask = quote.ask {
+                current.snapshotAsk = ask
+                current.snapshotAskSize = quote.askSize
+            } else if let askSize = quote.askSize {
+                current.snapshotAskSize = askSize
+            }
             quotes[symbol] = current
         }
         for trade in trades {

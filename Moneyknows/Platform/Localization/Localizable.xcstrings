@@ -6984,6 +6984,23 @@
         }
       }
     },
+    "trading.buyAtBid" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buy @ Bid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按买价买入"
+          }
+        }
+      }
+    },
     "trading.cancelOpenOrders" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7086,6 +7103,23 @@
         }
       }
     },
+    "trading.filledAvg" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filled"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成本"
+          }
+        }
+      }
+    },
     "trading.goToCredentials" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7171,6 +7205,23 @@
         }
       }
     },
+    "trading.liquidateLimit" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liquidate @ Limit"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限价平仓"
+          }
+        }
+      }
+    },
     "trading.marketClose" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7218,6 +7269,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "该标的没有持仓。"
+          }
+        }
+      }
+    },
+    "trading.openPosition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Position"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前持仓"
           }
         }
       }
@@ -7358,6 +7426,23 @@
         }
       }
     },
+    "trading.positionType" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "方向"
+          }
+        }
+      }
+    },
     "trading.protectionRestoreFailed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7409,6 +7494,23 @@
         }
       }
     },
+    "trading.quoteLabel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Q"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Q"
+          }
+        }
+      }
+    },
     "trading.sell" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7422,6 +7524,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "卖出"
+          }
+        }
+      }
+    },
+    "trading.sellAtAsk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sell @ Ask"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按卖价卖出"
           }
         }
       }
@@ -7456,6 +7575,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "滑条限价"
+          }
+        }
+      }
+    },
+    "trading.stop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "止损"
           }
         }
       }
@@ -7626,6 +7762,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "止盈价"
+          }
+        }
+      }
+    },
+    "trading.vsPrice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ vs %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ vs %@"
+          }
+        }
+      }
+    },
+    "trading.waitingForPrice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for price..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待价格中..."
           }
         }
       }

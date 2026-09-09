@@ -368,13 +368,25 @@ enum L10n {
         static var otoSpread: String { localized("trading.otoSpread") }
         static var noPosition: String { localized("trading.noPosition") }
         static var buy: String { localized("trading.buy") }
+        static var buyAtBid: String { localized("trading.buyAtBid") }
         static var sell: String { localized("trading.sell") }
+        static var sellAtAsk: String { localized("trading.sellAtAsk") }
         static var otoBuy: String { localized("trading.otoBuy") }
         static var otoSell: String { localized("trading.otoSell") }
         static var takeProfit: String { localized("trading.takeProfit") }
         static var stopLoss: String { localized("trading.stopLoss") }
+        static var stop: String { localized("trading.stop") }
         static var limitClose: String { localized("trading.limitClose") }
+        static var liquidateLimit: String { localized("trading.liquidateLimit") }
         static var marketClose: String { localized("trading.marketClose") }
+        static var openPosition: String { localized("trading.openPosition") }
+        static var positionType: String { localized("trading.positionType") }
+        static var filledAvg: String { localized("trading.filledAvg") }
+        static var quoteLabel: String { localized("trading.quoteLabel") }
+        static var waitingForPrice: String { localized("trading.waitingForPrice") }
+        static func vsPrice(_ percent: String, _ price: String) -> String {
+            String(format: localized("trading.vsPrice"), percent, price)
+        }
         static var extendedHours: String { localized("trading.extendedHours") }
         static var quantity: String { localized("trading.quantity") }
         static var price: String { localized("trading.price") }

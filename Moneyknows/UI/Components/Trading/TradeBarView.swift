@@ -27,6 +27,27 @@ enum TradeActionKind: String, Identifiable, Equatable {
         }
     }
 
+    var barTitle: String {
+        switch self {
+        case .buy: return L10n.Trading.buyAtBid
+        case .sell: return L10n.Trading.sellAtAsk
+        case .limitClose: return L10n.Trading.liquidateLimit
+        case .stopLoss: return L10n.Trading.stop
+        default: return title
+        }
+    }
+
+    func isBuyTint(positionSide: PositionSide?) -> Bool {
+        switch self {
+        case .buy, .otoBuy, .slider:
+            return true
+        case .sell, .otoSell:
+            return false
+        case .takeProfit, .stopLoss, .limitClose, .marketClose:
+            return positionSide == .short
+        }
+    }
+
     var side: OrderSide? {
         switch self {
         case .buy, .otoBuy: return .buy
@@ -45,6 +66,11 @@ enum TradeActionKind: String, Identifiable, Equatable {
     }
 }
 
+private enum TradeBarPalette {
+    static let buy = Color(red: 88 / 255, green: 86 / 255, blue: 214 / 255)
+    static let sell = Color(red: 233 / 255, green: 78 / 255, blue: 142 / 255)
+}
+
 struct TradeBarView: View {
     let symbol: String
     @Binding var action: TradeActionKind?
@@ -54,6 +80,8 @@ struct TradeBarView: View {
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
     @EnvironmentObject private var portfolio: PortfolioStore
     @EnvironmentObject private var positions: PositionStore
+    @EnvironmentObject private var orders: OrderStore
+    @EnvironmentObject private var quotes: QuoteStore
     @EnvironmentObject private var preferences: PreferencesStore
     @EnvironmentObject private var blacklist: AutoExitBlacklistStore
 
@@ -76,22 +104,7 @@ struct TradeBarView: View {
                 if portfolio.snapshot?.tradingBlocked == true {
                     TradingBlockedBanner()
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 108), spacing: 8)], spacing: 8) {
-                    tradeButton(.buy)
-                    tradeButton(.sell)
-                    if preferences.values.showOTOAction {
-                        tradeButton(.otoBuy)
-                        tradeButton(.otoSell)
-                    }
-                    if position != nil {
-                        tradeButton(.takeProfit)
-                        tradeButton(.stopLoss)
-                        tradeButton(.limitClose)
-                        if preferences.values.showMarketTrade {
-                            tradeButton(.marketClose)
-                        }
-                    }
-                }
+                actionCard
                 blacklistToggles
             }
         }
@@ -107,13 +120,156 @@ struct TradeBarView: View {
         positions.position(for: symbol)
     }
 
+    private var openPosition: Position? {
+        guard let position, position.absQuantity > 0 else { return nil }
+        return position
+    }
+
+    private var tradingBlocked: Bool {
+        portfolio.snapshot?.tradingBlocked == true
+    }
+
+    private var hasActionableOrders: Bool {
+        let code = SymbolCode.normalize(symbol)
+        return orders.orders.contains {
+            $0.symbol == code && $0.status.showsOnDetailTradeBar
+        }
+    }
+
+    private var actionCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let openPosition {
+                positionPanel(openPosition)
+            }
+            buttonStack
+        }
+        .padding(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(uiColor: .separator), lineWidth: 1)
+        )
+    }
+
+    private func positionPanel(_ position: Position) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L10n.Trading.openPosition)
+                    .foregroundColor(.secondary)
+                Spacer(minLength: 8)
+                Text(vsLiveText(for: position))
+                    .fontWeight(.semibold)
+                    .foregroundColor(vsLiveColor(for: position))
+                    .multilineTextAlignment(.trailing)
+            }
+            .font(.caption)
+            HStack(alignment: .top) {
+                positionCell(
+                    L10n.Trading.positionType,
+                    position.side == .short ? L10n.Positions.short : L10n.Positions.long,
+                    valueColor: position.side == .short ? .red : .green
+                )
+                positionCell(
+                    L10n.Positions.quantity,
+                    MarketFormat.quantity(position.signedQuantity)
+                )
+                positionCell(
+                    L10n.Trading.filledAvg,
+                    MarketFormat.price(position.averageEntry)
+                )
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemFill))
+        .cornerRadius(10)
+    }
+
+    private func positionCell(_ label: String, _ value: String, valueColor: Color = .primary) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.body.weight(.semibold))
+                .foregroundColor(valueColor)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var buttonStack: some View {
+        VStack(spacing: 8) {
+            if openPosition != nil {
+                HStack(spacing: 8) {
+                    tradeButton(.limitClose)
+                    tradeButton(.takeProfit)
+                    tradeButton(.stopLoss)
+                }
+                if preferences.values.showMarketTrade {
+                    tradeButton(.marketClose)
+                }
+            }
+            if hasActionableOrders {
+                NavigationLink(destination: OrdersView(initialSymbol: symbol)) {
+                    filledLabel(L10n.Orders.title, tint: TradeBarPalette.sell)
+                }
+            }
+            HStack(spacing: 8) {
+                if preferences.values.showOTOAction {
+                    tradeButton(.otoBuy)
+                    tradeButton(.otoSell)
+                }
+                tradeButton(.buy)
+                tradeButton(.sell)
+            }
+        }
+    }
+
     private func tradeButton(_ kind: TradeActionKind) -> some View {
-        Button(kind.title) {
+        Button {
             presetPrice = nil
             action = kind
+        } label: {
+            filledLabel(
+                kind.barTitle,
+                tint: kind.isBuyTint(positionSide: openPosition?.side)
+                    ? TradeBarPalette.buy
+                    : TradeBarPalette.sell,
+                dimmed: tradingBlocked
+            )
         }
-        .buttonStyle(.bordered)
-        .disabled(portfolio.snapshot?.tradingBlocked == true)
+        .buttonStyle(.plain)
+        .disabled(tradingBlocked)
+    }
+
+    private func filledLabel(_ title: String, tint: Color, dimmed: Bool = false) -> some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.75)
+            .lineLimit(2)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(tint)
+            .cornerRadius(10)
+            .opacity(dimmed ? 0.45 : 1)
+    }
+
+    private func vsLiveText(for position: Position) -> String {
+        guard let live = quotes.quote(for: symbol)?.tapePrice,
+              let percent = position.unrealizedPercent(versus: live) else {
+            return L10n.Trading.waitingForPrice
+        }
+        return L10n.Trading.vsPrice(MarketFormat.percent(percent), MarketFormat.price(live))
+    }
+
+    private func vsLiveColor(for position: Position) -> Color {
+        guard let live = quotes.quote(for: symbol)?.tapePrice,
+              let percent = position.unrealizedPercent(versus: live) else {
+            return .secondary
+        }
+        return MarketFormat.changeColor(percent)
     }
 
     private var blacklistToggles: some View {

@@ -145,15 +145,15 @@ ChartEvent
 上到下（已订阅）：
 
 1. 标题 + 最新价 + **账户今日盈亏徽标**（组合盈亏，不是该标的）
-2. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP
-3. RSI/ADX/+DI/-DI/ATR/AtcPct 数字徽标（随当前分钟周期重算，不是副图、不用 summaries 上的指标）
-4. 盘中 `ChartSurface`（可叠今日成交 `markers`）
-5. 盘前 / 盘后（有数据才出现）
-6. 日线（偏好默认关）、**纳指对照矮图**（偏好默认开，无 VXX）各一块 chrome + surface
-7. 秒图 chrome + surface + 价格滑条（仅已订阅）
-8. 交易条（仅已订阅）；可退订
+2. 成交价条 + **Q 盘口**（买/卖价与数量；`quote` 为主，快照兜底，没有盘口才显示 —）；交易条（有仓则 Type / Qty / Filled 与相对中间价%；Liquidate @ Limit / Take Profit / Stop / Buy @ Bid / Sell @ Ask）
+3. `ChartChrome`：1M/3M/5M、蜡烛/线、VWAP
+4. RSI/ADX/+DI/-DI/ATR/AtcPct 数字徽标（随当前分钟周期重算，不是副图、不用 summaries 上的指标）
+5. 盘中 `ChartSurface`（可叠今日成交 `markers`）
+6. 盘前 / 盘后（有数据才出现）
+7. 日线（偏好默认关）、**纳指对照矮图**（偏好默认开，无 VXX）各一块 chrome + surface
+8. 秒图 chrome + surface + 价格滑条（仅已订阅）；可退订
 
-未订阅：无 7、8；底部「加入实时订阅」。
+未订阅：无 2、8 的秒图/交易条/盘口；底部「加入实时订阅」。
 
 ## 7. 刷新
 
