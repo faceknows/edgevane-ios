@@ -141,6 +141,7 @@
 		C7D0F1111111111111110026 /* MinuteIndicatorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110025 /* MinuteIndicatorsTests.swift */; };
 		C7D0F1111111111111110028 /* LastTradeQuoteStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110027 /* LastTradeQuoteStrip.swift */; };
 		C7D0F111111111111111002A /* PositionTapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110029 /* PositionTapeTests.swift */; };
+		C7D0F111111111111111002C /* SymbolNavigationTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002B /* SymbolNavigationTitle.swift */; };
 		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
 		C7D0F111111111111111000A /* DayFillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110009 /* DayFillsTests.swift */; };
 		C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111000B /* HistoricalMinutesTests.swift */; };
@@ -315,6 +316,7 @@
 		C7D0F1111111111111110025 /* MinuteIndicatorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinuteIndicatorsTests.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110027 /* LastTradeQuoteStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastTradeQuoteStrip.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110029 /* PositionTapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionTapeTests.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111002B /* SymbolNavigationTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolNavigationTitle.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110009 /* DayFillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFillsTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111000B /* HistoricalMinutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesTests.swift; sourceTree = "<group>"; };
@@ -380,6 +382,7 @@
 				4B812F6ED5B66C5B4DA1FDD2 /* MarketFormat.swift */,
 				C7D0F1111111111111110023 /* MinuteIndicatorBadges.swift */,
 				C7D0F1111111111111110027 /* LastTradeQuoteStrip.swift */,
+				C7D0F111111111111111002B /* SymbolNavigationTitle.swift */,
 				DAF17B80DB6F7CB399F9DFFF /* SymbolRow.swift */,
 				86D803E89C98C27103A75A81 /* SymbolSearchField.swift */,
 			);
@@ -1147,6 +1150,7 @@
 				C8D0F1111111111111110008 /* NewsStore.swift in Sources */,
 				C8D0F1111111111111110010 /* NewsToastBanner.swift in Sources */,
 				B18F02244AB0701C2F62768B /* SymbolDetailView.swift in Sources */,
+				C7D0F111111111111111002C /* SymbolNavigationTitle.swift in Sources */,
 				1E8C1B0D662C94E02ABE9EB6 /* SymbolRow.swift in Sources */,
 				F1944697529966A4DC80F481 /* SymbolSearchField.swift in Sources */,
 				39348D5AAAC283F5333817C7 /* SymbolSearchSession.swift in Sources */,

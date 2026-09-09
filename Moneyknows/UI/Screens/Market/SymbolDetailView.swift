@@ -61,28 +61,16 @@ struct SymbolDetailView: View {
                     if !realtime.isSocketConnected {
                         MarketDisconnectedBanner()
                     }
-                    header
                     if isSubscribed {
                         LastTradeQuoteStrip(
                             lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
                             quote: quotes.quote(for: symbol)
                         )
-                        TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
+                    } else {
+                        Text(MarketFormat.price(headerPrice))
+                            .font(.title.bold())
+                            .monospacedDigit()
                     }
-                    ChartChrome(
-                        interval: $charts.interval,
-                        style: $charts.style,
-                        showVWAP: $charts.showVWAP
-                    )
-                    MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
-                    ChartPanel(
-                        title: L10n.Detail.chart,
-                        model: charts.regularModel,
-                        height: 260,
-                        isLoading: charts.isLoadingRegular,
-                        errorText: charts.errorText,
-                        retry: { Task { await charts.retryRegular() } }
-                    )
                     if !charts.preBars.isEmpty {
                         ChartPanel(
                             title: L10n.Chart.preMarket,
@@ -134,8 +122,29 @@ struct SymbolDetailView: View {
                             )
                         }
                     }
+                    ChartChrome(
+                        interval: $charts.interval,
+                        style: $charts.style,
+                        showVWAP: $charts.showVWAP
+                    )
+                    ChartPanel(
+                        title: L10n.Detail.chart,
+                        model: charts.regularModel,
+                        height: 260,
+                        isLoading: charts.isLoadingRegular,
+                        errorText: charts.errorText,
+                        retry: { Task { await charts.retryRegular() } }
+                    )
+                    MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
                     if isSubscribed {
                         secondChart
+                        if let sliderRange {
+                            PriceSliderTradeView(range: sliderRange) { price in
+                                sliderPrice = price
+                                tradeAction = .slider
+                            }
+                        }
+                        TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
                         unsubscribeButton
                     } else {
                         subscribeButton
@@ -171,6 +180,18 @@ struct SymbolDetailView: View {
         .animation(.easeOut(duration: 0.16), value: tradeAction != nil)
         .navigationTitle(symbol)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                SymbolNavigationTitle(
+                    symbol: symbol,
+                    changePercent: headerChangePercent,
+                    volume: summary?.volume
+                )
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                DailyPnLBadge(portfolio: brokerage.current == nil ? nil : portfolio.snapshot)
+            }
+        }
         .task(id: symbol) {
             summaryGeneration += 1
             let generation = summaryGeneration
@@ -210,22 +231,6 @@ struct SymbolDetailView: View {
         }
     }
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(symbol)
-                    .font(.largeTitle.bold())
-                accountPnlLabel
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(MarketFormat.price(headerPrice))
-                    .font(.title.monospacedDigit())
-                ChangePercentText(percent: headerChangePercent)
-            }
-        }
-    }
-
     private var secondChart: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(L10n.Chart.seconds).font(.headline)
@@ -235,12 +240,6 @@ struct SymbolDetailView: View {
                 colors: ChartPalette.colors(scheme: colorScheme),
                 height: 180
             )
-            if let sliderRange {
-                PriceSliderTradeView(range: sliderRange) { price in
-                    sliderPrice = price
-                    tradeAction = .slider
-                }
-            }
         }
     }
 
@@ -292,32 +291,6 @@ struct SymbolDetailView: View {
         }
         .buttonStyle(.bordered)
         .disabled(subscriptionBusy)
-    }
-
-    private var accountPnlLabel: some View {
-        HStack(spacing: 6) {
-            Text(L10n.Detail.accountPnl)
-                .foregroundColor(.secondary)
-            if brokerage.current == nil {
-                Text(L10n.Dashboard.noBrokerage)
-                    .foregroundColor(.secondary)
-            } else if let snapshot = portfolio.snapshot {
-                Text(MarketFormat.signedPrice(snapshot.profitLoss))
-                    .foregroundColor(accountPnlColor(snapshot))
-            } else {
-                Text("—")
-                    .foregroundColor(.secondary)
-            }
-        }
-        .font(.caption)
-    }
-
-    private func accountPnlColor(_ snapshot: Portfolio) -> Color {
-        switch DailyPnL.tone(percent: snapshot.profitLossPercent) {
-        case .profit: return .green
-        case .loss: return .red
-        case .warning: return .orange
-        }
     }
 
     private var headerPrice: Double? {
