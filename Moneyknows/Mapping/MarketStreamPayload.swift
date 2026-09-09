@@ -81,7 +81,15 @@ enum MarketStreamPayload {
     }
 
     static func order(from data: Data) -> StreamOrder? {
-        guard let object = json(data), let fields = orderFields(object) else { return nil }
+        orders(from: data).first
+    }
+
+    static func orders(from data: Data) -> [StreamOrder] {
+        dictionaries(from: data).compactMap(streamOrder(from:))
+    }
+
+    private static func streamOrder(from object: [String: Any]) -> StreamOrder? {
+        guard let fields = orderFields(object) else { return nil }
         guard let id = string(fields["id"]), !id.isEmpty else { return nil }
         guard let symbol = string(fields["symbol"]), !symbol.isEmpty else { return nil }
         guard let side = string(fields["side"]) else { return nil }
@@ -188,7 +196,18 @@ enum MarketStreamPayload {
     }
 
     private static func json(_ data: Data) -> [String: Any]? {
-        (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        dictionaries(from: data).first
+    }
+
+    private static func dictionaries(from data: Data) -> [[String: Any]] {
+        guard let object = try? JSONSerialization.jsonObject(with: data) else { return [] }
+        if let dict = object as? [String: Any] {
+            return [dict]
+        }
+        if let array = object as? [Any] {
+            return array.compactMap { $0 as? [String: Any] }
+        }
+        return []
     }
 
     private static func map(_ value: Any?) -> [String: Any] {

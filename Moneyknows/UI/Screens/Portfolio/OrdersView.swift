@@ -107,17 +107,17 @@ struct OrdersView: View {
             }
         }
         .navigationTitle(L10n.Orders.title)
-        .alert(L10n.Orders.cancelConfirmTitle, isPresented: cancelAlertBinding) {
-            Button(L10n.Common.cancel, role: .cancel) {
-                pendingCancel = nil
-            }
+        .alert(
+            L10n.Orders.cancelConfirmTitle,
+            isPresented: cancelAlertBinding,
+            presenting: pendingCancel
+        ) { order in
+            Button(L10n.Common.cancel, role: .cancel) {}
             Button(L10n.Orders.cancelOrder, role: .destructive) {
-                Task { await confirmCancel() }
+                Task { await confirmCancel(order) }
             }
-        } message: {
-            if let pendingCancel {
-                Text(cancelMessage(pendingCancel))
-            }
+        } message: { order in
+            Text(cancelMessage(order))
         }
         .sheet(item: $pendingAmend) { order in
             NavigationView {
@@ -149,8 +149,7 @@ struct OrdersView: View {
         )
     }
 
-    private func confirmCancel() async {
-        guard let order = pendingCancel else { return }
+    private func confirmCancel(_ order: Order) async {
         pendingCancel = nil
         do {
             try await trading.cancel(orderId: order.id)
@@ -190,13 +189,14 @@ private struct OrderRow: View {
                 HStack {
                     if order.isAmendable {
                         Button(L10n.Orders.amendOrder, action: onAmend)
-                            .font(.caption)
-                            .buttonStyle(.borderless)
                     }
-                    Button(L10n.Orders.cancelOrder, role: .destructive, action: onCancel)
-                        .font(.caption)
-                        .buttonStyle(.borderless)
+                    Button(action: onCancel) {
+                        Text(L10n.Orders.cancelOrder)
+                            .foregroundColor(.red)
+                    }
                 }
+                .font(.caption)
+                .buttonStyle(.borderless)
             }
         }
         .padding(.vertical, 4)

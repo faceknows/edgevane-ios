@@ -7282,6 +7282,23 @@
         }
       }
     },
+    "trading.orderAccepted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ accepted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 已接受"
+          }
+        }
+      }
+    },
     "trading.orderCanceled" : {
       "extractionState" : "manual",
       "localizations" : {

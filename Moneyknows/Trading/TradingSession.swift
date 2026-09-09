@@ -15,6 +15,8 @@ final class TradingSession: ObservableObject {
 
     private(set) var serving: BrokerageServing?
     private var pollTask: Task<Void, Never>?
+    private var orderUpdatesTask: Task<Void, Never>?
+    private var unauthorizedUpdatesTask: Task<Void, Never>?
     private var refreshWaiters: [CheckedContinuation<Void, Never>] = []
     private var isRefreshing = false
     private var refreshingEpoch: UInt64 = 0
@@ -91,6 +93,7 @@ final class TradingSession: ObservableObject {
         self.serving = serving
         if serving == nil {
             stopPolling()
+            stopOrderUpdates()
             finishRefreshWaiters()
             clearStores()
             return
@@ -101,6 +104,9 @@ final class TradingSession: ObservableObject {
         finishRefreshWaiters()
         if isForeground {
             startPolling()
+        }
+        if let serving {
+            startOrderUpdates(epoch: epoch, serving: serving)
         }
         if enablesPolling {
             Task { await refresh() }
@@ -123,6 +129,7 @@ final class TradingSession: ObservableObject {
         noticeTask = nil
         onReset?()
         stopPolling()
+        stopOrderUpdates()
         finishRefreshWaiters()
         clearStores()
     }
@@ -465,10 +472,18 @@ final class TradingSession: ObservableObject {
 
     func applyStreamData(_ data: Data) {
         guard serving != nil else { return }
-        guard let stream = MarketStreamPayload.order(from: data), let order = Order(stream: stream) else {
+        let parsed = MarketStreamPayload.orders(from: data)
+        if parsed.isEmpty {
+            AppLog.trading.error("trade update ignored")
             return
         }
-        applyStream(order)
+        for stream in parsed {
+            guard let order = Order(stream: stream) else {
+                AppLog.trading.error("trade update ignored")
+                continue
+            }
+            applyStream(order)
+        }
     }
 
     func applyStream(_ order: Order) {
@@ -527,6 +542,8 @@ final class TradingSession: ObservableObject {
 
     private static func toast(for order: Order) -> String? {
         switch order.status {
+        case .new, .pendingNew, .accepted, .acceptedForBidding:
+            return L10n.Trading.orderAccepted(order.symbol)
         case .filled:
             return L10n.Trading.orderFilled(order.symbol)
         case .canceled:
@@ -753,8 +770,13 @@ final class TradingSession: ObservableObject {
     }
 
     private func markUnauthorized() {
+        let already = needsCredentials
         needsCredentials = true
         stopPolling()
+        stopOrderUpdates()
+        if !already {
+            serving?.disconnectStreams()
+        }
         let message = L10n.Trading.credentialsInvalid
         portfolio.errorText = message
         positions.errorText = message
@@ -791,6 +813,30 @@ final class TradingSession: ObservableObject {
     private func stopPolling() {
         pollTask?.cancel()
         pollTask = nil
+    }
+
+    private func startOrderUpdates(epoch: UInt64, serving: BrokerageServing) {
+        orderUpdatesTask?.cancel()
+        unauthorizedUpdatesTask?.cancel()
+        orderUpdatesTask = Task { [weak self] in
+            for await order in serving.orderUpdates {
+                guard let self, self.epoch == epoch else { return }
+                self.applyStream(order)
+            }
+        }
+        unauthorizedUpdatesTask = Task { [weak self] in
+            for await _ in serving.unauthorizedUpdates {
+                guard let self, self.epoch == epoch else { return }
+                self.markUnauthorized()
+            }
+        }
+    }
+
+    private func stopOrderUpdates() {
+        orderUpdatesTask?.cancel()
+        orderUpdatesTask = nil
+        unauthorizedUpdatesTask?.cancel()
+        unauthorizedUpdatesTask = nil
     }
 }
 

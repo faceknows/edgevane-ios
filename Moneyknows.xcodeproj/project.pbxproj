@@ -22,6 +22,7 @@
 		1BBA8EBC7ADC2292506824E9 /* RoleConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD0A1601BBF9D879BBAF8DBD /* RoleConfiguration.swift */; };
 		1C1533B6547B402680239615 /* ChartHitTesting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EDE828A3CB0EF1218CEBC82 /* ChartHitTesting.swift */; };
 		1C3A9AA835D2470A68680B24 /* AlpacaBrokerage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B3B7BDB4920FF69F3BAC84 /* AlpacaBrokerage.swift */; };
+		3D1B8B721673865FB74B6C52 /* AlpacaTradeSocket.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED6A9D1E54B9FE8B803557DD /* AlpacaTradeSocket.swift */; };
 		1D03393A21FD5E5A28084D39 /* OrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC023213D3007C0329DA73D5 /* OrdersView.swift */; };
 		1DB9D211820121D9B4E65632 /* ScreenerAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AEA73F0F3D401C7C03EEBCC /* ScreenerAPI.swift */; };
 		1E8C1B0D662C94E02ABE9EB6 /* SymbolRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF17B80DB6F7CB399F9DFFF /* SymbolRow.swift */; };
@@ -73,6 +74,7 @@
 		7645D77A9003C520F0872AA9 /* TradingChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCA5822FD58FB83884DB36CE /* TradingChrome.swift */; };
 		7A11ACEE3AC3E8246E9D98A1 /* VersionGateModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22A6080E9B9153BC18334FD3 /* VersionGateModel.swift */; };
 		8276A81FC270DD7D6D82BB9D /* FlexibleJSON.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57953E86061822846651EBCE /* FlexibleJSON.swift */; };
+		828D48336015FD6746AC400F /* AlpacaTradeSocketTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE6816E621099C9E1446F921 /* AlpacaTradeSocketTests.swift */; };
 		8638A26C2A1A238F35CC4739 /* TradeBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65CCDE2F03A3F8D934EA0E4B /* TradeBarView.swift */; };
 		88BBA8040BF5E531D77EF80E /* TradingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F52D319CD62DB04312D9C9C6 /* TradingModels.swift */; };
 		8935097AED8BE9B5BF6F9A7A /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = B70A8BFCC83ED232D3C27BDA /* SocketIO */; };
@@ -282,6 +284,7 @@
 		C4823A695A55A09696D7939C /* AuthFormValidation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFormValidation.swift; sourceTree = "<group>"; };
 		C6B0FC6066FB0EC0CAF56F25 /* PositionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionDetailView.swift; sourceTree = "<group>"; };
 		C91EB5BC562651B639FE6F36 /* ScreenerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenerTests.swift; sourceTree = "<group>"; };
+		CE6816E621099C9E1446F921 /* AlpacaTradeSocketTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlpacaTradeSocketTests.swift; sourceTree = "<group>"; };
 		CC023213D3007C0329DA73D5 /* OrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrdersView.swift; sourceTree = "<group>"; };
 		D115D5C203B4943C55A4DCEA /* LightweightChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightweightChartView.swift; sourceTree = "<group>"; };
 		D2B423A4EE93A8A88236739B /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
@@ -295,6 +298,7 @@
 		E2F9D8114B2368CBD7A584CB /* SecondBarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecondBarStore.swift; sourceTree = "<group>"; };
 		E50947A275F08F0519CA9E32 /* VersionGateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VersionGateView.swift; sourceTree = "<group>"; };
 		E7B3B7BDB4920FF69F3BAC84 /* AlpacaBrokerage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlpacaBrokerage.swift; sourceTree = "<group>"; };
+		ED6A9D1E54B9FE8B803557DD /* AlpacaTradeSocket.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlpacaTradeSocket.swift; sourceTree = "<group>"; };
 		E8171DB6303F21A2B48E48DD /* OrderSizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrderSizing.swift; sourceTree = "<group>"; };
 		E87D44D74868E58C5BF7FFD4 /* ChartEasternTimeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartEasternTimeTests.swift; sourceTree = "<group>"; };
 		E8E302F572C310B3662374E0 /* AuthorizedSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizedSession.swift; sourceTree = "<group>"; };
@@ -844,6 +848,7 @@
 			children = (
 				D6BC239BA7DB0637176F7DE9 /* AlpacaAccountValidator.swift */,
 				E7B3B7BDB4920FF69F3BAC84 /* AlpacaBrokerage.swift */,
+				ED6A9D1E54B9FE8B803557DD /* AlpacaTradeSocket.swift */,
 				711C8D1F733CE7A57B6A4AAB /* AlpacaTradingAPI.swift */,
 			);
 			path = Alpaca;
@@ -852,6 +857,7 @@
 		EE21A6CAEB83DEF31F241081 /* Brokerage */ = {
 			isa = PBXGroup;
 			children = (
+				CE6816E621099C9E1446F921 /* AlpacaTradeSocketTests.swift */,
 				FAFE504B294C9B6BE8D0CCF5 /* CurrentBrokerageStoreTests.swift */,
 			);
 			path = Brokerage;
@@ -1042,6 +1048,7 @@
 			files = (
 				C41B792373410C89F97BF77C /* AlpacaAccountValidator.swift in Sources */,
 				1C3A9AA835D2470A68680B24 /* AlpacaBrokerage.swift in Sources */,
+				3D1B8B721673865FB74B6C52 /* AlpacaTradeSocket.swift in Sources */,
 				FF102709AD6A566AC9CCDE9A /* AlpacaTradingAPI.swift in Sources */,
 				55F8D4C9DE4EF94C667AEDA0 /* AppEnvironment.swift in Sources */,
 				62A43385417BDB8D4FDAE10D /* AppError.swift in Sources */,
@@ -1174,6 +1181,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				828D48336015FD6746AC400F /* AlpacaTradeSocketTests.swift in Sources */,
 				DC0B58CB34A23613C527A52C /* AuthFormValidationTests.swift in Sources */,
 				EC0BDF4262AE0A6CA2C5722D /* AuthorizedSessionTests.swift in Sources */,
 				6C14DE630D46A188F53DAF2A /* BarStoreTests.swift in Sources */,

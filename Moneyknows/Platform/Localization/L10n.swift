@@ -416,6 +416,9 @@ enum L10n {
         static func orderFilled(_ symbol: String) -> String {
             String(format: localized("trading.orderFilled"), symbol)
         }
+        static func orderAccepted(_ symbol: String) -> String {
+            String(format: localized("trading.orderAccepted"), symbol)
+        }
         static var orderHistoryIncomplete: String { localized("trading.orderHistoryIncomplete") }
         static func orderCanceled(_ symbol: String) -> String {
             String(format: localized("trading.orderCanceled"), symbol)

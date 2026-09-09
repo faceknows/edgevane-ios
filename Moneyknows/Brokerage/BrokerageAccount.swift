@@ -12,6 +12,15 @@ enum BrokerageEnvironment: String, Codable, CaseIterable, Equatable {
             return URL(string: "https://api.alpaca.markets")!
         }
     }
+
+    var streamURL: URL {
+        switch self {
+        case .paper:
+            return URL(string: "wss://paper-api.alpaca.markets/stream")!
+        case .live:
+            return URL(string: "wss://api.alpaca.markets/stream")!
+        }
+    }
 }
 
 struct BrokerageAccount: Codable, Equatable {

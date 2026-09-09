@@ -3,8 +3,13 @@ import Foundation
 final class AlpacaBrokerage: BrokerageServing {
     let account: BrokerageAccount
     var maxFillBuckets = 32
+    let orderUpdates: AsyncStream<Order>
+    let unauthorizedUpdates: AsyncStream<Void>
     private let api: AlpacaTradingAPI
     private let fillCache = FillActivityCache()
+    private let tradeSocket: AlpacaTradeSocket?
+    private let orderUpdatesContinuation: AsyncStream<Order>.Continuation?
+    private let unauthorizedUpdatesContinuation: AsyncStream<Void>.Continuation?
 
     init(account: BrokerageAccount, key: String, secret: String, logsRequests: Bool = AppEnvironment.enableLogging) {
         self.account = account
@@ -19,11 +24,48 @@ final class AlpacaBrokerage: BrokerageServing {
             timeout: AppEnvironment.apiTimeout
         )
         api = AlpacaTradingAPI(client: client)
+        var orders: AsyncStream<Order>.Continuation!
+        var unauthorized: AsyncStream<Void>.Continuation!
+        orderUpdates = AsyncStream { orders = $0 }
+        unauthorizedUpdates = AsyncStream { unauthorized = $0 }
+        orderUpdatesContinuation = orders
+        unauthorizedUpdatesContinuation = unauthorized
+        let socket = AlpacaTradeSocket(
+            url: account.environment.streamURL,
+            key: key,
+            secret: secret
+        )
+        tradeSocket = socket
+        socket.onOrderData = { data in
+            for stream in MarketStreamPayload.orders(from: data) {
+                guard let order = Order(stream: stream) else { continue }
+                orders.yield(order)
+            }
+        }
+        socket.onUnauthorized = {
+            unauthorized.yield(())
+        }
+        socket.connect()
     }
 
     init(account: BrokerageAccount, api: AlpacaTradingAPI) {
         self.account = account
         self.api = api
+        tradeSocket = nil
+        orderUpdatesContinuation = nil
+        unauthorizedUpdatesContinuation = nil
+        orderUpdates = AsyncStream { $0.finish() }
+        unauthorizedUpdates = AsyncStream { $0.finish() }
+    }
+
+    deinit {
+        tradeSocket?.disconnect()
+        orderUpdatesContinuation?.finish()
+        unauthorizedUpdatesContinuation?.finish()
+    }
+
+    func disconnectStreams() {
+        tradeSocket?.disconnect()
     }
 
     func portfolio() async throws -> Portfolio {

@@ -1563,6 +1563,25 @@ final class TradingSessionTests: XCTestCase {
         XCTAssertEqual(session.portfolio.snapshot?.equity, 101)
         XCTAssertEqual(session.portfolio.errorText, L10n.Trading.credentialsInvalid)
         XCTAssertEqual(session.positions.errorText, L10n.Trading.credentialsInvalid)
+        XCTAssertEqual(fake.disconnectStreamsCalls, 1)
+    }
+
+    func testUnauthorizedFromOrderStreamStopsUpdates() async {
+        let session = TradingSession(enablesPolling: true)
+        let fake = FakeBrokerage(environment: .paper)
+        session.use(fake)
+        await session.refresh()
+        XCTAssertTrue(session.isPolling)
+        fake.emitUnauthorized()
+        await waitUntil { session.needsCredentials }
+        XCTAssertFalse(session.isPolling)
+        XCTAssertEqual(fake.disconnectStreamsCalls, 1)
+        XCTAssertEqual(session.orders.errorText, L10n.Trading.credentialsInvalid)
+        fake.emitOrderUpdate(
+            sampleOrder(id: "after-unauth", symbol: "NVDA", status: .accepted, updatedAt: Date(timeIntervalSince1970: 1_700_004_000))
+        )
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(session.orders.orders.contains { $0.id == "after-unauth" })
     }
 }
 
@@ -2750,6 +2769,43 @@ final class OrderPlacementTests: XCTestCase {
         """#.utf8))
         XCTAssertEqual(session.orders.orders.first?.id, "stream-1")
         XCTAssertEqual(session.orders.orders.first?.symbol, "AAPL")
+        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("AAPL"))
+    }
+
+    func testApplyStreamDataParsesArrayTradeUpdate() {
+        let session = TradingSession(enablesPolling: false)
+        session.use(FakeBrokerage(environment: .paper))
+        session.applyStreamData(Data(#"""
+        [{"stream":"trade_updates","data":{"event":"new","order":{"id":"arr-1","symbol":"msft","side":"buy","type":"limit","status":"accepted","qty":"1","filled_qty":"0"}}}]
+        """#.utf8))
+        XCTAssertEqual(session.orders.orders.first { $0.id == "arr-1" }?.symbol, "MSFT")
+        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("MSFT"))
+    }
+
+    func testPlaceToastsAcceptedOrder() async throws {
+        let session = TradingSession(enablesPolling: false)
+        session.placement.now = { Self.eastern(2026, 9, 4, 11, 0) }
+        let fake = FakeBrokerage(environment: .paper)
+        session.use(fake)
+        await session.refresh()
+        session.clearNotice()
+        _ = try await session.place(
+            NewOrder(symbol: "AAPL", side: .buy, kind: .limit, quantity: 1, limitPrice: 10),
+            protectionMinutes: 0,
+            maxOrderValue: 50
+        )
+        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("AAPL"))
+    }
+
+    func testBrokerageOrderUpdatesApplyAndToast() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        session.use(fake)
+        fake.emitOrderUpdate(
+            sampleOrder(id: "sock-1", symbol: "NVDA", status: .accepted, updatedAt: Date(timeIntervalSince1970: 1_700_003_000))
+        )
+        await waitUntil { session.orders.orders.contains { $0.id == "sock-1" } }
+        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("NVDA"))
     }
 
     private func makeAutoExit(
@@ -2831,6 +2887,10 @@ final class OrderPlacementTests: XCTestCase {
 
 final class FakeBrokerage: BrokerageServing {
     var account: BrokerageAccount
+    let orderUpdates: AsyncStream<Order>
+    let unauthorizedUpdates: AsyncStream<Void>
+    private let orderUpdatesContinuation: AsyncStream<Order>.Continuation
+    private let unauthorizedUpdatesContinuation: AsyncStream<Void>.Continuation
     private let lock = NSLock()
     private var _portfolioValue: Portfolio
     private var _positionRows: [Position]
@@ -2864,6 +2924,7 @@ final class FakeBrokerage: BrokerageServing {
     private var _hiddenClosed: Set<String> = []
     private var _pauseSends = false
     private var _pauseWhenBeforeOrderId = false
+    private var _disconnectStreamsCalls = 0
     private var paused: [CheckedContinuation<Void, Never>] = []
 
     var portfolioValue: Portfolio {
@@ -2978,12 +3039,20 @@ final class FakeBrokerage: BrokerageServing {
         set { withLock { _pauseSends = newValue } }
     }
 
+    var disconnectStreamsCalls: Int { withLock { _disconnectStreamsCalls } }
+
     init(environment: BrokerageEnvironment, id: String? = nil) {
         account = BrokerageAccount(
             id: id ?? "acct-\(environment.rawValue)",
             provider: "alpaca",
             environment: environment
         )
+        var continuation: AsyncStream<Order>.Continuation!
+        var unauthorized: AsyncStream<Void>.Continuation!
+        orderUpdates = AsyncStream { continuation = $0 }
+        orderUpdatesContinuation = continuation
+        unauthorizedUpdates = AsyncStream { unauthorized = $0 }
+        unauthorizedUpdatesContinuation = unauthorized
         _portfolioValue = samplePortfolio(equity: 101, lastEquity: 100)
         _positionRows = [samplePosition(symbol: "AAPL")]
         _orderRows = [
@@ -3131,6 +3200,18 @@ final class FakeBrokerage: BrokerageServing {
                 return next
             }
         }
+    }
+
+    func emitOrderUpdate(_ order: Order) {
+        orderUpdatesContinuation.yield(order)
+    }
+
+    func emitUnauthorized() {
+        unauthorizedUpdatesContinuation.yield(())
+    }
+
+    func disconnectStreams() {
+        withLock { _disconnectStreamsCalls += 1 }
     }
 
     func cancel(orderId: String) async throws {

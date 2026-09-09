@@ -62,6 +62,12 @@ final class MarketStreamPayloadTests: XCTestCase {
         XCTAssertEqual(order?.clientOrderId, "auto-tp-1")
         XCTAssertEqual(order?.parentOrderId, "parent-1")
         XCTAssertNil(MarketStreamPayload.order(from: Data(#"{"hello":"nope"}"#.utf8)))
+        let array = MarketStreamPayload.order(from: Data(#"""
+        [{"stream":"trade_updates","data":{"event":"new","order":{"id":"o2","symbol":"aapl","side":"buy","order_type":"limit","status":"accepted","qty":"1","filled_qty":"0"}}}]
+        """#.utf8))
+        XCTAssertEqual(array?.id, "o2")
+        XCTAssertEqual(array?.status, "accepted")
+        XCTAssertEqual(array?.symbol, "AAPL")
     }
 }
 
