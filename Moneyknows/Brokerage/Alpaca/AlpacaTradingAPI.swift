@@ -60,6 +60,12 @@ struct AlpacaFillActivityDTO: Equatable {
     var transactionTime: Date
 }
 
+struct FillActivityPage: Equatable {
+    var fills: [AlpacaFillActivityDTO]
+    var rawCount: Int
+    var lastRawID: String?
+}
+
 struct AlpacaTradingAPI {
     var client: HTTPSending
     var openPageSize: Int = 500
@@ -109,7 +115,7 @@ struct AlpacaTradingAPI {
                     limit: pageSize,
                     pageToken: pageToken
                 )
-                if !probe.isEmpty {
+                if probe.rawCount > 0 {
                     throw AppError.orderHistoryIncomplete
                 }
                 break
@@ -121,13 +127,13 @@ struct AlpacaTradingAPI {
                 limit: pageSize,
                 pageToken: pageToken
             )
-            for dto in page where seenIDs.insert(dto.id).inserted {
+            for dto in page.fills where seenIDs.insert(dto.id).inserted {
                 all.append(dto)
             }
             if all.count > fillCap {
                 throw AppError.orderHistoryIncomplete
             }
-            guard page.count >= pageSize, let next = page.last?.id, !next.isEmpty else {
+            guard page.rawCount >= pageSize, let next = page.lastRawID, !next.isEmpty else {
                 break
             }
             pageToken = next
@@ -364,7 +370,7 @@ struct AlpacaTradingAPI {
         until: Date,
         limit: Int,
         pageToken: String?
-    ) async throws -> [AlpacaFillActivityDTO] {
+    ) async throws -> FillActivityPage {
         var query = [
             "activity_types": "FILL",
             "page_size": String(limit),
@@ -378,24 +384,91 @@ struct AlpacaTradingAPI {
         let data = try await client.sendRaw(
             HTTPRequest(method: .get, path: "v2/account/activities", query: query)
         )
-        return try Self.decodeFillActivities(from: data)
+        return try Self.decodeFillActivityPage(from: data)
     }
 
     static func decodeFillActivities(from data: Data) throws -> [AlpacaFillActivityDTO] {
-        try array(data).map { item in
-            guard let object = item as? [String: Any] else { throw AppError.decoding }
-            let type = string(object["activity_type"])?.uppercased()
-            guard type == "FILL" else { throw AppError.decoding }
-            guard let id = string(object["id"]), !id.isEmpty else { throw AppError.decoding }
-            guard let orderId = string(object["order_id"]), !orderId.isEmpty else { throw AppError.decoding }
-            guard let symbol = symbol(object["symbol"]), !symbol.isEmpty else { throw AppError.decoding }
-            guard let side = string(object["side"])?.lowercased(), side == "buy" || side == "sell" else {
-                throw AppError.decoding
+        try decodeFillActivityPage(from: data).fills
+    }
+
+    static func decodeFillActivityPage(from data: Data) throws -> FillActivityPage {
+        let items: [Any]
+        do {
+            items = try fillActivityItems(from: data)
+        } catch {
+            logFillDecodeFailure(data)
+            throw error as? AppError ?? AppError.decoding
+        }
+        var fills: [AlpacaFillActivityDTO] = []
+        var skipped = 0
+        var firstSkip: (reason: String, keys: String)?
+        for item in items {
+            switch fillRow(fromJSON: item) {
+            case let .fill(dto):
+                fills.append(dto)
+            case let .skip(reason, keys):
+                skipped += 1
+                if firstSkip == nil {
+                    firstSkip = (reason, keys)
+                }
+            case .ignore:
+                break
             }
-            guard let qty = number(object["qty"]), qty > 0 else { throw AppError.decoding }
-            guard let price = number(object["price"]), price > 0 else { throw AppError.decoding }
-            guard let transactionTime = parseTime(object["transaction_time"]) else { throw AppError.decoding }
-            return AlpacaFillActivityDTO(
+        }
+        if let firstSkip {
+            AppLog.brokerage.error(
+                "fill activities skipped \(skipped, privacy: .public) reason \(firstSkip.reason, privacy: .public) keys \(firstSkip.keys, privacy: .public)"
+            )
+        }
+        if fills.isEmpty, skipped > 0 {
+            throw AppError.orderHistoryIncomplete
+        }
+        return FillActivityPage(
+            fills: fills,
+            rawCount: items.count,
+            lastRawID: lastRawActivityID(from: items)
+        )
+    }
+
+    /// Null slots and non-FILL rows are ignored. An incomplete FILL is skipped so the rest of the page can load.
+    private static func fillRow(fromJSON item: Any) -> FillRow {
+        if item is NSNull { return .ignore }
+        guard let object = item as? [String: Any] else {
+            return .skip(reason: "non_object", keys: "value")
+        }
+        let keys = object.keys.sorted().joined(separator: ",")
+        let activityType = string(object["activity_type"])?.uppercased()
+        if let activityType, activityType != "FILL" {
+            return .ignore
+        }
+        if activityType == nil {
+            let kind = string(object["type"])?.lowercased()
+            guard kind == "fill" || kind == "partial_fill" else { return .ignore }
+        }
+        guard let id = identifier(object["id"]), !id.isEmpty else {
+            return .skip(reason: "missing_id", keys: keys)
+        }
+        guard let orderId = identifier(object["order_id"]), !orderId.isEmpty else {
+            return .skip(reason: "missing_order_id", keys: keys)
+        }
+        guard let symbol = symbol(object["symbol"]), !symbol.isEmpty else {
+            return .skip(reason: "missing_symbol", keys: keys)
+        }
+        guard let side = fillSide(object["side"]) else {
+            let raw = string(object["side"]) ?? "missing"
+            return .skip(reason: "invalid_side:\(raw)", keys: keys)
+        }
+        guard let qty = number(object["qty"]), qty > 0 else {
+            return .skip(reason: "invalid_qty", keys: keys)
+        }
+        guard let price = number(object["price"]), price > 0 else {
+            return .skip(reason: "invalid_price", keys: keys)
+        }
+        guard let transactionTime = parseTime(object["transaction_time"]) else {
+            return .skip(reason: "invalid_transaction_time", keys: keys)
+        }
+        return .fill(
+            AlpacaFillActivityDTO(
                 id: id,
                 orderId: orderId,
                 symbol: symbol,
@@ -404,7 +477,23 @@ struct AlpacaTradingAPI {
                 price: price,
                 transactionTime: transactionTime
             )
+        )
+    }
+
+    private static func lastRawActivityID(from items: [Any]) -> String? {
+        for item in items.reversed() {
+            guard let object = item as? [String: Any],
+                  let id = identifier(object["id"]), !id.isEmpty
+            else { continue }
+            return id
         }
+        return nil
+    }
+
+    private enum FillRow {
+        case fill(AlpacaFillActivityDTO)
+        case skip(reason: String, keys: String)
+        case ignore
     }
 
     private static func decodeOrderTree(
@@ -510,6 +599,38 @@ struct AlpacaTradingAPI {
         throw AppError.decoding
     }
 
+    private static func fillActivityItems(from data: Data) throws -> [Any] {
+        if data.isEmpty { return [] }
+        let json: Any
+        do {
+            json = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw AppError.decoding
+        }
+        if json is NSNull { return [] }
+        if let items = json as? [Any] { return items }
+        if let object = json as? [String: Any] {
+            for key in ["data", "activities"] {
+                guard let nested = object[key] else { continue }
+                if nested is NSNull { return [] }
+                if let items = nested as? [Any] { return items }
+            }
+        }
+        throw AppError.decoding
+    }
+
+    private static func logFillDecodeFailure(_ data: Data) {
+        let keys: String
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            keys = object.keys.sorted().joined(separator: ",")
+        } else if let items = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+            keys = "array \(items.count)"
+        } else {
+            keys = "invalid"
+        }
+        AppLog.brokerage.error("fill activities decode failed keys \(keys, privacy: .public)")
+    }
+
     private static func string(_ value: Any?) -> String? {
         guard let text = value as? String else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -520,12 +641,31 @@ struct AlpacaTradingAPI {
         string(value)?.uppercased()
     }
 
+    private static func identifier(_ value: Any?) -> String? {
+        if let text = string(value) { return text }
+        if let number = number(value), let exact = Int64(exactly: number) {
+            return String(exact)
+        }
+        return nil
+    }
+
+    /// Order `side` is buy/sell. FILL activities also send `sell_short` (and similar prefixes).
+    static func fillSide(_ value: Any?) -> String? {
+        guard let raw = string(value)?.lowercased() else { return nil }
+        if raw == "buy" || raw == "cover" || raw.hasPrefix("buy") { return "buy" }
+        if raw == "sell" || raw == "short" || raw.hasPrefix("sell") { return "sell" }
+        return nil
+    }
+
     private static func parseTime(_ value: Any?) -> Date? {
         guard let raw = string(value) else { return nil }
         timeLock.lock()
-        defer { timeLock.unlock() }
-        if let date = isoFractional.date(from: raw) { return date }
-        return isoInternet.date(from: raw)
+        let fractional = isoFractional.date(from: raw)
+        let internet = isoInternet.date(from: raw)
+        timeLock.unlock()
+        if let fractional { return fractional }
+        if let internet { return internet }
+        return BarTime.parse(raw)
     }
 
     private static func formatTime(_ date: Date) -> String {

@@ -47,11 +47,11 @@ ChartMarkerKind buy | sell | other
 
 ChartMarker
   id            稳定 id（如成交/订单 id）
-  time          成交时刻
+  time          成交时刻（组装方会钳到所在棒的开始时刻，图表不猜）
   price         成交价（没有则用该时刻所在棒的 close，由组装方决定，图表不猜）
-  kind          买画在棒下，卖画在棒上（适配器默认；可被 position 覆盖）
-  title         可选，如 "100@12.34"
-  position      aboveBar | belowBar | auto
+  kind          买蓝色 ∨、卖蓝色 ∧，画在成交价与对应时间
+  title         可选，如 "100@12.34"；只给列表/点选用，图上不画字
+  position      aboveBar | belowBar | auto（适配器按价位画 ∧/∨，不再用圆点或棒上/棒下）
 
 ChartModel
   bars          [Bar]  时间升序
@@ -112,7 +112,7 @@ ChartEvent
 
 1. `Market` 拉该日盘中（及需要的盘前盘后）1 分钟棒，聚合成当前周期，算 VWAP。
 2. `Trading` / `BrokerageServing` 拉 **当前券商账户** 在该日、该 symbol 的 **已成交订单**（不是所有新建单）。第一期 Alpaca：FILL 活动的 `transaction_time` 落在该日 00:00–24:00 ET。**一单一标**，同一天内不拆部分成交；同一 GTC 跨美东日的部分成交各记一天。拉不全时图照常、已成功的那天保留，并提示。Activities 当日数量优先。本地订单只补 **Activities 已成功且无跨日歧义** 的日期（提交日与成交日为同一美东日）；失败日或跨日累计单不得用 `filled_qty` 补量，只提示不完整。详情停留期间订单更新后短防抖重拉**当天** FILL；初次加载期间若当天本地成交有变，加载结束后同样安排一次刷新。
-3. 每个已成交订单变成一条 `ChartMarker`：`buy` / `sell`、时间、成交价、数量写进 `title`。只标在 `filled_at` 所在时段（盘前 / 盘中 / 盘后）且落入该棒区间的图上，不要钳到首尾棒。20:00–04:00 的成交，或该时段没有覆盖该分钟棒时，留在列表并标「仅列表」，不上分钟图。盘前跨两个美东日时，一天失败不要丢掉另一天已拉到的成交，并提示。
+3. 每个已成交订单变成一条 `ChartMarker`：`buy` / `sell`、时间、成交价；数量可写进 `title` 给列表用，图上只画点。只标在 `filled_at` 所在时段（盘前 / 盘中 / 盘后）且落入该棒区间的图上，不要钳到首尾棒。20:00–04:00 的成交，或该时段没有覆盖该分钟棒时，留在列表并标「仅列表」，不上分钟图。盘前跨两个美东日时，一天失败不要丢掉另一天已拉到的成交，并提示。
 4. 交给同一个 `ChartSurface`。切蜡烛/线时标记留着。
 
 没有券商账户或该日无成交：图照常，`markers` 为空，不报错。  
@@ -131,10 +131,10 @@ ChartEvent
 
 - 唯一 `import LightweightCharts` 的地方。
 - SwiftUI 用 `UIViewRepresentable` 包官方 iOS 封装。
-- `PriceLine` → `createPriceLine`；`OverlayLine` → `LineSeries`；`ChartMarker` → series markers（买/卖不同形状与色 token）。
+- `PriceLine` → `createPriceLine`；`OverlayLine` → `LineSeries`；`ChartMarker` → 成交价上的蓝色 ∨（买）与 ∧（卖），图上不画数量文字。
 - `showVolume`：histogram 用独立 overlay 价格轴（`volumeSeries.priceScale()`），固定在图底部；K 线价格轴留出下边距。不要设全局 `overlayPriceScales`，也不要把成交量画在蜡烛同一价格轴上。
 - `ChartSurface.height` 是图区总高度。成交量条带是其中一块，可用 `volumeHeight` 指定；不传则按总高的默认比例切。
-- 蜡烛 / 折线切换拆/建 series，**markers 跟着当前主 series**，不要两套 View。
+- 蜡烛 / 折线切换拆/建 series，买卖点仍画在同一套 `ChartSurface` 上（按成交价，不跟主 series 形状走），不要两套 View。
 - 主题：背景、涨跌色跟 `UI/Theme`，经 `ChartModel` 或环境传入。
 - 手势：单指上下滑交给外层页面滚动（详情叠了多张图）；左右平移、双指缩放仍由图表消化。双击图区调用与第一次出图相同的铺满（时间轴 `fitContent`，价格轴恢复自动缩放）；缩放或平移后都能这样复位。
 
@@ -174,6 +174,6 @@ ChartEvent
 
 - 历史分钟 / 复盘开关 VWAP 不污染详情「今天」的棒。
 - `ChartSurface` 在蜡烛和折线下都能画 `markers`（可用夹具数据验收，不必等复盘页做完）。
-- 复盘日有成交时，买点在下、卖点在上，时间与价格和订单一致；点标记能对上那一笔。模拟/实盘不混。
+- 复盘日有成交时，买为蓝色 ∨、卖为蓝色 ∧，落在成交价与时间上；点标记能对上那一笔。模拟/实盘不混。
 - 无 VXX。纳指是独立矮图。
 - 第一次出图铺满已加载棒；缩放或平移后双击同样铺满。

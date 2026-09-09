@@ -24,7 +24,6 @@ final class HistoricalMinutesTests: XCTestCase {
         XCTAssertEqual(session.regularBars.first?.close, 1.5)
         XCTAssertEqual(session.dayFills.fills.map(\.id), [Self.fillID("buy-1")])
         XCTAssertEqual(session.regularModel.markers.map(\.kind), [.buy])
-        XCTAssertEqual(session.regularModel.markers.first?.position, .belowBar)
         XCTAssertTrue(session.regularModel.priceLines.isEmpty)
         XCTAssertTrue(session.regularModel.showVolume)
         XCTAssertTrue(session.preModel.showVolume)

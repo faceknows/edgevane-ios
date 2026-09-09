@@ -380,44 +380,80 @@ final class AlpacaTradingAPIDecodingTests: XCTestCase {
         XCTAssertEqual(rows[0].price, 10)
     }
 
-    func testFillActivityMissingOrderIdThrows() {
+    func testFillActivityMapsShortSaleSideToSell() throws {
+        let rows = try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        [
+          {"id":"s1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"sell_short","symbol":"SOXS","order_id":"short"},
+          {"id":"c1","activity_type":"FILL","transaction_time":"2026-09-04T14:31:00Z","price":"10","qty":"1","side":"buy_to_cover","symbol":"SOXS","order_id":"cover"}
+        ]
+        """#.utf8))
+        XCTAssertEqual(rows.map(\.side), ["sell", "buy"])
+        XCTAssertEqual(rows.map(\.orderId), ["short", "cover"])
+    }
+
+    func testFillActivityDecodesEnvelopeNullSlotsAndSkipsNonFill() throws {
+        let rows = try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+        {"data":[
+          null,
+          {"id":"div","activity_type":"DIV","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"div"},
+          {"id":"a1","type":"fill","transaction_time":"2026-09-04T14:30:00.123456Z","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}
+        ]}
+        """#.utf8))
+        XCTAssertEqual(rows.map(\.orderId), ["keep"])
+        XCTAssertEqual(rows[0].id, "a1")
+    }
+
+    func testFillActivityMissingOrderIdIsIncompleteWhenAlone() {
         XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
         [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL"}]
         """#.utf8))) { error in
-            XCTAssertEqual(error as? AppError, .decoding)
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
         }
     }
 
-    func testFillActivityMissingPriceThrows() {
+    func testFillActivityMissingPriceIsIncompleteWhenAlone() {
         XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
         [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
         """#.utf8))) { error in
-            XCTAssertEqual(error as? AppError, .decoding)
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
         }
     }
 
-    func testFillActivityMissingTransactionTimeThrows() {
+    func testFillActivityMissingTransactionTimeIsIncompleteWhenAlone() {
         XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
         [{"id":"a1","activity_type":"FILL","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
         """#.utf8))) { error in
-            XCTAssertEqual(error as? AppError, .decoding)
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
         }
     }
 
-    func testFillActivityInvalidSideThrows() {
+    func testFillActivityInvalidSideIsIncompleteWhenAlone() {
         XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
         [{"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"hold","symbol":"AAPL","order_id":"keep"}]
         """#.utf8))) { error in
-            XCTAssertEqual(error as? AppError, .decoding)
+            XCTAssertEqual(error as? AppError, .orderHistoryIncomplete)
         }
     }
 
-    func testFillActivityNonFillTypeThrows() {
-        XCTAssertThrowsError(try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
+    func testFillActivitySkipsMalformedRowAndKeepsTheRest() throws {
+        let payload = Data(#"""
+        [
+          {"id":"a1","activity_type":"FILL","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"},
+          {"id":"bad","activity_type":"FILL","transaction_time":"2026-09-04T14:31:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL"}
+        ]
+        """#.utf8)
+        let rows = try AlpacaTradingAPI.decodeFillActivities(from: payload)
+        XCTAssertEqual(rows.map(\.orderId), ["keep"])
+        let page = try AlpacaTradingAPI.decodeFillActivityPage(from: payload)
+        XCTAssertEqual(page.rawCount, 2)
+        XCTAssertEqual(page.lastRawID, "bad")
+    }
+
+    func testFillActivityNonFillTypeIsSkipped() throws {
+        let rows = try AlpacaTradingAPI.decodeFillActivities(from: Data(#"""
         [{"id":"a1","activity_type":"DIV","transaction_time":"2026-09-04T14:30:00Z","price":"10","qty":"1","side":"buy","symbol":"AAPL","order_id":"keep"}]
-        """#.utf8))) { error in
-            XCTAssertEqual(error as? AppError, .decoding)
-        }
+        """#.utf8))
+        XCTAssertTrue(rows.isEmpty)
     }
 }
 
@@ -511,7 +547,7 @@ final class AlpacaBrokerageTests: XCTestCase {
         XCTAssertNil(http.requests.last?.query["page_token"])
     }
 
-    func testFillsRejectsMalformedFillInPage() async {
+    func testFillsSkipsMalformedFillInPage() async throws {
         let http = ScriptedHTTP()
         http.rawResults = [
             .success(Self.fillActivitiesData([
@@ -523,12 +559,8 @@ final class AlpacaBrokerageTests: XCTestCase {
             account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
             api: AlpacaTradingAPI(client: http)
         )
-        do {
-            _ = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
-            XCTFail("malformed FILL must fail the snapshot")
-        } catch {
-            XCTAssertEqual(error as? AppError, .decoding)
-        }
+        let fills = try await serving.fills(symbol: "AAPL", day: MarketClock.date(fromUSDate: "2026-09-04")!)
+        XCTAssertEqual(fills.map(\.orderId), ["keep"])
     }
 
     func testFillsCollapsesSameOrderIdUsingActivityQtyNotCumQty() async throws {

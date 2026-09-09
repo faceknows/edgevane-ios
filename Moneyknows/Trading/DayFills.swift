@@ -143,7 +143,7 @@ enum DayFills {
                 price: price,
                 kind: fill.side == .buy ? .buy : .sell,
                 title: title(quantity: fill.quantity, price: price),
-                position: fill.side == .buy ? .belowBar : .aboveBar
+                position: .auto
             )
         }
     }
@@ -260,8 +260,9 @@ final class DayFillsSession: ObservableObject {
             } catch {
                 guard self.loadID == loadID else { return }
                 if error.isCancellation { return }
+                AppLog.brokerage.error("fills \(day, privacy: .public) failed \(error.logCode, privacy: .public)")
                 if loadError == nil {
-                    loadError = UserFacingError.message(from: error)
+                    loadError = Self.userFacingText(from: error)
                 }
             }
         }
@@ -318,6 +319,13 @@ final class DayFillsSession: ObservableObject {
             remote: remote
         )
         errorText = fetchErrorText ?? (omitted ? L10n.Trading.orderHistoryIncomplete : nil)
+    }
+
+    private static func userFacingText(from error: Error) -> String? {
+        if (error as? AppError) == .decoding {
+            return L10n.Trading.orderHistoryIncomplete
+        }
+        return UserFacingError.message(from: error)
     }
 
     private func uniqueDays(_ days: [String]) -> [String] {
@@ -390,8 +398,9 @@ final class DayFillsSession: ObservableObject {
         } catch {
             guard self.loadID == loadID else { return }
             if error.isCancellation { return }
+            AppLog.brokerage.error("fills \(today, privacy: .public) reload failed \(error.logCode, privacy: .public)")
             if fetchErrorText == nil {
-                fetchErrorText = UserFacingError.message(from: error)
+                fetchErrorText = Self.userFacingText(from: error)
             }
             applyFills(from: trading.orders.orders)
         }

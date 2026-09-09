@@ -82,7 +82,7 @@ struct SymbolDetailView: View {
                     }
                     if showsDaily {
                         VStack(alignment: .leading, spacing: 8) {
-                            DailyChartChrome(style: $dailyCharts.style)
+                            //DailyChartChrome(style: $dailyCharts.style)
                             ChartPanel(
                                 title: L10n.Chart.daily,
                                 model: dailyCharts.model,

@@ -18,6 +18,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var isLoaded = false
     private var mainSeries: (style: ChartStyle, series: SeriesObject)?
     private var overlaySeries: [String: LineSeries] = [:]
+    private var markerSeries: [String: LineSeries] = [:]
     private var volumeSeries: HistogramSeries?
     private var libraryPriceLines: [PriceLine] = []
     private var appliedBars: [Bar] = []
@@ -35,6 +36,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
 
     func lightweightChartsDidLoad(_ lightweightCharts: LightweightCharts) {
         Self.installHoveredObjectIdBridge(on: lightweightCharts)
+        Self.installFillCaretBridge(on: lightweightCharts)
         Self.installVerticalPageScrollBridge(on: lightweightCharts)
         isLoaded = true
         lightweightCharts.subscribeCrosshairMove()
@@ -200,25 +202,23 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         applyMainOptions(colors)
         let markers = ChartHitTesting.sorted(model.markers)
         appliedMarkers = markers
-        let libraryMarkers = markers.enumerated().map { index, marker in
-            Self.marker(marker, colors: colors, libraryID: ChartHitTesting.libraryID(index: index))
-        }
         switch model.style {
         case .candle:
             if let series = main.series as? CandlestickSeries {
                 series.setData(data: model.bars.map { Self.candlestickData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
-                series.setMarkers(data: libraryMarkers)
+                series.setMarkers(data: [])
             }
         case .line:
             if let series = main.series as? LineSeries {
                 series.setData(data: model.bars.map { Self.lineData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
-                series.setMarkers(data: libraryMarkers)
+                series.setMarkers(data: [])
             }
         }
         syncOverlays(model.overlays, colors: colors, on: chart)
         syncVolume(model, colors: colors, on: chart)
+        syncFillDots(markers, colors: colors, usesCalendarDays: model.usesCalendarDays, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
         appliedBars = model.bars
         capturePlotSizeIfNeeded(from: chart)
@@ -334,6 +334,46 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
+    private func syncFillDots(
+        _ markers: [ChartMarker],
+        colors: ChartColors,
+        usesCalendarDays: Bool,
+        on chart: LightweightCharts
+    ) {
+        let ids = Set(markers.map(\.id))
+        for (id, series) in markerSeries where !ids.contains(id) {
+            chart.removeSeries(seriesApi: series)
+            markerSeries[id] = nil
+        }
+        let options = fillDotSeriesOptions()
+        for (index, marker) in markers.enumerated() {
+            let series: LineSeries
+            if let existing = markerSeries[marker.id] {
+                series = existing
+                series.applyOptions(options: options)
+            } else {
+                series = chart.addLineSeries(options: options)
+                markerSeries[marker.id] = series
+            }
+            let time = Self.libraryTime(marker.time, usesCalendarDays: usesCalendarDays)
+            series.setData(data: [LineData(time: time, value: marker.price)])
+            series.setMarkers(data: [
+                Self.marker(marker, colors: colors, libraryID: ChartHitTesting.libraryID(index: index), usesCalendarDays: usesCalendarDays)
+            ])
+        }
+    }
+
+    private func fillDotSeriesOptions() -> LineSeriesOptions {
+        LineSeriesOptions(
+            lastValueVisible: false,
+            priceLineVisible: false,
+            color: chartColor(ChartRGBA(red: 0, green: 0, blue: 0, alpha: 0)),
+            lineWidth: .one,
+            crosshairMarkerVisible: false,
+            lastPriceAnimation: .disabled
+        )
+    }
+
     private func syncVolume(_ model: ChartModel, colors: ChartColors, on chart: LightweightCharts) {
         guard model.showVolume else {
             if let series = volumeSeries {
@@ -419,6 +459,10 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             chart.removeSeries(seriesApi: series)
         }
         overlaySeries = [:]
+        for series in markerSeries.values {
+            chart.removeSeries(seriesApi: series)
+        }
+        markerSeries = [:]
         if let series = volumeSeries {
             chart.removeSeries(seriesApi: series)
             volumeSeries = nil
@@ -539,6 +583,49 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
+    /// Library `arrowUp` / `arrowDown` are filled arrows. Stroke thin ∧ / ∨ instead.
+    private static func installFillCaretBridge(on chart: LightweightCharts) {
+        guard let webView = webView(in: chart) else { return }
+        webView.evaluateJavaScript(#"""
+        (function() {
+          if (window.__mkFillCaretBridge) { return; }
+          window.__mkFillCaretBridge = true;
+          var orig = CanvasRenderingContext2D.prototype.fillText;
+          CanvasRenderingContext2D.prototype.fillText = function(text, x, y, maxWidth) {
+            if (text === '∧' || text === '∨') {
+              var width = this.measureText(text).width;
+              var fontSize = 11;
+              var match = /(\d+(?:\.\d+)?)px/.exec(this.font);
+              if (match) { fontSize = parseFloat(match[1]); }
+              var cx = x + width / 2;
+              var cy = y - 0.6 * fontSize - 3;
+              var arm = Math.max(4, fontSize * 0.45);
+              this.save();
+              this.strokeStyle = this.fillStyle;
+              this.lineWidth = 1.25;
+              this.lineCap = 'round';
+              this.lineJoin = 'round';
+              this.beginPath();
+              if (text === '∧') {
+                this.moveTo(cx - arm, cy + arm * 0.55);
+                this.lineTo(cx, cy - arm * 0.55);
+                this.lineTo(cx + arm, cy + arm * 0.55);
+              } else {
+                this.moveTo(cx - arm, cy - arm * 0.55);
+                this.lineTo(cx, cy + arm * 0.55);
+                this.lineTo(cx + arm, cy - arm * 0.55);
+              }
+              this.stroke();
+              this.restore();
+              return;
+            }
+            if (arguments.length < 4) { return orig.call(this, text, x, y); }
+            return orig.call(this, text, x, y, maxWidth);
+          };
+        })();
+        """#, completionHandler: nil)
+    }
+
     /// LC iOS 4 decodes `hoveredObjectId` as `Int`. Marker / price-line ids are JSON strings,
     /// so a click would fail to decode and `didClick` would never run. Coerce numeric ids
     /// (our marker namespace) and drop non-numeric ones before the message is posted.
@@ -595,22 +682,18 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         return .utc(timestamp: date.timeIntervalSince1970)
     }
 
-    private static func marker(_ marker: ChartMarker, colors: ChartColors, libraryID: String) -> SeriesMarker {
-        let position: SeriesMarkerPosition
-        switch marker.position {
-        case .aboveBar:
-            position = .aboveBar
-        case .belowBar:
-            position = .belowBar
-        case .auto:
-            position = marker.kind == .buy ? .belowBar : .aboveBar
-        }
-        let shape: SeriesMarkerShape = marker.kind == .buy ? .arrowUp : (marker.kind == .sell ? .arrowDown : .circle)
+    private static func marker(
+        _ marker: ChartMarker,
+        colors: ChartColors,
+        libraryID: String,
+        usesCalendarDays: Bool
+    ) -> SeriesMarker {
         let token: ChartColorToken = marker.kind == .buy ? .buy : (marker.kind == .sell ? .sell : .other)
+        let glyph = Self.fillGlyph(marker.kind)
         return SeriesMarker(
-            time: Self.libraryTime(marker.time, usesCalendarDays: false),
-            position: position,
-            shape: shape,
+            time: Self.libraryTime(marker.time, usesCalendarDays: usesCalendarDays),
+            position: .inBar,
+            shape: .circle,
             color: ChartColor(UIColor(
                 red: CGFloat(colors.rgba(for: token).red),
                 green: CGFloat(colors.rgba(for: token).green),
@@ -618,7 +701,16 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 alpha: CGFloat(colors.rgba(for: token).alpha)
             )),
             id: libraryID,
-            text: marker.title ?? String(format: "%.2f", marker.price)
+            text: glyph,
+            size: glyph == nil ? 1 : 0
         )
+    }
+
+    private static func fillGlyph(_ kind: ChartMarkerKind) -> String? {
+        switch kind {
+        case .buy: return "∨"
+        case .sell: return "∧"
+        case .other: return nil
+        }
     }
 }

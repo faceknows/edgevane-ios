@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Moneyknows
 
@@ -161,5 +162,20 @@ final class ChartLibraryOptionsTests: XCTestCase {
         let tall = ChartVolumeLayout.priceMargins(volumeHeight: 80, totalHeight: total)
         XCTAssertGreaterThan(tall.bottom, compact.bottom)
         XCTAssertEqual(ChartVolumeLayout.priceMargins(volumeHeight: nil, totalHeight: total).bottom, ChartVolumeLayout.priceBottomWithoutVolume)
+    }
+}
+
+final class ChartPaletteTests: XCTestCase {
+    func testBuyAndSellMarkersAreBlue() {
+        let dark = ChartPalette.colors(scheme: .dark)
+        let light = ChartPalette.colors(scheme: .light)
+        XCTAssertGreaterThan(dark.buy.blue, dark.buy.red)
+        XCTAssertGreaterThan(dark.buy.blue, dark.buy.green)
+        XCTAssertGreaterThan(dark.sell.blue, dark.sell.red)
+        XCTAssertGreaterThan(dark.sell.blue, dark.sell.green)
+        XCTAssertGreaterThan(light.buy.blue, light.buy.red)
+        XCTAssertGreaterThan(light.buy.blue, light.buy.green)
+        XCTAssertGreaterThan(light.sell.blue, light.sell.red)
+        XCTAssertGreaterThan(light.sell.blue, light.sell.green)
     }
 }

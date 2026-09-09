@@ -16,8 +16,8 @@ enum ChartPalette {
             vwap: rgba(.systemBlue, dark: dark),
             prevClose: rgba(UIColor(red: 138 / 255, green: 8 / 255, blue: 91 / 255, alpha: 1), dark: dark),
             sessionOpen: rgba(.systemGreen, dark: dark),
-            buy: rgba(.systemGreen, dark: dark),
-            sell: rgba(.systemRed, dark: dark),
+            buy: rgba(.systemBlue, dark: dark),
+            sell: rgba(.systemBlue, dark: dark),
             other: rgba(dark ? .systemGray : .systemGray2, dark: dark),
             volume: rgba(.systemGray, dark: dark),
             grid: ChartRGBA(red: dark ? 1 : 0, green: dark ? 1 : 0, blue: dark ? 1 : 0, alpha: dark ? 0.06 : 0.08)

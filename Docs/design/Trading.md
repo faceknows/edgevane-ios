@@ -24,7 +24,7 @@ Alpaca 直连路径只在 `Brokerage/Alpaca`：
 | 持仓 | `GET /v2/positions` |
 | 平仓 | `DELETE /v2/positions/:symbol` |
 | 下单/查/改/撤 | `/v2/orders` |
-| 某日成交（复盘） | `GET /v2/account/activities?activity_types=FILL`。`after`/`until` 为该美东日 00:00–次日 00:00（活动 `transaction_time`，能拿到几个月前提交、当天成交的 GTC）。不要用 `date=`（UTC 日历），也不要用 closed orders 的时间过滤/`before_order_id`（按 `submitted_at` 排序，不能以「碰到缓存 ID」停页）。用上一页最后一条 activity `id` 作 `page_token`。无 symbol 查询参数；按账户+美东日缓存整天 FILL，再本地过滤 symbol。同日同 `order_id` 的 FILL 合成一条（数量相加、价为 VWAP、`filledAt` 取最晚 `transaction_time`）。Fill 身份为 `order_id` + 美东成交日，跨日部分成交各记一天。**一单一标**仍只在同一天内合成。历史日 LRU（按日，不是按 symbol）；**当天每次重拉**。页面停留时订单更新后短防抖再拉当天 FILL，历史日不重拉；初次加载期间当天本地成交有变，结束后同样再拉。字段不完整的 FILL 抛 decoding。分页上限 20 页 × 每页最多 100 条 = 全账户当天 2,000 笔，超出或游标循环抛可本地化的 `orderHistoryIncomplete`，图照常、远程成交标记为空。本地订单只补 Activities 已成功、且提交日与成交日相同的那一日；失败日或跨日累计单不得用 `filled_qty` 补量，只提示不完整。 |
+| 某日成交（复盘） | `GET /v2/account/activities?activity_types=FILL`。`after`/`until` 为该美东日 00:00–次日 00:00（活动 `transaction_time`，能拿到几个月前提交、当天成交的 GTC）。不要用 `date=`（UTC 日历），也不要用 closed orders 的时间过滤/`before_order_id`（按 `submitted_at` 排序，不能以「碰到缓存 ID」停页）。用上一页最后一条 activity `id` 作 `page_token`。无 symbol 查询参数；按账户+美东日缓存整天 FILL，再本地过滤 symbol。同日同 `order_id` 的 FILL 合成一条（数量相加、价为 VWAP、`filledAt` 取最晚 `transaction_time`）。Fill 身份为 `order_id` + 美东成交日，跨日部分成交各记一天。**一单一标**仍只在同一天内合成。历史日 LRU（按日，不是按 symbol）；**当天每次重拉**。页面停留时订单更新后短防抖再拉当天 FILL，历史日不重拉；初次加载期间当天本地成交有变，结束后同样再拉。字段不完整的 FILL 跳过并打日志，同页其余成交保留；分页仍按原始页长和最后一条 activity `id` 走。一整页都解不出才视为拉不全。分页上限 20 页 × 每页最多 100 条 = 全账户当天 2,000 笔，超出或游标循环抛可本地化的 `orderHistoryIncomplete`，图照常、远程成交标记为空。本地订单只补 Activities 已成功、且提交日与成交日相同的那一日；失败日或跨日累计单不得用 `filled_qty` 补量，只提示不完整。 |
 | 订单推送 | `wss://paper-api…/stream` 或 live，`trade_updates` |
 
 `trading_blocked`：禁止下单并说明。

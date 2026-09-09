@@ -67,7 +67,7 @@ enum MinuteChartAssembler {
         )
     }
 
-    /// Lightweight Charts only draws a marker when `time` matches a bar.
+    /// Snap marker time onto a bar so the fill sits on that candle; keep the fill price.
     private static func aligned(_ markers: [ChartMarker], to bars: [Bar], duration: TimeInterval) -> [ChartMarker] {
         guard !bars.isEmpty else { return [] }
         return markers.compactMap { marker in

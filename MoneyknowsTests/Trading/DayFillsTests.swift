@@ -2,7 +2,7 @@ import XCTest
 @testable import Moneyknows
 
 final class DayFillsTests: XCTestCase {
-    func testBuyBelowSellAboveAndKeepsSameMinuteFillsSeparate() {
+    func testBuySellMarkersKeepPriceTimeAndSameMinuteFillsSeparate() {
         let buyTime = eastern(2026, 9, 4, 10, 1)
         let sellTime = buyTime.addingTimeInterval(15)
         let orders = [
@@ -14,9 +14,11 @@ final class DayFillsTests: XCTestCase {
         let markers = DayFills.markers(fills)
         XCTAssertEqual(markers.map(\.id), [fillID("b1"), fillID("s1")])
         XCTAssertEqual(markers[0].kind, .buy)
-        XCTAssertEqual(markers[0].position, .belowBar)
+        XCTAssertEqual(markers[0].price, 10)
+        XCTAssertEqual(markers[0].time, buyTime)
         XCTAssertEqual(markers[1].kind, .sell)
-        XCTAssertEqual(markers[1].position, .aboveBar)
+        XCTAssertEqual(markers[1].price, 10.5)
+        XCTAssertEqual(markers[1].time, sellTime)
         XCTAssertEqual(markers[0].title, "\(MarketFormat.quantity(1))@\(MarketFormat.price(10))")
         XCTAssertEqual(markers[1].title, "\(MarketFormat.quantity(2))@\(MarketFormat.price(10.5))")
     }
@@ -313,6 +315,18 @@ final class DayFillsTests: XCTestCase {
         await session.load(symbol: "AAPL", days: ["2026-09-04", "2026-09-08"], trading: trading)
         XCTAssertEqual(session.fills.map(\.id), [fillID("today-pre", "2026-09-08")])
         XCTAssertEqual(session.errorText, L10n.Errors.network)
+    }
+
+    @MainActor
+    func testLoadMapsFillDecodingToIncompleteHistory() async {
+        let trading = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        fake.fillsDayErrors = ["2026-09-04": AppError.decoding]
+        trading.use(fake)
+        let session = DayFillsSession()
+        await session.load(symbol: "AAPL", day: "2026-09-04", trading: trading)
+        XCTAssertTrue(session.fills.isEmpty)
+        XCTAssertEqual(session.errorText, L10n.Trading.orderHistoryIncomplete)
     }
 
     @MainActor

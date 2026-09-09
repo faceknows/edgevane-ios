@@ -165,7 +165,9 @@ final class AlpacaBrokerage: BrokerageServing {
         for dto in activities {
             guard dto.symbol == symbol else { continue }
             guard MarketClock.usDateString(from: dto.transactionTime) == day else { continue }
-            guard let side = OrderSide(rawValue: dto.side.lowercased()) else {
+            guard let mapped = AlpacaTradingAPI.fillSide(dto.side),
+                  let side = OrderSide(rawValue: mapped)
+            else {
                 throw AppError.decoding
             }
             if var existing = groups[dto.orderId] {
