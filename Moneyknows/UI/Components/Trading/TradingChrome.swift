@@ -64,23 +64,47 @@ struct DailyPnLBadge: View {
 struct DailyPnLText: View {
     var portfolio: Portfolio?
     var showsPercent = true
+    var alignment: HorizontalAlignment = .trailing
+    var valueFont: Font = .headline.monospacedDigit()
+    var percentFont: Font = .caption.monospacedDigit()
 
     var body: some View {
-        if let portfolio {
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(MarketFormat.signedPrice(portfolio.profitLoss))
-                    .font(.headline.monospacedDigit())
-                    .foregroundColor(color)
-                if showsPercent {
-                    Text(MarketFormat.percent(portfolio.profitLossPercent))
-                        .font(.caption.monospacedDigit())
+        Group {
+            if let portfolio {
+                VStack(alignment: alignment, spacing: 2) {
+                    Text(MarketFormat.signedPrice(portfolio.profitLoss))
+                        .font(valueFont)
                         .foregroundColor(color)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+                    if showsPercent {
+                        Text(MarketFormat.percent(portfolio.profitLossPercent))
+                            .font(percentFont)
+                            .foregroundColor(color)
+                            .minimumScaleFactor(0.8)
+                            .lineLimit(1)
+                    }
                 }
+            } else {
+                Text("—")
+                    .font(valueFont)
+                    .foregroundColor(.secondary)
             }
-        } else {
-            Text("—")
-                .foregroundColor(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: frameAlignment)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private var frameAlignment: Alignment {
+        alignment == .leading ? .leading : .trailing
+    }
+
+    private var accessibilityText: String {
+        guard let portfolio else { return "—" }
+        if showsPercent {
+            return "\(MarketFormat.signedPrice(portfolio.profitLoss)) \(MarketFormat.percent(portfolio.profitLossPercent))"
+        }
+        return MarketFormat.signedPrice(portfolio.profitLoss)
     }
 
     private var color: Color {
@@ -122,6 +146,22 @@ struct TradingIssueBanner: View {
                 }
             }
         }
+    }
+}
+
+struct NoBrokerageBanner: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(L10n.Dashboard.noBrokerage)
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            NavigationLink(destination: CredentialsView()) {
+                Text(L10n.Trading.goToCredentials)
+            }
+            .font(.footnote)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

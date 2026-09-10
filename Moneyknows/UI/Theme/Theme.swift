@@ -5,6 +5,17 @@ enum AppTheme {
     static let fieldCorner: CGFloat = 10
 }
 
+enum DashboardPalette {
+    static let screeners = Color.teal
+    static let sentiment = Color.green
+    static let events = Color.blue
+    static let notifications = Color.blue
+    static let news = Color.indigo
+    static let historical = Color.orange
+    static var cardFill: Color { Color(uiColor: .secondarySystemBackground) }
+    static var pnlWarningFill: Color { Color.orange.opacity(0.18) }
+}
+
 enum ChartPalette {
     static func colors(scheme: ColorScheme) -> ChartColors {
         let dark = scheme == .dark

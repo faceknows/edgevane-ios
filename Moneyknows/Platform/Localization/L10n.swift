@@ -101,10 +101,13 @@ enum L10n {
         static var quickAccess: String { localized("dashboard.quickAccess") }
         static var screeners: String { localized("dashboard.screeners") }
         static var sentiment: String { localized("dashboard.sentiment") }
+        static var sentimentSubtitle: String { localized("dashboard.sentimentSubtitle") }
         static var events: String { localized("dashboard.events") }
+        static var eventsSubtitle: String { localized("dashboard.eventsSubtitle") }
         static var notifications: String { localized("dashboard.notifications") }
         static var news: String { localized("dashboard.news") }
         static var historical: String { localized("dashboard.historical") }
+        static var ordersHint: String { localized("dashboard.ordersHint") }
     }
 
     enum Sentiment {

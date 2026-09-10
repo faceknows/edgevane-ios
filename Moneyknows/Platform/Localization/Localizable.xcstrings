@@ -1808,6 +1808,23 @@
         }
       }
     },
+    "dashboard.eventsSubtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Today's U.S. economic calendar"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今日美股经济事件日历"
+          }
+        }
+      }
+    },
     "dashboard.historical" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1893,6 +1910,23 @@
         }
       }
     },
+    "dashboard.ordersHint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to view recent orders"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击查看最近交易"
+          }
+        }
+      }
+    },
     "dashboard.overview" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1950,13 +1984,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Scanners"
+            "value" : "Stock Scanners"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "扫描器"
+            "value" : "股票扫描器"
           }
         }
       }
@@ -2008,6 +2042,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "市场情绪"
+          }
+        }
+      }
+    },
+    "dashboard.sentimentSubtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI read on today's U.S. session"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 解读今日美股盘中情绪"
           }
         }
       }
