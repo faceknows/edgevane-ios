@@ -1,6 +1,6 @@
 # 导航
 
-**状态：** 待验收  
+**状态：** 已验收
 **需求：** [03](../requirements/03-用户流程与页面.md)
 
 ## 1. 树
@@ -31,7 +31,7 @@ Root
 - 搜索 → `SymbolDetail(symbol)`
 - 快捷入口 → 上表各屏
 
-无迷你 K 线。盈亏数字不必上 Swift Charts（纯文本+颜色即可）；若要用图，走 `UI/Components/Stats`。
+仪表盘无迷你 K 线。盈亏数字不必上 Swift Charts（纯文本+颜色即可）；若要用图，走 `UI/Components/Stats`。交易 Tab 的订阅监视迷你折线也走 Stats，见 [Market.md](Market.md) 第 3 节。
 
 ## 3. 跳转表
 

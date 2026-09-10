@@ -1,8 +1,8 @@
 # 图表功能设计
 
-**状态：** 待验收  
+**状态：** 已验收
 **需求：** [05-图表.md](../requirements/05-图表.md)  
-**落点：** `Charting/`、`Charting/Indicators/`、`UI/Components/ChartChrome/`
+**落点：** `Charting/`、`Charting/Indicators/`、`UI/Components/ChartChrome/`、`UI/Components/Stats/`
 
 ## 1. 责任
 
@@ -13,9 +13,11 @@
 | 画蜡烛 / 折线、叠加线、价格线、**买卖点标记** | 拉 REST / Socket、拉成交 |
 | 左右平移、双指缩放、十字光标 | 算 VWAP / RSI（在 `Indicators`，由 Market 调用） |
 | 日线触达最早一根时发「需要更早数据」 | 知道用户有没有订阅；不知道「复盘」是什么业务 |
-| 统一一套 `ChartSurface` | 仪表盘数字卡（那是 Swift Charts） |
+| 统一一套 `ChartSurface` | 仪表盘数字卡、**订阅页多标的迷你折线**（那是 `UI/Components/Stats`） |
 
 详情、盘前、盘后、历史分钟、秒图、日线、**复盘** **共用** `ChartSurface`。差别只在喂进去的 `ChartModel`（含 `markers`）和 `followLatest`。
+
+交易 Tab 同时展示多只订阅代码时，**不要**每行嵌两套 `ChartSurface`。迷你分钟 / 秒折线走 `SparklineView`（Swift Charts；iOS 15 用 Canvas 兜底。无成交量、无面积填充、无十字光标、不缩放；单点用点而不是空白折线，X 轴范围不能退化成 0...0）。数据仍由 Market 聚合成收盘序列再交给组件。秒图只取相对现在约 10 分钟内、且不晚于现在的棒；未来棒不进环缓。无新行情时按下一次出窗调度，插入新棒要唤醒调度器，不每秒刷新整表；无棒时长时间休眠，过期循环重叠时插入仍能打断当前休眠。分钟拉取失败要有失败提示和重试，不能只打日志；有上次折线时也要提示，不能把旧图当成最新。卡片进详情是按钮；重试是独立按钮，不触发进详情。离开本页要取消未完成的分钟拉取（含重试）。
 
 复盘不是第二种图表：选一天 + 当天 K 线 + 当天成交 → 仍是一个 `ChartModel`。图表只画标记，不查订单。
 
@@ -90,6 +92,7 @@ ChartEvent
 | 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true | true |
 | 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴。**1/3/5 与蜡烛/线跟盘中分钟同一套 `ChartChrome`**；没有自己的周期开关，也不画 VWAP | — | — | false | false |
 | 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** | 与盘中分钟相同 |
+| 订阅监视迷你图 | 当日 regular 1 分钟 + 秒线环缓，本页聚合成收盘序列 | 无 | 无 | — | false（不走 `ChartSurface`） |
 
 ### 聚合
 
@@ -161,7 +164,7 @@ ChartEvent
 
 | 数据 | 策略 |
 | --- | --- |
-| 分钟棒 | 进入详情拉取；开盘中每分钟对齐后再拉该会话（与 RN 60s 同量级） |
+| 分钟棒 | 进入详情拉取；开盘中每分钟对齐后再拉该会话（与 RN 60s 同量级）。交易 Tab 监视列表对 `me` 里每个代码同样拉/轮询当日 regular |
 | 日线 | 缺今日则拉；`reachedOldest` 再向前约 100 个交易日 |
 | 秒线 | 仅已订阅，Socket `second-trade` 写入环缓（约 10 分钟） |
 | 最新价 / 盘口 | 已订阅：`trade` + **`quote`**，快照兜底；未订阅：摘要/快照 last |

@@ -6710,13 +6710,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add a symbol to receive second charts and quotes."
+            "value" : "Add a symbol to watch minute and second charts together."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "添加代码后即可接收秒图和盘口。"
+            "value" : "添加代码后即可同时看分钟图和秒图。"
           }
         }
       }

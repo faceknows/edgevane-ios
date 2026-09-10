@@ -13,12 +13,14 @@ enum BarTime {
     static func parse(_ raw: String, date: String? = nil) -> Date? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        if let value = Double(trimmed), value.isFinite {
-            if let unix = unixSeconds(value) {
-                return Date(timeIntervalSince1970: unix)
-            }
-            if value > 1_000_000_000 {
-                return nil
+        if !trimmed.contains(":") {
+            if let value = Double(trimmed), value.isFinite {
+                if let unix = unixSeconds(value) {
+                    return Date(timeIntervalSince1970: unix)
+                }
+                if value > 1_000_000_000 {
+                    return nil
+                }
             }
         }
         if let parsed = isoFractional.date(from: trimmed) { return parsed }
@@ -83,15 +85,27 @@ enum BarTime {
     }
 
     private static func combine(date: String, clock: DateComponents) -> Date? {
-        guard let day = MarketClock.date(fromUSDate: date) else { return nil }
+        guard MarketClock.date(fromUSDate: date) != nil else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = MarketClock.easternTimeZone
-        return calendar.date(
-            bySettingHour: clock.hour ?? 0,
-            minute: clock.minute ?? 0,
-            second: clock.second ?? 0,
-            of: day
-        )
+        var parts = DateComponents()
+        parts.calendar = calendar
+        parts.timeZone = MarketClock.easternTimeZone
+        let dayParts = date.split(separator: "-")
+        guard dayParts.count == 3,
+              let year = Int(dayParts[0]),
+              let month = Int(dayParts[1]),
+              let day = Int(dayParts[2])
+        else {
+            return nil
+        }
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        parts.hour = clock.hour ?? 0
+        parts.minute = clock.minute ?? 0
+        parts.second = clock.second ?? 0
+        return calendar.date(from: parts)
     }
 
     private static let isoFractional: ISO8601DateFormatter = {

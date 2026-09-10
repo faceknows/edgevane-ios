@@ -7,7 +7,7 @@ alwaysApply: true
 
 - 客户端：原生 iOS，SwiftUI。
 - 主交易图：TradingView Lightweight Charts（蜡烛图、线图、VWAP 叠加、价格线、缩放平移）。VWAP 与指标在 App 内计算，图表只负责画。
-- 统计图（持仓饼图、收益曲线、迷你走势）：系统 Swift Charts。
+- 统计图（持仓饼图、收益曲线、迷你走势）：系统 Swift Charts。最低 iOS 15 时，迷你折线可用 Canvas 兜底，主路径仍是 Swift Charts。
 - 不需要毫秒级图表，不上 SciChart。
 - 后端默认不变：`https://money-api.byteknows.com` + `https://money-gateway.byteknows.com`。
 - 最低系统版本按 Lightweight Charts iOS 封装：iOS 15+（设计阶段可再确认）。

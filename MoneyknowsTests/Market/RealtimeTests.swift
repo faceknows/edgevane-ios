@@ -170,6 +170,130 @@ final class SecondBarStoreTests: XCTestCase {
         store.remove(["AAPL"])
         XCTAssertTrue(store.bars(for: "AAPL").isEmpty)
     }
+
+    func testDropExpiredRemovesBarsOlderThanWindow() {
+        let store = SecondBarStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(-11 * 60),
+            timeKey: "old",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ))
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(-30),
+            timeKey: "recent",
+            open: 2, high: 2, low: 2, close: 2, volume: 1
+        ))
+        XCTAssertEqual(store.bars(for: "AAPL").map(\.close), [1, 2])
+        store.dropExpired(now: now)
+        XCTAssertEqual(store.bars(for: "AAPL").map(\.close), [2])
+        store.dropExpired(now: now.addingTimeInterval(11 * 60))
+        XCTAssertTrue(store.bars(for: "AAPL").isEmpty)
+    }
+
+    func testNextWakeIsOldestExpiry() {
+        let store = SecondBarStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(-30),
+            timeKey: "recent",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now)
+        let expiry = store.nextWake(now: now)
+        XCTAssertEqual(
+            expiry?.timeIntervalSince(now.addingTimeInterval(-30 + TimeInterval(SecondBarStore.capacity))) ?? -1,
+            0.05,
+            accuracy: 0.001
+        )
+        XCTAssertNil(SecondBarStore().nextWake(now: now))
+    }
+
+    func testIdleSleepIsLongWhenEmpty() {
+        let store = SecondBarStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertEqual(
+            store.sleepNanoseconds(now: now),
+            UInt64(SecondBarStore.maxSleep * 1_000_000_000)
+        )
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(-30),
+            timeKey: "recent",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now)
+        let pending = store.sleepNanoseconds(now: now)
+        XCTAssertGreaterThan(pending, 0)
+        XCTAssertLessThan(pending, UInt64(SecondBarStore.maxSleep * 1_000_000_000))
+    }
+
+    func testApplyDropsFutureTimestampsAndDropExpiredRemovesThem() {
+        let store = SecondBarStore()
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(12),
+            timeKey: "future",
+            open: 3, high: 3, low: 3, close: 3, volume: 1
+        ), now: now)
+        XCTAssertTrue(store.bars(for: "AAPL").isEmpty)
+
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(-1),
+            timeKey: "recent",
+            open: 2, high: 2, low: 2, close: 2, volume: 1
+        ), now: now)
+        XCTAssertEqual(store.bars(for: "AAPL").map(\.close), [2])
+        store.dropExpired(now: now.addingTimeInterval(-2))
+        XCTAssertTrue(store.bars(for: "AAPL").isEmpty)
+    }
+
+    func testApplyWakesExpirySleep() async {
+        let store = SecondBarStore()
+        let now = Date()
+        store.apply(StreamSecondBar(
+            symbol: "AAPL", time: now, timeKey: "t0",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now)
+        let task = Task { await store.startExpiring() }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(1),
+            timeKey: "t1",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now.addingTimeInterval(1))
+        task.cancel()
+        await task.value
+        XCTAssertEqual(store.bars(for: "AAPL").count, 2)
+    }
+
+    func testOverlappingExpiryLoopsStillWakeOnApply() async {
+        let store = SecondBarStore()
+        let now = Date()
+        store.apply(StreamSecondBar(
+            symbol: "AAPL", time: now, timeKey: "t0",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now)
+        let first = Task { await store.startExpiring() }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        let second = Task { await store.startExpiring() }
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        store.apply(StreamSecondBar(
+            symbol: "AAPL",
+            time: now.addingTimeInterval(1),
+            timeKey: "t1",
+            open: 1, high: 1, low: 1, close: 1, volume: 1
+        ), now: now.addingTimeInterval(1))
+        first.cancel()
+        second.cancel()
+        await first.value
+        await second.value
+        XCTAssertEqual(store.bars(for: "AAPL").count, 2)
+    }
 }
 
 @MainActor

@@ -33,11 +33,13 @@ final class BarStore: ObservableObject {
     }
 
     func load(symbol: String, date: String, session: BarSession, caches: Bool = true) async throws -> [Bar] {
+        try Task.checkCancellation()
         let symbol = Self.normalized(symbol, session: session)
         let storeKey = cacheKey(symbol: symbol, date: date, session: session)
         let inflightKey = caches ? storeKey : "\(storeKey):ephemeral"
-        if let existing = inflight[inflightKey] {
-            return try await existing.task.value
+        if let existing = inflight[inflightKey], !existing.task.isCancelled {
+            existing.addWaiter()
+            return try await waitForInFlight(existing)
         }
 
         let epoch = self.epoch
@@ -49,6 +51,7 @@ final class BarStore: ObservableObject {
                     self.inflight[inflightKey] = nil
                 }
             }
+            try Task.checkCancellation()
             let dtos: [BarDTO]
             switch session {
             case .regular:
@@ -60,6 +63,7 @@ final class BarStore: ObservableObject {
             case .index:
                 dtos = try await self.api.indexIntraday(symbol: symbol, date: date)
             }
+            try Task.checkCancellation()
             guard self.epoch == epoch else { throw AppError.cancelled }
             let bars = Self.capped(MinuteBars.fromDTOs(dtos, date: date))
             if caches {
@@ -70,8 +74,19 @@ final class BarStore: ObservableObject {
             }
             return bars
         }
-        inflight[inflightKey] = InFlight(id: inflightID, task: task)
-        return try await task.value
+        let item = InFlight(id: inflightID, task: task)
+        inflight[inflightKey] = item
+        return try await waitForInFlight(item)
+    }
+
+    private func waitForInFlight(_ item: InFlight) async throws -> [Bar] {
+        let bars = try await withTaskCancellationHandler {
+            try await item.task.value
+        } onCancel: {
+            item.cancelWaiter()
+        }
+        try Task.checkCancellation()
+        return bars
     }
 
     func loadDaily(symbol: String, startDate: String) async throws -> [Bar] {
@@ -133,9 +148,32 @@ final class BarStore: ObservableObject {
     }
 }
 
-private struct InFlight {
-    var id: UInt64
-    var task: Task<[Bar], Error>
+private final class InFlight {
+    let id: UInt64
+    let task: Task<[Bar], Error>
+    private let lock = NSLock()
+    private var waiters = 1
+
+    init(id: UInt64, task: Task<[Bar], Error>) {
+        self.id = id
+        self.task = task
+    }
+
+    func addWaiter() {
+        lock.lock()
+        waiters += 1
+        lock.unlock()
+    }
+
+    func cancelWaiter() {
+        lock.lock()
+        waiters -= 1
+        let abandoned = waiters <= 0
+        lock.unlock()
+        if abandoned {
+            task.cancel()
+        }
+    }
 }
 
 enum BarSession: String, Equatable, Hashable {

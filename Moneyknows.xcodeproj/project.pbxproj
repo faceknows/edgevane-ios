@@ -144,6 +144,9 @@
 		C7D0F1111111111111110028 /* LastTradeQuoteStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110027 /* LastTradeQuoteStrip.swift */; };
 		C7D0F111111111111111002A /* PositionTapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110029 /* PositionTapeTests.swift */; };
 		C7D0F111111111111111002C /* SymbolNavigationTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002B /* SymbolNavigationTitle.swift */; };
+		C7D0F111111111111111002E /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002D /* SparklineView.swift */; };
+		C7D0F1111111111111110030 /* SubscriptionWatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002F /* SubscriptionWatchSession.swift */; };
+		C7D0F1111111111111110032 /* SubscriptionWatchSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */; };
 		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
 		C7D0F111111111111111000A /* DayFillsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110009 /* DayFillsTests.swift */; };
 		C7D0F111111111111111000C /* HistoricalMinutesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111000B /* HistoricalMinutesTests.swift */; };
@@ -321,6 +324,9 @@
 		C7D0F1111111111111110027 /* LastTradeQuoteStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LastTradeQuoteStrip.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110029 /* PositionTapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionTapeTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002B /* SymbolNavigationTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolNavigationTitle.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111002D /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111002F /* SubscriptionWatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSession.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSessionTests.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110009 /* DayFillsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayFillsTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111000B /* HistoricalMinutesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesTests.swift; sourceTree = "<group>"; };
@@ -440,10 +446,19 @@
 			children = (
 				56F776812DFD66A97D414860 /* ChartChrome */,
 				2E126E8C497D34EAE486D0A3 /* Feedback */,
+				C7D0F1111111111111110033 /* Stats */,
 				0F29A8C971C4A39B0CF42C2C /* Symbol */,
 				016D0E91EE8C557669B3E1F2 /* Trading */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		C7D0F1111111111111110033 /* Stats */ = {
+			isa = PBXGroup;
+			children = (
+				C7D0F111111111111111002D /* SparklineView.swift */,
+			);
+			path = Stats;
 			sourceTree = "<group>";
 		};
 		2E126E8C497D34EAE486D0A3 /* Feedback */ = {
@@ -718,6 +733,7 @@
 				7207EFF2E8F6B2F2266FE029 /* ScreenerStore.swift */,
 				E2F9D8114B2368CBD7A584CB /* SecondBarStore.swift */,
 				4833054FBBDA109067754268 /* SecondChartAssembler.swift */,
+				C7D0F111111111111111002F /* SubscriptionWatchSession.swift */,
 				064D41093A5E849B59EFE59E /* SubscriptionStore.swift */,
 				05DD7CC27F3EEECB2EBB5584 /* SymbolChartSession.swift */,
 				9A3805D186BDC72AC213E740 /* SymbolSearchSession.swift */,
@@ -764,6 +780,7 @@
 				C7D0F111111111111111000B /* HistoricalMinutesTests.swift */,
 				52666655AADE53D1FBDC419B /* RealtimeTests.swift */,
 				C91EB5BC562651B639FE6F36 /* ScreenerTests.swift */,
+				C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */,
 				A62C553730C527782DEA392F /* SymbolChartSessionTests.swift */,
 			);
 			path = Market;
@@ -1149,6 +1166,8 @@
 				C324EFAA65804167E72F32A2 /* SignupView.swift in Sources */,
 				C049F1EB10F17B3DA3B686B5 /* SocketStatus.swift in Sources */,
 				615C46F24DA9A061D9F5DF44 /* SubscribeAPI.swift in Sources */,
+				C7D0F111111111111111002E /* SparklineView.swift in Sources */,
+				C7D0F1111111111111110030 /* SubscriptionWatchSession.swift in Sources */,
 				1ECE196DAD8181BD8D8258D2 /* SubscriptionStore.swift in Sources */,
 				B376F028F872E6C165379213 /* SubscriptionsView.swift in Sources */,
 				3550FE12EAE5E5B362A7AB77 /* SymbolChartSession.swift in Sources */,
@@ -1201,6 +1220,7 @@
 				312640DB8C6950D05457703D /* RefreshGate.swift in Sources */,
 				4B9270DFAF4658E0052EA609 /* ScreenerTests.swift in Sources */,
 				22F0AE0699F9DB63CC2AF431 /* ScriptedHTTP.swift in Sources */,
+				C7D0F1111111111111110032 /* SubscriptionWatchSessionTests.swift in Sources */,
 				2E5CA7195DCDA35949E9D97A /* SymbolChartSessionTests.swift in Sources */,
 				E9DFE2312651BBF99E5939A9 /* TradingTests.swift in Sources */,
 				F526349B1D2B358C1D4D358B /* UserPreferencesTests.swift in Sources */,

@@ -67,6 +67,35 @@ final class BarsAPIDecodingTests: XCTestCase {
         XCTAssertEqual(try BarsAPI.decodeBars(from: keyed).count, 1)
     }
 
+    func testDropsBooleanOHLCVAndKeepsNumericOne() throws {
+        let json = Data(#"""
+        [
+          {"d":"1693827000","o":true,"h":1,"l":1,"c":1,"v":1},
+          {"d":"1693827060","o":1,"h":false,"l":1,"c":1,"v":1},
+          {"d":"1693827120","o":1,"h":1,"l":1,"c":1,"v":1}
+        ]
+        """#.utf8)
+        let dtos = try BarsAPI.decodeBars(from: json)
+        XCTAssertNil(dtos[0].o)
+        XCTAssertEqual(dtos[0].h, 1)
+        XCTAssertNil(dtos[1].h)
+        XCTAssertEqual(dtos[2].o, 1)
+        XCTAssertEqual(dtos[2].v, 1)
+        XCTAssertEqual(MinuteBars.fromDTOs(dtos, date: "2023-09-04").count, 1)
+        XCTAssertEqual(MinuteBars.fromDTOs(dtos, date: "2023-09-04").first?.close, 1)
+
+        let zeros = try BarsAPI.decodeBars(from: Data(#"""
+        [
+          {"d":"1693827180","o":1,"h":1,"l":1,"c":1,"v":false},
+          {"d":"1693827240","o":0,"h":0,"l":0,"c":0,"v":0}
+        ]
+        """#.utf8))
+        XCTAssertNil(zeros[0].v)
+        XCTAssertEqual(zeros[1].o, 0)
+        XCTAssertEqual(zeros[1].v, 0)
+        XCTAssertEqual(MinuteBars.fromDTOs(zeros, date: "2023-09-04").count, 1)
+    }
+
     func testDropsIncompleteAndNonFiniteBars() throws {
         let json = Data(#"""
         [
@@ -228,15 +257,60 @@ final class BarStoreTests: XCTestCase {
         let store = BarStore(api: BarsAPI(client: http))
         let first = Task { try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular) }
         await waitUntil { http.requests.count == 1 }
-        first.cancel()
         let second = Task { try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular) }
         try? await Task.sleep(nanoseconds: 50_000_000)
         XCTAssertEqual(http.requests.count, 1)
+        first.cancel()
         http.releasePaused()
         let bars = try await second.value
         XCTAssertEqual(bars.count, 1)
         XCTAssertEqual(http.requests.count, 1)
+        XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.count, 1)
+        do {
+            _ = try await first.value
+            XCTFail("cancelled waiter should throw")
+        } catch {
+            XCTAssertTrue(error.isCancellation)
+        }
+    }
+
+    func testCancelledLastWaiterDoesNotWriteCache() async throws {
+        let http = ScriptedHTTP()
+        http.pauseSends = true
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let task = Task { try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular) }
+        await waitUntil { http.requests.count == 1 }
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("cancelled load should throw")
+        } catch {
+            XCTAssertTrue(error.isCancellation)
+        }
+        XCTAssertNil(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular))
+    }
+
+    func testLoadAfterCancelledInflightStartsNewRequest() async throws {
+        let http = ScriptedHTTP()
+        http.pauseSends = true
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"[{"d":"09:31","o":2,"h":2,"l":2,"c":2,"v":2}]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let first = Task { try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular) }
+        await waitUntil { http.requests.count == 1 }
+        first.cancel()
         _ = try? await first.value
+        http.pauseSends = false
+        http.releasePaused()
+        let bars = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertEqual(bars.first?.close, 2)
+        XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.first?.close, 2)
     }
 
     func testEphemeralLoadDoesNotWriteTodayCache() async throws {

@@ -132,11 +132,21 @@ struct BarsAPI {
     }
 
     private static func finiteNumber(_ raw: Any?) -> Double? {
-        if raw is Bool { return nil }
         if let number = raw as? NSNumber {
-            if CFGetTypeID(number) == CFBooleanGetTypeID() { return nil }
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return nil
+            }
             let value = number.doubleValue
             return value.isFinite ? value : nil
+        }
+        if let value = raw as? Double, value.isFinite { return value }
+        if let value = raw as? Float, value.isFinite { return Double(value) }
+        if let value = raw as? Int { return Double(value) }
+        if let value = raw as? Int64 { return Double(value) }
+        if let value = raw as? UInt64 { return Double(value) }
+        if let value = raw as? Decimal {
+            let converted = NSDecimalNumber(decimal: value).doubleValue
+            return converted.isFinite ? converted : nil
         }
         if let raw = raw as? String,
            let value = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
