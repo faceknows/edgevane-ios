@@ -6,9 +6,71 @@ enum SubscriptionSparklineAssembler {
     static let secondWindow: TimeInterval = TimeInterval(SecondBarStore.capacity)
 
     static func closes(bars1m: [Bar], interval: MinuteInterval = minuteInterval) -> [Double] {
-        BarAggregator.aggregate(bars1m, minutes: interval.minutes)
-            .map(\.close)
-            .filter { $0.isFinite }
+        aligned(bars1m: bars1m, interval: interval).closes
+    }
+
+    static func vwap(bars1m: [Bar], interval: MinuteInterval = minuteInterval) -> [Double] {
+        aligned(bars1m: bars1m, interval: interval, includeVWAP: true).vwap
+    }
+
+    static func minutePlot(
+        bars1m: [Bar],
+        interval: MinuteInterval = minuteInterval,
+        includeVWAP: Bool = false
+    ) -> (closes: [Double], vwap: [Double]) {
+        let plot = aligned(bars1m: bars1m, interval: interval, includeVWAP: includeVWAP)
+        return (plot.closes, plot.vwap)
+    }
+
+    /// 扫描器迷你图：1 分钟 OHLC 蜡烛 + 对齐后的 VWAP。缺一根 VWAP 就丢掉该棒，保证条数一致。
+    static func minuteCandles(
+        bars1m: [Bar],
+        interval: MinuteInterval = .one,
+        includeVWAP: Bool = true
+    ) -> (bars: [Bar], vwap: [Double]) {
+        let plot = aligned(bars1m: bars1m, interval: interval, includeVWAP: includeVWAP, requireOHLC: true)
+        return (plot.bars, plot.vwap)
+    }
+
+    private static func aligned(
+        bars1m: [Bar],
+        interval: MinuteInterval,
+        includeVWAP: Bool = false,
+        requireOHLC: Bool = false
+    ) -> (bars: [Bar], closes: [Double], vwap: [Double]) {
+        let aggregated = BarAggregator.aggregate(bars1m, minutes: interval.minutes)
+        let size = TimeInterval(max(interval.minutes, 1) * 60)
+        let lookup = includeVWAP ? vwapByBucket(VWAP.series(from: bars1m), size: size) : [:]
+        var bars: [Bar] = []
+        var closes: [Double] = []
+        var overlays: [Double] = []
+        for bar in aggregated {
+            if requireOHLC {
+                guard bar.open.isFinite, bar.high.isFinite, bar.low.isFinite, bar.close.isFinite else { continue }
+            } else {
+                guard bar.close.isFinite else { continue }
+            }
+            if includeVWAP {
+                guard let value = lookup[bar.time], value.isFinite else { continue }
+                overlays.append(value)
+            }
+            if bar.open.isFinite, bar.high.isFinite, bar.low.isFinite {
+                bars.append(bar)
+            }
+            closes.append(bar.close)
+        }
+        return (bars, closes, overlays)
+    }
+
+    /// 每个展示桶只保留桶内最后一根 1 分钟 VWAP，避免对每根聚合棒扫描整条序列。
+    private static func vwapByBucket(_ points: [OverlayPoint], size: TimeInterval) -> [Date: Double] {
+        var map: [Date: Double] = [:]
+        map.reserveCapacity(points.count)
+        for point in points {
+            guard point.value.isFinite else { continue }
+            map[BarAggregator.bucketStart(point.time, size: size)] = point.value
+        }
+        return map
     }
 
     static func recentSeconds(
@@ -44,10 +106,16 @@ final class SubscriptionWatchSession: ObservableObject {
     private var loadID: UInt64 = 0
     private var store: BarStore?
     private var retryContinuation: AsyncStream<String>.Continuation?
+    private var pendingRetries: [String] = []
     private var startGeneration: UInt64 = 0
 
     func bars(for raw: String) -> [Bar] {
         barsBySymbol[SymbolCode.normalize(raw)] ?? []
+    }
+
+    /// True after a successful fetch (including `[]`). Missing key means not yet loaded.
+    func hasResolved(_ raw: String) -> Bool {
+        barsBySymbol[SymbolCode.normalize(raw)] != nil
     }
 
     func isLoading(_ raw: String) -> Bool {
@@ -61,13 +129,15 @@ final class SubscriptionWatchSession: ObservableObject {
     func requestRetry(_ raw: String) {
         let symbol = SymbolCode.normalize(raw)
         guard !symbol.isEmpty else { return }
+        guard !pendingRetries.contains(symbol) else { return }
+        pendingRetries.append(symbol)
         retryContinuation?.yield(symbol)
     }
 
     func retry(_ raw: String) async {
         let symbol = SymbolCode.normalize(raw)
         guard symbols.contains(symbol) else { return }
-        await refresh(symbol, showLoading: true)
+        await refresh(symbol, showLoading: true, force: true)
     }
 
     func start(symbols: [String], store: BarStore, now: Date = Date()) async {
@@ -77,6 +147,7 @@ final class SubscriptionWatchSession: ObservableObject {
         var continuation: AsyncStream<String>.Continuation!
         let retries = AsyncStream<String> { continuation = $0 }
         retryContinuation = continuation
+        flushPendingRetries()
         defer {
             continuation.finish()
             if startGeneration == generation {
@@ -92,6 +163,7 @@ final class SubscriptionWatchSession: ObservableObject {
                 for await symbol in retries {
                     guard !Task.isCancelled else { return }
                     await self.retryIfCurrent(symbol, generation: generation)
+                    await self.consumePendingRetry(symbol)
                 }
             }
             await group.next()
@@ -109,11 +181,11 @@ final class SubscriptionWatchSession: ObservableObject {
         if let generation, startGeneration != generation { return }
         loadID += 1
         self.store = store
-        self.symbols = symbols.map(SymbolCode.normalize).filter { !$0.isEmpty }
+        self.symbols = Self.uniqued(symbols.map(SymbolCode.normalize).filter { !$0.isEmpty })
         dropRemoved()
         _ = syncDate(now: now)
         adoptCachedBars()
-        await refreshAll(showLoading: true)
+        await refreshAll(showLoading: true, now: now)
     }
 
     func syncDate(now: Date = Date()) -> Bool {
@@ -124,6 +196,17 @@ final class SubscriptionWatchSession: ObservableObject {
         failed = [:]
         adoptCachedBars()
         return true
+    }
+
+    private func consumePendingRetry(_ symbol: String) {
+        pendingRetries.removeAll { $0 == symbol }
+    }
+
+    private func flushPendingRetries() {
+        guard let retryContinuation else { return }
+        for symbol in pendingRetries {
+            retryContinuation.yield(symbol)
+        }
     }
 
     private func dropRemoved() {
@@ -168,26 +251,26 @@ final class SubscriptionWatchSession: ObservableObject {
     func tick(now: Date = Date()) async {
         let rolled = syncDate(now: now)
         if rolled || MarketClock.shouldPoll(session: .regular, date: date, now: now) {
-            await refreshAll(showLoading: false)
+            await refreshAll(showLoading: false, now: now)
         } else {
-            await refreshFailed(showLoading: false)
+            await refreshFailed(showLoading: false, now: now)
         }
     }
 
-    private func refreshFailed(showLoading: Bool) async {
+    private func refreshFailed(showLoading: Bool, now: Date) async {
         let snapshot = symbols.filter { failed[$0] != nil }
         guard !snapshot.isEmpty else { return }
-        await refreshAll(showLoading: showLoading, only: snapshot)
+        await refreshAll(showLoading: showLoading, only: snapshot, now: now)
     }
 
-    private func refreshAll(showLoading: Bool, only symbolsToLoad: [String]? = nil) async {
+    private func refreshAll(showLoading: Bool, only symbolsToLoad: [String]? = nil, now: Date = Date()) async {
         guard !Task.isCancelled else { return }
         let snapshot = symbolsToLoad ?? symbols
         await withTaskGroup(of: Void.self) { group in
             var remaining = snapshot.makeIterator()
             func spawn() {
                 guard !Task.isCancelled, let symbol = remaining.next() else { return }
-                group.addTask { await self.refresh(symbol, showLoading: showLoading) }
+                group.addTask { await self.refresh(symbol, showLoading: showLoading, now: now) }
             }
             for _ in 0..<min(Self.refreshLimit, snapshot.count) {
                 spawn()
@@ -202,18 +285,18 @@ final class SubscriptionWatchSession: ObservableObject {
         }
     }
 
-    private func refresh(_ symbol: String, showLoading: Bool) async {
+    private func refresh(_ symbol: String, showLoading: Bool, force: Bool = false, now: Date = Date()) async {
         guard !Task.isCancelled else { return }
         guard let store, !date.isEmpty else { return }
         let loadID = self.loadID
         let generation = self.startGeneration
         let date = self.date
         let hasBars = !(barsBySymbol[symbol] ?? []).isEmpty
-        if showLoading, !hasBars {
+        if showLoading, !hasBars || force {
             loading.insert(symbol)
         }
         do {
-            let bars = try await store.load(symbol: symbol, date: date, session: .regular)
+            let bars = try await store.load(symbol: symbol, date: date, session: .regular, force: force, now: now)
             guard !Task.isCancelled else { return }
             guard self.startGeneration == generation, self.loadID == loadID, self.date == date, symbols.contains(symbol) else { return }
             barsBySymbol[symbol] = bars
@@ -227,5 +310,10 @@ final class SubscriptionWatchSession: ObservableObject {
             failed[symbol] = UserFacingError.message(from: error) ?? L10n.Chart.loadFailed
             AppLog.market.error("subscription watch bars failed")
         }
+    }
+
+    private static func uniqued(_ symbols: [String]) -> [String] {
+        var seen = Set<String>()
+        return symbols.filter { seen.insert($0).inserted }
     }
 }

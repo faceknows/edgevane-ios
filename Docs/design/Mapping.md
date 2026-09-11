@@ -52,9 +52,9 @@
 
 | 动作 | 接口 |
 | --- | --- |
-| 盘中分钟 | `GET /alpaca/market/intraday-bars` `symbol, date, startTime?, timeFrame?` |
-| 盘前 | `GET /alpaca/market/intraday/pre/bars` |
-| 盘后 | `GET /alpaca/market/intraday/after/bars` |
+| 盘中分钟 | `GET /alpaca/market/intraday-bars` `symbol, date, startTime?, timeFrame?`。缓存已有棒时传 `startTime`（最后一根美东 `HH:mm`）。后端不补无成交分钟，首根晚于开盘仍带 `startTime`，不要整段重拉。空数组也记成功拉取时刻，同一美东分钟不重打。响应按时刻合并进缓存，同一分钟以后到为准 |
+| 盘前 | `GET /alpaca/market/intraday/pre/bars` 同上可带 `startTime?` |
+| 盘后 | `GET /alpaca/market/intraday/after/bars` 同上可带 `startTime?` |
 | 日线 | `GET /alpaca/market/daily-bars` `symbol, startDate?, timeFrame?, market`（第一期固定 `us`） |
 | 快照 | `GET /alpaca/market/latest-snapshot` `symbols`。盘口字段 `bp` / `ap`（或等价 quotes map）。**已订阅作 `quote` 兜底** |
 | 纳指分钟 | `GET ibkr/market/intraday-bars` 符号 `COMP`（产品侧 NASDAQ）。**不拉 VXX** |

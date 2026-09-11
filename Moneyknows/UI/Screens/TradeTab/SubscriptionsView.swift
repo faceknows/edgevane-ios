@@ -193,7 +193,7 @@ struct SubscriptionWatchRow: View {
             HStack(spacing: 10) {
                 SparklinePane(
                     title: L10n.Chart.fiveMinutes,
-                    values: minuteCloses,
+                    plot: .line(values: minuteCloses),
                     baseline: summary.previousClose,
                     isLoading: isMinuteLoading,
                     errorText: minuteError,
@@ -249,7 +249,7 @@ private struct SubscriptionSecondPane: View {
         )
         return SparklinePane(
             title: L10n.Chart.fiveSeconds,
-            values: values,
+            plot: .line(values: values),
             baseline: values.first,
             isLoading: false
         )
@@ -266,52 +266,5 @@ private struct SubscriptionSecondExpiryPump: View {
             .task {
                 await seconds.startExpiring()
             }
-    }
-}
-
-private struct SparklinePane: View {
-    var title: String
-    var values: [Double]
-    var baseline: Double?
-    var isLoading: Bool
-    var errorText: String? = nil
-    var retry: (() -> Void)? = nil
-    var onOpen: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption2.weight(.semibold))
-                .foregroundColor(.secondary)
-            ZStack {
-                Group {
-                    if let onOpen {
-                        Button(action: onOpen) {
-                            sparkline
-                                .opacity(errorText == nil ? 1 : 0.28)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHidden(true)
-                    } else {
-                        sparkline
-                    }
-                }
-                if onOpen != nil, let errorText, !isLoading {
-                    SparklineFailure(text: errorText, retry: retry)
-                }
-            }
-            .frame(height: 72)
-            .frame(maxWidth: .infinity)
-        }
-    }
-
-    private var sparkline: some View {
-        SparklineView(
-            values: values,
-            color: MarketFormat.changeColor(SparklineGeometry.delta(values: values, baseline: baseline)),
-            isLoading: isLoading,
-            errorText: onOpen == nil ? errorText : nil,
-            retry: onOpen == nil ? retry : nil
-        )
     }
 }

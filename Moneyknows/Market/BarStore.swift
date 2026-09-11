@@ -7,6 +7,7 @@ final class BarStore: ObservableObject {
 
     private let api: BarsAPI
     private var cache: [String: [Bar]] = [:]
+    private var fetchedAt: [String: Date] = [:]
     private var order: [String] = []
     private var inflight: [String: InFlight] = [:]
     private var nextInflightID: UInt64 = 0
@@ -19,6 +20,7 @@ final class BarStore: ObservableObject {
     func reset() {
         epoch += 1
         cache = [:]
+        fetchedAt = [:]
         order = []
         inflight = [:]
     }
@@ -32,7 +34,14 @@ final class BarStore: ObservableObject {
         cache[dailyKey(symbol: Self.normalized(symbol, session: .regular))]
     }
 
-    func load(symbol: String, date: String, session: BarSession, caches: Bool = true) async throws -> [Bar] {
+    func load(
+        symbol: String,
+        date: String,
+        session: BarSession,
+        caches: Bool = true,
+        force: Bool = false,
+        now: Date = Date()
+    ) async throws -> [Bar] {
         try Task.checkCancellation()
         let symbol = Self.normalized(symbol, session: session)
         let storeKey = cacheKey(symbol: symbol, date: date, session: session)
@@ -41,6 +50,20 @@ final class BarStore: ObservableObject {
             existing.addWaiter()
             return try await waitForInFlight(existing)
         }
+
+        if caches, !force,
+           let fetched = fetchedAt[storeKey],
+           MarketClock.isSameUSMinute(fetched, now)
+        {
+            touch(storeKey)
+            return cache[storeKey] ?? []
+        }
+
+        let existing = caches ? (cache[storeKey] ?? []) : []
+        let startTime: String? = {
+            guard caches, let last = existing.last else { return nil }
+            return MarketClock.usTimeString(from: last.time)
+        }()
 
         let epoch = self.epoch
         nextInflightID += 1
@@ -52,31 +75,51 @@ final class BarStore: ObservableObject {
                 }
             }
             try Task.checkCancellation()
-            let dtos: [BarDTO]
-            switch session {
-            case .regular:
-                dtos = try await self.api.intraday(symbol: symbol, date: date)
-            case .premarket:
-                dtos = try await self.api.preMarket(symbol: symbol, date: date)
-            case .aftermarket:
-                dtos = try await self.api.afterMarket(symbol: symbol, date: date)
-            case .index:
-                dtos = try await self.api.indexIntraday(symbol: symbol, date: date)
-            }
+            let dtos = try await self.fetchDTOs(
+                session: session,
+                symbol: symbol,
+                date: date,
+                startTime: startTime
+            )
             try Task.checkCancellation()
             guard self.epoch == epoch else { throw AppError.cancelled }
-            let bars = Self.capped(MinuteBars.fromDTOs(dtos, date: date))
+            let incoming = Self.capped(MinuteBars.fromDTOs(dtos, date: date))
             if caches {
-                if bars.isEmpty, let existing = self.cache[storeKey], !existing.isEmpty {
-                    return existing
+                let latestExisting = self.cache[storeKey] ?? []
+                if incoming.isEmpty, !latestExisting.isEmpty {
+                    self.fetchedAt[storeKey] = now
+                    self.touch(storeKey)
+                    return latestExisting
                 }
-                self.remember(storeKey, bars: bars)
+                let merged = latestExisting.isEmpty
+                    ? incoming
+                    : Self.capped(MinuteBars.mergeIncremental(latestExisting, with: incoming))
+                self.remember(storeKey, bars: merged, at: now)
+                return merged
             }
-            return bars
+            return incoming
         }
         let item = InFlight(id: inflightID, task: task)
         inflight[inflightKey] = item
         return try await waitForInFlight(item)
+    }
+
+    private func fetchDTOs(
+        session: BarSession,
+        symbol: String,
+        date: String,
+        startTime: String?
+    ) async throws -> [BarDTO] {
+        switch session {
+        case .regular:
+            return try await api.intraday(symbol: symbol, date: date, startTime: startTime)
+        case .premarket:
+            return try await api.preMarket(symbol: symbol, date: date, startTime: startTime)
+        case .aftermarket:
+            return try await api.afterMarket(symbol: symbol, date: date, startTime: startTime)
+        case .index:
+            return try await api.indexIntraday(symbol: symbol, date: date)
+        }
     }
 
     private func waitForInFlight(_ item: InFlight) async throws -> [Bar] {
@@ -113,21 +156,27 @@ final class BarStore: ObservableObject {
                 return existing
             }
             let bars = DailyBars.merge(self.cache[storeKey] ?? [], with: incoming)
-            self.remember(storeKey, bars: bars)
+            self.remember(storeKey, bars: bars, at: Date())
             return bars
         }
         inflight[inflightKey] = InFlight(id: inflightID, task: task)
         return try await task.value
     }
 
-    private func remember(_ key: String, bars: [Bar]) {
+    private func remember(_ key: String, bars: [Bar], at now: Date) {
         cache[key] = bars
-        order.removeAll { $0 == key }
-        order.append(key)
+        fetchedAt[key] = now
+        touch(key)
         while order.count > Self.maxBuckets {
             let evicted = order.removeFirst()
             cache[evicted] = nil
+            fetchedAt[evicted] = nil
         }
+    }
+
+    private func touch(_ key: String) {
+        order.removeAll { $0 == key }
+        order.append(key)
     }
 
     private static func capped(_ bars: [Bar]) -> [Bar] {

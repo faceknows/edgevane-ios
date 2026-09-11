@@ -135,37 +135,110 @@ final class BarsAPIDecodingTests: XCTestCase {
 @MainActor
 final class BarStoreTests: XCTestCase {
     func testLoadsAndCachesRegularSession() async throws {
+        let now = Self.eastern(2026, 9, 4, 10, 31)
         let http = ScriptedHTTP()
         http.rawResults = [
             .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
             .success(Data(#"[{"d":"09:31","o":2,"h":2,"l":2,"c":2,"v":2}]"#.utf8)),
         ]
         let store = BarStore(api: BarsAPI(client: http))
-        let first = try await store.load(symbol: " aapl ", date: "2026-09-04", session: .regular)
+        let first = try await store.load(symbol: " aapl ", date: "2026-09-04", session: .regular, now: now)
         XCTAssertEqual(first.first?.close, 1)
         XCTAssertEqual(MarketClock.usTimeString(from: first[0].time), "09:30")
         XCTAssertEqual(http.requests.first?.path, "alpaca/market/intraday-bars")
         XCTAssertEqual(http.requests.first?.query["symbol"], "AAPL")
         XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Min")
+        XCTAssertNil(http.requests.first?.query["startTime"])
         XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.first?.close, 1)
-        let second = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
-        XCTAssertEqual(second.first?.close, 2)
-        XCTAssertEqual(http.requests.count, 2)
-        XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.first?.close, 2)
+        let second = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: now)
+        XCTAssertEqual(second.first?.close, 1)
+        XCTAssertEqual(http.requests.count, 1)
+        XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.first?.close, 1)
     }
 
-    func testEmptyCacheDoesNotSkipRefresh() async throws {
+    func testForceBypassesSameMinuteCache() async throws {
+        let now = Self.eastern(2026, 9, 4, 10, 31)
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"[{"d":"09:30","o":2,"h":2,"l":2,"c":2,"v":2}]"#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        _ = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: now)
+        let forced = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, force: true, now: now)
+        XCTAssertEqual(forced.first?.close, 2)
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertEqual(http.requests[1].query["startTime"], "09:30")
+    }
+
+    func testNextMinuteFetchesFromLastBarAndMerges() async throws {
+        let firstNow = Self.eastern(2026, 9, 4, 10, 31)
+        let nextNow = Self.eastern(2026, 9, 4, 10, 32)
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"""
+            [
+              {"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1},
+              {"d":"09:31","o":2,"h":2,"l":2,"c":2,"v":2}
+            ]
+            """#.utf8)),
+            .success(Data(#"""
+            [
+              {"d":"09:31","o":2,"h":3,"l":2,"c":20,"v":2},
+              {"d":"09:32","o":3,"h":3,"l":3,"c":3,"v":3}
+            ]
+            """#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        _ = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: firstNow)
+        let merged = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: nextNow)
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertEqual(http.requests[1].query["startTime"], "09:31")
+        XCTAssertEqual(merged.map(\.close), [1, 20, 3])
+        XCTAssertEqual(merged.map { MarketClock.usTimeString(from: $0.time) }, ["09:30", "09:31", "09:32"])
+    }
+
+    func testLateFirstBarFetchesIncrementallyFromLastBar() async throws {
+        let firstNow = Self.eastern(2026, 9, 4, 10, 31)
+        let nextNow = Self.eastern(2026, 9, 4, 10, 32)
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:45","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
+            .success(Data(#"""
+            [
+              {"d":"09:45","o":1,"h":2,"l":1,"c":2,"v":2},
+              {"d":"09:46","o":3,"h":3,"l":3,"c":3,"v":3}
+            ]
+            """#.utf8)),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        _ = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: firstNow)
+        let merged = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: nextNow)
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertEqual(http.requests[1].query["startTime"], "09:45")
+        XCTAssertEqual(merged.map { MarketClock.usTimeString(from: $0.time) }, ["09:45", "09:46"])
+        XCTAssertEqual(merged.map(\.close), [2, 3])
+    }
+
+    func testEmptySuccessIsCachedForTheSameMinute() async throws {
+        let now = Self.eastern(2026, 9, 4, 10, 31)
+        let next = Self.eastern(2026, 9, 4, 10, 32)
         let http = ScriptedHTTP()
         http.rawResults = [
             .success(Data(#"[]"#.utf8)),
             .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":1,"v":1}]"#.utf8)),
         ]
         let store = BarStore(api: BarsAPI(client: http))
-        let empty = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
+        let empty = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: now)
         XCTAssertTrue(empty.isEmpty)
-        let filled = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
+        XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.isEmpty, true)
+        let skipped = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: now)
+        XCTAssertTrue(skipped.isEmpty)
+        XCTAssertEqual(http.requests.count, 1)
+        let filled = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: next)
         XCTAssertEqual(filled.count, 1)
         XCTAssertEqual(http.requests.count, 2)
+        XCTAssertNil(http.requests[1].query["startTime"])
     }
 
     func testEmptyRefreshDoesNotReplaceNonEmptyCache() async throws {
@@ -175,11 +248,12 @@ final class BarStoreTests: XCTestCase {
             .success(Data(#"[]"#.utf8)),
         ]
         let store = BarStore(api: BarsAPI(client: http))
-        _ = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
-        let kept = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular)
+        _ = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: Self.eastern(2026, 9, 4, 10, 31))
+        let kept = try await store.load(symbol: "AAPL", date: "2026-09-04", session: .regular, now: Self.eastern(2026, 9, 4, 10, 32))
         XCTAssertEqual(kept.first?.close, 1)
         XCTAssertEqual(store.cached(symbol: "AAPL", date: "2026-09-04", session: .regular)?.first?.close, 1)
         XCTAssertEqual(http.requests.count, 2)
+        XCTAssertEqual(http.requests[1].query["startTime"], "09:30")
     }
 
     func testParallelSessionsDoNotCancelEachOther() async throws {
@@ -364,5 +438,59 @@ final class BarStoreTests: XCTestCase {
         let kept = try await store.loadDaily(symbol: "AAPL", startDate: "2026-06-01")
         XCTAssertEqual(kept.map(\.close), [1, 2])
         XCTAssertEqual(http.requests.count, 3)
+    }
+
+    private static func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        parts.hour = hour
+        parts.minute = minute
+        return calendar.date(from: parts)!
+    }
+}
+
+final class MinuteBarsIncrementalTests: XCTestCase {
+    func testMergeIncrementalUpdatesOverlappingMinute() {
+        let existing = [bar("09:30", close: 1), bar("09:31", close: 2)]
+        let incoming = [bar("09:31", close: 20), bar("09:32", close: 3)]
+        let merged = MinuteBars.mergeIncremental(existing, with: incoming)
+        XCTAssertEqual(merged.map(\.close), [1, 20, 3])
+    }
+
+    func testSameUSMinuteUsesEasternClock() {
+        let first = BarStoreTestsDate.eastern(2026, 9, 4, 10, 31)
+        let same = first.addingTimeInterval(20)
+        let next = first.addingTimeInterval(60)
+        XCTAssertTrue(MarketClock.isSameUSMinute(first, same))
+        XCTAssertFalse(MarketClock.isSameUSMinute(first, next))
+    }
+
+    private func bar(_ clock: String, close: Double = 1) -> Bar {
+        Bar(
+            time: BarTime.parse(clock, date: "2026-09-04")!,
+            open: close,
+            high: close,
+            low: close,
+            close: close,
+            volume: 1
+        )
+    }
+}
+
+private enum BarStoreTestsDate {
+    static func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        parts.hour = hour
+        parts.minute = minute
+        return calendar.date(from: parts)!
     }
 }

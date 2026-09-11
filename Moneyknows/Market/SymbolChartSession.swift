@@ -70,14 +70,14 @@ final class SymbolChartSession: ObservableObject {
         fills = []
         _ = syncDates(now: now)
         adoptCachedBars()
-        await refreshAll()
+        await refreshAll(now: now)
         guard self.loadID == loadID, !Task.isCancelled else { return }
         await poll()
     }
 
     func retryRegular(now: Date = Date()) async {
         _ = syncDates(now: now)
-        await refresh(.regular, date: regularDate, showLoading: true)
+        await refresh(.regular, date: regularDate, showLoading: true, force: true, now: now)
     }
 
     func syncDates(now: Date = Date()) -> Set<BarSession> {
@@ -108,10 +108,10 @@ final class SymbolChartSession: ObservableObject {
         afterBars = store?.cached(symbol: symbol, date: extendedDate, session: .aftermarket) ?? []
     }
 
-    private func refreshAll() async {
-        await refresh(.regular, date: regularDate, showLoading: true)
-        await refresh(.premarket, date: extendedDate, showLoading: false)
-        await refresh(.aftermarket, date: extendedDate, showLoading: false)
+    private func refreshAll(now: Date) async {
+        await refresh(.regular, date: regularDate, showLoading: true, now: now)
+        await refresh(.premarket, date: extendedDate, showLoading: false, now: now)
+        await refresh(.aftermarket, date: extendedDate, showLoading: false, now: now)
     }
 
     private func poll() async {
@@ -127,13 +127,13 @@ final class SymbolChartSession: ObservableObject {
             let now = Date()
             let rolled = syncDates(now: now)
             if rolled.contains(.regular) || shouldPoll(.regular, now: now) {
-                await refresh(.regular, date: regularDate, showLoading: false)
+                await refresh(.regular, date: regularDate, showLoading: false, now: now)
             }
             if rolled.contains(.premarket) || shouldPoll(.premarket, now: now) {
-                await refresh(.premarket, date: extendedDate, showLoading: false)
+                await refresh(.premarket, date: extendedDate, showLoading: false, now: now)
             }
             if rolled.contains(.aftermarket) || shouldPoll(.aftermarket, now: now) {
-                await refresh(.aftermarket, date: extendedDate, showLoading: false)
+                await refresh(.aftermarket, date: extendedDate, showLoading: false, now: now)
             }
         }
     }
@@ -143,14 +143,14 @@ final class SymbolChartSession: ObservableObject {
         return MarketClock.shouldPoll(session: session.clockWindow, date: date, now: now)
     }
 
-    private func refresh(_ session: BarSession, date: String, showLoading: Bool) async {
+    private func refresh(_ session: BarSession, date: String, showLoading: Bool, force: Bool = false, now: Date = Date()) async {
         guard let store, !symbol.isEmpty, !date.isEmpty else { return }
         let loadID = self.loadID
         let symbol = self.symbol
         let requestedDate = date
         if showLoading { isLoadingRegular = true }
         do {
-            let bars = try await store.load(symbol: symbol, date: requestedDate, session: session)
+            let bars = try await store.load(symbol: symbol, date: requestedDate, session: session, force: force, now: now)
             guard self.loadID == loadID else { return }
             guard self.symbol == symbol, requestedDate == currentDate(for: session) else {
                 if showLoading { isLoadingRegular = false }

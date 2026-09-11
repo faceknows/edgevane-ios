@@ -3,28 +3,31 @@ import Foundation
 struct BarsAPI {
     var client: HTTPSending
 
-    func intraday(symbol: String, date: String, timeFrame: String = "1Min") async throws -> [BarDTO] {
-        try await get("alpaca/market/intraday-bars", [
-            "symbol": symbol,
-            "date": date,
-            "timeFrame": timeFrame,
-        ])
+    func intraday(
+        symbol: String,
+        date: String,
+        timeFrame: String = "1Min",
+        startTime: String? = nil
+    ) async throws -> [BarDTO] {
+        try await get("alpaca/market/intraday-bars", minuteQuery(symbol, date, timeFrame, startTime))
     }
 
-    func preMarket(symbol: String, date: String, timeFrame: String = "1Min") async throws -> [BarDTO] {
-        try await get("alpaca/market/intraday/pre/bars", [
-            "symbol": symbol,
-            "date": date,
-            "timeFrame": timeFrame,
-        ])
+    func preMarket(
+        symbol: String,
+        date: String,
+        timeFrame: String = "1Min",
+        startTime: String? = nil
+    ) async throws -> [BarDTO] {
+        try await get("alpaca/market/intraday/pre/bars", minuteQuery(symbol, date, timeFrame, startTime))
     }
 
-    func afterMarket(symbol: String, date: String, timeFrame: String = "1Min") async throws -> [BarDTO] {
-        try await get("alpaca/market/intraday/after/bars", [
-            "symbol": symbol,
-            "date": date,
-            "timeFrame": timeFrame,
-        ])
+    func afterMarket(
+        symbol: String,
+        date: String,
+        timeFrame: String = "1Min",
+        startTime: String? = nil
+    ) async throws -> [BarDTO] {
+        try await get("alpaca/market/intraday/after/bars", minuteQuery(symbol, date, timeFrame, startTime))
     }
 
     func indexIntraday(symbol: String = "COMP", date: String, timeFrame: String = "1Min") async throws -> [BarDTO] {
@@ -54,6 +57,18 @@ struct BarsAPI {
                 query: ["symbols": joined]
             )
         )
+    }
+
+    private func minuteQuery(_ symbol: String, _ date: String, _ timeFrame: String, _ startTime: String?) -> [String: String] {
+        var query = [
+            "symbol": symbol,
+            "date": date,
+            "timeFrame": timeFrame,
+        ]
+        if let startTime, !startTime.isEmpty {
+            query["startTime"] = startTime
+        }
+        return query
     }
 
     private func get(_ path: String, _ query: [String: String]) async throws -> [BarDTO] {

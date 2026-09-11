@@ -153,7 +153,7 @@ Moneyknows/
 
 | 原语 | 用途 |
 | --- | --- |
-| `MemoryCache` | 进程内、可设 TTL 与条数上限。分钟棒、秒线环缓、摘要 |
+| `MemoryCache` | 进程内、可设 TTL 与条数上限。秒线环缓、摘要。分钟棒由 `BarStore` 自管：按 key 缓存、记拉取时刻（含空结果）、同一美东分钟不重拉、有数据走 `startTime` 增量 |
 | `DiskCache` | Codable JSON，有预算（例如 20MB）。新闻、最近摘要、可选的「上一交易日分钟」 |
 
 约定：
@@ -226,7 +226,7 @@ protocol BrokerageServing {
 - `Charting/Lightweight/` 是唯一碰 `LightweightCharts` 的地方。
 - `Charting/Indicators/`：`vwap(bars:)`、`rsi`、`adx`、`atr`，纯函数，单元测试。
 - 仪表盘数字卡用 Swift Charts，放 `UI/Components/Stats/`，不要进 `Charting/`。
-- 交易 Tab 订阅监视迷你折线也放 `UI/Components/Stats/`（`SparklineView`：Swift Charts，iOS 15 用 Canvas 兜底，只画折线；单点画点，X 轴范围不能是 0...0）。一行两张图 × 多标的，不嵌 `ChartSurface`。进入本页时摘要预取与分钟监视并行，不等摘要。离开本页即取消分钟拉取（含点重试的未完成 HTTP，不写入 `BarStore` 缓存）。秒图按墙钟裁剪到约 10 分钟，按下一次过期时间调度，无棒时长时间休眠，插入要唤醒当前休眠；秒图变更不要带动整表分钟图重建。分钟失败有提示和重试，有旧图时也要提示。
+- 交易 Tab 订阅监视迷你折线、扫描器结果分钟图都放 `UI/Components/Stats/`（`SparklineView` 吃 `SparklinePlot`：`.line(values:overlay:)` 或 `.candles(bars:vwap:)`；折线用 Swift Charts，蜡烛与 iOS 15 用 Canvas 兜底；单点画点，X 轴范围不能是 0...0）。扫描器只画 1 分钟蜡烛 + 蓝色 VWAP，不画秒图；成功空数组由 `SparklinePane` 展示空态，交易 Tab 不传空态文案、空数据留空。交易 Tab 一行两张图 × 多标的，不嵌 `ChartSurface`。进入监视页时摘要预取与分钟监视并行，不等摘要。离开本页即取消分钟拉取（含点重试的未完成 HTTP，不写入 `BarStore` 缓存）。秒图按墙钟裁剪到约 10 分钟，按下一次过期时间调度，无棒时长时间休眠，插入要唤醒当前休眠；秒图变更不要带动整表分钟图重建。分钟失败有提示和重试，有旧图时也要提示。
 - `Support/MarketClock`：美东、盘前/盘中/盘后、假期、开盘保护是否生效。Trading 和 Market 都用它，不要各写一份 `dateHelper`。
 
 ---
@@ -251,7 +251,7 @@ UI/Components/
   Badges/          涨跌、今日盈亏、RSI/ADX/ATR
   Trading/         确认框、数量倍数、模拟/实盘条
   ChartChrome/     周期分段、蜡烛/线、VWAP 开关（不持有库）
-  Stats/           迷你折线（订阅监视）；仪表盘统计图以后也放这里
+  Stats/           迷你图（订阅监视折线、扫描器结果蜡烛 + VWAP）；仪表盘统计图以后也放这里
 ```
 
 屏幕通过注入的 Store 工作。组件只收结构体和闭包。  

@@ -57,7 +57,7 @@ final class IndexChartSession: ObservableObject {
     func reload(date: String) async {
         self.date = date
         bars = store?.cached(symbol: Self.symbol, date: date, session: .index) ?? []
-        await refresh(showLoading: true)
+        await refresh(showLoading: true, force: true)
     }
 
     private func poll() async {
@@ -77,13 +77,13 @@ final class IndexChartSession: ObservableObject {
         }
     }
 
-    private func refresh(showLoading: Bool) async {
+    private func refresh(showLoading: Bool, force: Bool = false) async {
         guard let store, !date.isEmpty else { return }
         let loadID = self.loadID
         let date = self.date
         if showLoading { isLoading = true }
         do {
-            let bars = try await store.load(symbol: Self.symbol, date: date, session: .index)
+            let bars = try await store.load(symbol: Self.symbol, date: date, session: .index, force: force)
             guard self.loadID == loadID, self.date == date else { return }
             self.bars = bars
             errorText = nil

@@ -12,6 +12,19 @@ enum MinuteBars {
         }
         .sorted { $0.time < $1.time }
     }
+
+    /// 按棒开始时刻合并；同一分钟以后到的为准，这样增量响应能更新正在形成的最后一根。
+    static func mergeIncremental(_ existing: [Bar], with incoming: [Bar]) -> [Bar] {
+        guard !incoming.isEmpty else { return existing }
+        var byTime: [Date: Bar] = [:]
+        for bar in existing {
+            byTime[bar.time] = bar
+        }
+        for bar in incoming {
+            byTime[bar.time] = bar
+        }
+        return byTime.values.sorted { $0.time < $1.time }
+    }
 }
 
 enum DailyBars {
@@ -88,7 +101,7 @@ enum BarAggregator {
         return grouped.map(\.bar)
     }
 
-    private static func bucketStart(_ time: Date, size: TimeInterval) -> Date {
+    static func bucketStart(_ time: Date, size: TimeInterval) -> Date {
         let seconds = time.timeIntervalSince1970
         let start = (seconds / size).rounded(.down) * size
         return Date(timeIntervalSince1970: start)

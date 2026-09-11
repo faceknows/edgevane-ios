@@ -30,6 +30,11 @@ enum MarketClock {
         usTimeFormatter.string(from: date)
     }
 
+    static func isSameUSMinute(_ lhs: Date, _ rhs: Date) -> Bool {
+        usDateString(from: lhs) == usDateString(from: rhs)
+            && usTimeString(from: lhs) == usTimeString(from: rhs)
+    }
+
     static func regularSessionEndTime(from date: Date = Date()) -> String {
         let current = usTimeString(from: date)
         return current > "16:00" ? "16:00" : current

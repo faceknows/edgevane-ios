@@ -46,6 +46,116 @@ final class SparklineGeometryTests: XCTestCase {
         XCTAssertEqual(SparklineGeometry.chartXDomain(count: 5), 0...4)
     }
 
+    func testDomainIncludesOverlay() {
+        let domain = SparklineGeometry.domain(values: [10, 12], overlay: [8, 11])
+        XCTAssertEqual(domain?.low, 8)
+        XCTAssertEqual(domain?.high, 12)
+        let size = CGSize(width: 100, height: 40)
+        let overlay = SparklineGeometry.points(
+            values: [8, 11],
+            in: size,
+            inset: 0,
+            low: 8,
+            high: 12
+        )
+        XCTAssertEqual(overlay[0].y, 40, accuracy: 0.001)
+    }
+
+    func testBarDomainUsesHighLowAndOverlay() {
+        let bars = [
+            Bar(time: Date(), open: 10, high: 12, low: 9, close: 11, volume: 1),
+        ]
+        let domain = SparklineGeometry.barDomain(bars: bars, overlay: [8])
+        XCTAssertEqual(domain?.low, 8)
+        XCTAssertEqual(domain?.high, 12)
+    }
+
+    func testCandleXIsCenteredInSlot() {
+        let size = CGSize(width: 100, height: 40)
+        XCTAssertEqual(SparklineGeometry.candleX(index: 0, count: 2, in: size, inset: 0), 25, accuracy: 0.001)
+        XCTAssertEqual(SparklineGeometry.candleX(index: 1, count: 2, in: size, inset: 0), 75, accuracy: 0.001)
+        XCTAssertEqual(SparklineGeometry.candleX(index: 0, count: 1, in: size, inset: 0), 50, accuracy: 0.001)
+    }
+
+    func testHigherPriceMapsHigherOnScreenForCandles() {
+        let size = CGSize(width: 100, height: 40)
+        let open = SparklineGeometry.y(10, low: 0, high: 20, in: size, inset: 0)
+        let close = SparklineGeometry.y(15, low: 0, high: 20, in: size, inset: 0)
+        XCTAssertLessThan(close, open)
+    }
+
+    func testEmptyPromptOnlyWhenCopyIsSetAndFetchFinished() {
+        XCTAssertTrue(SparklinePlot.candles(bars: []).isEmpty)
+        XCTAssertFalse(
+            SparklinePlot.candles(
+                bars: [Bar(time: Date(), open: 1, high: 1, low: 1, close: 1, volume: 1)]
+            ).isEmpty
+        )
+        XCTAssertTrue(SparklinePlot.line(values: [.nan]).isEmpty)
+        XCTAssertFalse(SparklinePlot.line(values: [1]).isEmpty)
+        XCTAssertFalse(
+            SparklineEmptyPolicy.showsPrompt(
+                isLoading: false,
+                errorText: nil,
+                isEmpty: true,
+                emptyText: nil
+            )
+        )
+        XCTAssertTrue(
+            SparklineEmptyPolicy.showsPrompt(
+                isLoading: false,
+                errorText: nil,
+                isEmpty: true,
+                emptyText: "No bars for this session."
+            )
+        )
+        XCTAssertFalse(
+            SparklineEmptyPolicy.showsPrompt(
+                isLoading: true,
+                errorText: nil,
+                isEmpty: true,
+                emptyText: "No bars for this session."
+            )
+        )
+        XCTAssertFalse(
+            SparklineEmptyPolicy.showsPrompt(
+                isLoading: false,
+                errorText: "failed",
+                isEmpty: true,
+                emptyText: "No bars for this session."
+            )
+        )
+        XCTAssertFalse(
+            SparklineEmptyPolicy.showsPrompt(
+                isLoading: false,
+                errorText: nil,
+                isEmpty: false,
+                emptyText: "No bars for this session."
+            )
+        )
+    }
+
+    func testPlotDropsMisalignedOverlay() {
+        let lineMismatch = SparklinePlot.line(values: [1, 2], overlay: [1]).aligned()
+        XCTAssertEqual(lineMismatch, .line(values: [1, 2], overlay: []))
+
+        let lineNanClose = SparklinePlot.line(values: [1, .nan, 3], overlay: [10, 20, 30]).aligned()
+        XCTAssertEqual(lineNanClose, .line(values: [1, 3], overlay: [10, 30]))
+
+        let lineNanOverlay = SparklinePlot.line(values: [1, 2], overlay: [10, .nan]).aligned()
+        XCTAssertEqual(lineNanOverlay, .line(values: [1, 2], overlay: []))
+
+        let bar = Bar(time: Date(timeIntervalSince1970: 1), open: 1, high: 1, low: 1, close: 1, volume: 1)
+        let candleMismatch = SparklinePlot.candles(bars: [bar], vwap: [1, 2]).aligned()
+        XCTAssertEqual(candleMismatch, .candles(bars: [bar], vwap: []))
+
+        let candleNan = SparklinePlot.candles(bars: [bar], vwap: [.nan]).aligned()
+        XCTAssertEqual(candleNan, .candles(bars: [bar], vwap: []))
+
+        let candleOk = SparklinePlot.candles(bars: [bar], vwap: [1.5]).aligned()
+        XCTAssertEqual(candleOk, .candles(bars: [bar], vwap: [1.5]))
+    }
+
     func testMinuteClockParsesWithSessionDate() throws {
         let parsed = BarTime.parse("09:30", date: "2026-09-04")
         XCTAssertEqual(MarketClock.usTimeString(from: parsed!), "09:30")
@@ -83,10 +193,50 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         await session.load(
             symbols: ["AAPL"],
             store: store,
-            now: Self.eastern(2026, 9, 4, 12)
+            now: Self.eastern(2026, 9, 4, 12, 1)
         )
         XCTAssertTrue(session.bars(for: "MSFT").isEmpty)
-        XCTAssertEqual(session.bars(for: "AAPL").first?.close, 11)
+        XCTAssertEqual(session.bars(for: "AAPL").last?.close, 11)
+        XCTAssertEqual(http.requests.filter { $0.query["symbol"] == "AAPL" }.count, 2)
+        XCTAssertEqual(http.requests.last?.query["startTime"], "09:30")
+    }
+
+    func testDuplicateSymbolsShareOneMinuteRequest() async throws {
+        let http = ScriptedHTTP()
+        http.rawResultsBySymbol = [
+            "MU": Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":10,"v":1}]"#.utf8),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let session = SubscriptionWatchSession()
+        await session.load(
+            symbols: ["MU", "mu", "MU"],
+            store: store,
+            now: Self.eastern(2026, 9, 10, 10)
+        )
+        XCTAssertEqual(http.requests.count, 1)
+        XCTAssertEqual(http.requests.first?.query["symbol"], "MU")
+        XCTAssertNil(http.requests.first?.query["startTime"])
+        XCTAssertEqual(session.bars(for: "MU").first?.close, 10)
+        XCTAssertEqual(session.bars(for: "mu").first?.close, 10)
+    }
+
+    func testEmptySuccessIsResolvedWithoutBars() async throws {
+        let http = ScriptedHTTP()
+        http.rawResultsBySymbol = [
+            "MU": Data(#"[]"#.utf8),
+        ]
+        let store = BarStore(api: BarsAPI(client: http))
+        let session = SubscriptionWatchSession()
+        XCTAssertFalse(session.hasResolved("MU"))
+        await session.load(
+            symbols: ["MU"],
+            store: store,
+            now: Self.eastern(2026, 9, 10, 10)
+        )
+        XCTAssertTrue(session.hasResolved("MU"))
+        XCTAssertTrue(session.bars(for: "MU").isEmpty)
+        XCTAssertFalse(session.isLoading("MU"))
+        XCTAssertNil(session.failureText(for: "MU"))
     }
 
     func testDateRolloverClearsStaleBars() async throws {
@@ -119,6 +269,47 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         ]
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1m: bars, interval: .one), [1, 2.5])
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1s: bars, interval: .one, now: now.addingTimeInterval(120)), [1, 2.5])
+    }
+
+    func testMinuteVWAPUsesOneMinuteBarsThenAlignsToInterval() {
+        let t0 = Date(timeIntervalSince1970: 1_200)
+        let bars = [
+            Bar(time: t0, open: 10, high: 10, low: 10, close: 10, volume: 100),
+            Bar(time: t0.addingTimeInterval(60), open: 20, high: 20, low: 20, close: 20, volume: 100),
+        ]
+        XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1m: bars, interval: .one), [10, 20])
+        XCTAssertEqual(SubscriptionSparklineAssembler.vwap(bars1m: bars, interval: .one), [10, 15])
+        let five = SubscriptionSparklineAssembler.minutePlot(bars1m: bars, interval: .five, includeVWAP: true)
+        XCTAssertEqual(five.closes, [20])
+        XCTAssertEqual(five.vwap, [15])
+        XCTAssertTrue(SubscriptionSparklineAssembler.minutePlot(bars1m: bars).vwap.isEmpty)
+        let dense = (0..<8).map { offset in
+            Bar(
+                time: t0.addingTimeInterval(TimeInterval(offset * 60)),
+                open: 10 + Double(offset),
+                high: 10 + Double(offset),
+                low: 10 + Double(offset),
+                close: 10 + Double(offset),
+                volume: 100
+            )
+        }
+        let fiveDense = SubscriptionSparklineAssembler.minutePlot(bars1m: dense, interval: .five, includeVWAP: true)
+        XCTAssertEqual(fiveDense.closes, [14, 17])
+        XCTAssertEqual(fiveDense.vwap, [12, 13.5])
+    }
+
+    func testMinuteCandlesKeepOHLCAndAlignedVWAP() {
+        let t0 = Date(timeIntervalSince1970: 1_200)
+        let bars = [
+            Bar(time: t0, open: 9, high: 11, low: 9, close: 10, volume: 100),
+            Bar(time: t0.addingTimeInterval(60), open: 19, high: 21, low: 19, close: 20, volume: 100),
+            Bar(time: t0.addingTimeInterval(120), open: 1, high: .nan, low: 1, close: 1, volume: 1),
+        ]
+        let plot = SubscriptionSparklineAssembler.minuteCandles(bars1m: bars)
+        XCTAssertEqual(plot.bars.map(\.open), [9, 19])
+        XCTAssertEqual(plot.bars.map(\.close), [10, 20])
+        XCTAssertEqual(plot.vwap, [10, 15])
+        XCTAssertTrue(SubscriptionSparklineAssembler.minuteCandles(bars1m: bars, includeVWAP: false).vwap.isEmpty)
     }
 
     func testSecondClosesKeepOnlyRecentWindow() {
@@ -332,6 +523,72 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         XCTAssertTrue(session.bars(for: "MSFT").isEmpty)
         owner.cancel()
         await owner.value
+    }
+
+    func testRetryAfterStartCancelledIsFlushedOnNextStart() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [.failure(AppError.network)]
+        let store = BarStore(api: BarsAPI(client: http))
+        let session = SubscriptionWatchSession()
+        let first = Task {
+            await session.start(
+                symbols: ["AAPL"],
+                store: store,
+                now: Self.eastern(2026, 9, 4, 12)
+            )
+        }
+        await waitUntil { session.failureText(for: "AAPL") != nil }
+        first.cancel()
+        await first.value
+
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":10,"v":1}]"#.utf8)),
+        ]
+        session.requestRetry("AAPL")
+        let second = Task {
+            await session.start(
+                symbols: ["AAPL"],
+                store: store,
+                now: Self.eastern(2026, 9, 4, 12)
+            )
+        }
+        await waitUntil { session.bars(for: "AAPL").first?.close == 10 }
+        XCTAssertNil(session.failureText(for: "AAPL"))
+        second.cancel()
+        await second.value
+    }
+
+    func testDuplicateRetryClicksShareOneForceRefresh() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [.failure(AppError.network)]
+        let store = BarStore(api: BarsAPI(client: http))
+        let session = SubscriptionWatchSession()
+        let task = Task {
+            await session.start(
+                symbols: ["AAPL"],
+                store: store,
+                now: Self.eastern(2026, 9, 4, 12)
+            )
+        }
+        await waitUntil { session.failureText(for: "AAPL") != nil }
+        http.pauseSends = true
+        http.rawResults = [
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":10,"v":1}]"#.utf8)),
+            .success(Data(#"[{"d":"09:30","o":1,"h":1,"l":1,"c":11,"v":1}]"#.utf8)),
+        ]
+        session.requestRetry("AAPL")
+        session.requestRetry("AAPL")
+        session.requestRetry("AAPL")
+        await waitUntil { http.requests.count >= 2 }
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertTrue(session.isLoading("AAPL"))
+        http.releasePaused()
+        await waitUntil { session.bars(for: "AAPL").first?.close == 10 }
+        XCTAssertEqual(http.requests.count, 2)
+        XCTAssertFalse(session.isLoading("AAPL"))
+        XCTAssertNil(session.failureText(for: "AAPL"))
+        task.cancel()
+        await task.value
     }
 
     private static func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {

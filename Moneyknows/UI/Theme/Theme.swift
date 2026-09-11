@@ -35,6 +35,11 @@ enum ChartPalette {
         )
     }
 
+    static func color(_ token: ChartColorToken, scheme: ColorScheme) -> Color {
+        let rgba = colors(scheme: scheme).rgba(for: token)
+        return Color(red: rgba.red, green: rgba.green, blue: rgba.blue, opacity: rgba.alpha)
+    }
+
     private static func background(dark: Bool) -> UIColor {
         dark ? UIColor(white: 0.07, alpha: 1) : .systemBackground
     }
