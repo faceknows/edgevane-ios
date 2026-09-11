@@ -105,13 +105,16 @@ enum OrderSizing {
         price >= 1 ? 0.01 : 0.0001
     }
 
+    static func priceFractionDigits(for price: Double) -> Int {
+        tickSize(for: price) >= 0.01 ? 2 : 4
+    }
+
     static func roundPrice(_ price: Double) -> Double {
         guard price.isFinite, price > 0 else { return price }
         let tick = tickSize(for: price)
         let units = (price / tick).rounded()
         let rounded = units * tick
-        let places = tick >= 0.01 ? 2.0 : 4.0
-        let scale = pow(10, places)
+        let scale = pow(10, Double(priceFractionDigits(for: price)))
         return (rounded * scale).rounded() / scale
     }
 

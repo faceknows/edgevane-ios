@@ -1635,6 +1635,8 @@ final class OrderSizingTests: XCTestCase {
         XCTAssertNil(OrderSizing.exitPrice(cost: 10, percent: 0, side: .long, takingProfit: true))
         XCTAssertEqual(OrderSizing.roundPrice(123.6969), 123.70, accuracy: 0.0001)
         XCTAssertEqual(OrderSizing.roundPrice(0.12344), 0.1234, accuracy: 0.00001)
+        XCTAssertEqual(OrderSizing.priceFractionDigits(for: 11.8), 2)
+        XCTAssertEqual(OrderSizing.priceFractionDigits(for: 0.1234), 4)
         XCTAssertEqual(OrderSizing.exitPrice(cost: 123.69, percent: 0.2, side: .long, takingProfit: true) ?? -1, 123.94, accuracy: 0.0001)
     }
 

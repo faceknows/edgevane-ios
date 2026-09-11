@@ -140,6 +140,7 @@ ChartEvent
 - 蜡烛 / 折线切换拆/建 series，买卖点仍画在同一套 `ChartSurface` 上（按成交价，不跟主 series 形状走），不要两套 View。
 - 主题：背景、涨跌色跟 `UI/Theme`，经 `ChartModel` 或环境传入。
 - 手势：单指上下滑交给外层页面滚动（详情叠了多张图）；左右平移、双指缩放仍由图表消化。双击图区调用与第一次出图相同的铺满（时间轴 `fitContent`，价格轴恢复自动缩放）；缩放或平移后都能这样复位。
+- 可见范围：最高价、最低价标在对应棒上（蜡烛用影线，折线用收盘）；当前价用库的 last-visible price line（虚线 + 右侧轴标签）。缩放平移后跟着变。这是适配器按视口算的，不进 `ChartModel.priceLines`。
 
 换库：只替换 `Lightweight/`，`ChartModel` / `ChartEvent` 不动。
 

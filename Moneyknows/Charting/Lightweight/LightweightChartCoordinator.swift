@@ -23,6 +23,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var libraryPriceLines: [PriceLine] = []
     private var appliedBars: [Bar] = []
     private var appliedMarkers: [ChartMarker] = []
+    private var appliedExtremes: ChartVisibleExtremes.Labels?
+    private var appliedPricePrecision = 2
     private var didFitContent = false
     private var hasTimeScaleSize = false
     private var paging = ChartTimeScalePaging.State()
@@ -98,6 +100,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     func didVisibleTimeRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: TimeRange?) {}
 
     func didVisibleLogicalRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: LogicalRange?) {
+        applyVisibleExtremes(range: parameters)
         if ChartTimeScalePaging.handleLogicalRange(
             from: parameters?.from,
             hasBars: !appliedBars.isEmpty,
@@ -191,12 +194,12 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
         if model.bars.isEmpty {
             clear(on: chart)
-            appliedBars = []
-            appliedMarkers = []
+            rememberBars([])
             didFitContent = false
             ChartTimeScalePaging.reset(&paging)
             return
         }
+        rememberBars(model.bars)
         rebuildMainIfNeeded(model.style, colors: colors, on: chart)
         guard let main = mainSeries else { return }
         applyMainOptions(colors)
@@ -207,25 +210,24 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             if let series = main.series as? CandlestickSeries {
                 series.setData(data: model.bars.map { Self.candlestickData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
-                series.setMarkers(data: [])
             }
         case .line:
             if let series = main.series as? LineSeries {
                 series.setData(data: model.bars.map { Self.lineData($0, usesCalendarDays: model.usesCalendarDays) })
                 applyPriceLines(model.priceLines, colors: colors, on: series)
-                series.setMarkers(data: [])
             }
         }
         syncOverlays(model.overlays, colors: colors, on: chart)
         syncVolume(model, colors: colors, on: chart)
         syncFillDots(markers, colors: colors, usesCalendarDays: model.usesCalendarDays, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
-        appliedBars = model.bars
+        appliedExtremes = nil
         capturePlotSizeIfNeeded(from: chart)
         fitAllContentIfNeeded()
         if model.followLatest {
             chart.timeScale().scrollToRealTime()
         }
+        requestVisibleExtremes()
     }
 
     private func capturePlotSizeIfNeeded(from chart: LightweightCharts) {
@@ -271,12 +273,13 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             removeSeries(current.series, on: chart)
             mainSeries = nil
             libraryPriceLines = []
+            appliedExtremes = nil
         }
         switch style {
         case .candle:
             mainSeries = (style, chart.addCandlestickSeries(options: candlestickOptions(colors)))
         case .line:
-            mainSeries = (style, chart.addLineSeries(options: lineOptions(colors.up)))
+            mainSeries = (style, chart.addLineSeries(options: lineOptions(colors.up, lastPriceColor: colors.buy)))
         }
     }
 
@@ -285,7 +288,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         case .candle:
             (mainSeries?.series as? CandlestickSeries)?.applyOptions(options: candlestickOptions(colors))
         case .line:
-            (mainSeries?.series as? LineSeries)?.applyOptions(options: lineOptions(colors.up))
+            (mainSeries?.series as? LineSeries)?.applyOptions(options: lineOptions(colors.up, lastPriceColor: colors.buy))
         case .none:
             break
         }
@@ -293,8 +296,13 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
 
     private func candlestickOptions(_ colors: ChartColors) -> CandlestickSeriesOptions {
         CandlestickSeriesOptions(
-            lastValueVisible: false,
-            priceLineVisible: false,
+            lastValueVisible: true,
+            priceLineVisible: true,
+            priceLineSource: .lastVisible,
+            priceLineWidth: .one,
+            priceLineColor: chartColor(colors.buy),
+            priceLineStyle: .dashed,
+            priceFormat: seriesPriceFormat(),
             upColor: chartColor(colors.up),
             downColor: chartColor(colors.down),
             borderVisible: false,
@@ -303,13 +311,32 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         )
     }
 
-    private func lineOptions(_ color: ChartRGBA, width: Double = 1) -> LineSeriesOptions {
-        LineSeriesOptions(
-            lastValueVisible: false,
-            priceLineVisible: false,
+    private func lineOptions(_ color: ChartRGBA, width: Double = 1, lastPriceColor: ChartRGBA? = nil) -> LineSeriesOptions {
+        let showsLast = lastPriceColor != nil
+        return LineSeriesOptions(
+            lastValueVisible: showsLast,
+            priceLineVisible: showsLast,
+            priceLineSource: showsLast ? .lastVisible : nil,
+            priceLineWidth: showsLast ? .one : nil,
+            priceLineColor: lastPriceColor.map { chartColor($0) },
+            priceLineStyle: showsLast ? .dashed : nil,
+            priceFormat: showsLast ? seriesPriceFormat() : nil,
             color: chartColor(color),
             lineWidth: lineWidth(width)
         )
+    }
+
+    private func seriesPriceFormat() -> PriceFormat {
+        .builtIn(BuiltInPriceFormat(
+            type: .price,
+            precision: Double(appliedPricePrecision),
+            minMove: pow(10, -Double(appliedPricePrecision))
+        ))
+    }
+
+    private func rememberBars(_ bars: [Bar]) {
+        appliedBars = bars
+        appliedPricePrecision = ChartVisibleExtremes.fractionDigits(in: bars)
     }
 
     private func syncOverlays(_ overlays: [OverlayLine], colors: ChartColors, on chart: LightweightCharts) {
@@ -433,6 +460,68 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         chartColor(bar.close >= bar.open ? colors.up : colors.down)
     }
 
+    private func requestVisibleExtremes() {
+        timeScaleAPI?.getVisibleLogicalRange { [weak self] range in
+            self?.applyVisibleExtremes(range: range)
+        }
+    }
+
+    private func applyVisibleExtremes(range: LogicalRange?) {
+        let labels = ChartVisibleExtremes.labels(
+            in: appliedBars,
+            from: range?.from,
+            to: range?.to,
+            style: mainSeries?.style ?? .candle
+        )
+        guard labels != appliedExtremes else { return }
+        appliedExtremes = labels
+        setMainMarkers(extremeMarkers(labels))
+    }
+
+    private func setMainMarkers(_ markers: [SeriesMarker]) {
+        if let series = mainSeries?.series as? CandlestickSeries {
+            series.setMarkers(data: markers)
+        } else if let series = mainSeries?.series as? LineSeries {
+            series.setMarkers(data: markers)
+        }
+    }
+
+    private func extremeMarkers(_ labels: ChartVisibleExtremes.Labels?) -> [SeriesMarker] {
+        guard let labels,
+              let colors = applied?.colors,
+              appliedBars.indices.contains(labels.highIndex),
+              appliedBars.indices.contains(labels.lowIndex)
+        else {
+            return []
+        }
+        let usesCalendarDays = applied?.model.usesCalendarDays ?? false
+        let precision = appliedPricePrecision
+        var markers = [
+            SeriesMarker(
+                time: Self.libraryTime(appliedBars[labels.highIndex].time, usesCalendarDays: usesCalendarDays),
+                position: .aboveBar,
+                shape: .circle,
+                color: chartColor(colors.text),
+                id: "visible-high",
+                text: ChartVisibleExtremes.priceText(labels.high, precision: precision),
+                size: 0
+            ),
+            SeriesMarker(
+                time: Self.libraryTime(appliedBars[labels.lowIndex].time, usesCalendarDays: usesCalendarDays),
+                position: .belowBar,
+                shape: .circle,
+                color: chartColor(colors.text),
+                id: "visible-low",
+                text: ChartVisibleExtremes.priceText(labels.low, precision: precision),
+                size: 0
+            )
+        ]
+        if labels.highIndex == labels.lowIndex, labels.high == labels.low {
+            markers = [markers[0]]
+        }
+        return markers
+    }
+
     private func applyPriceLines<Series: SeriesApi>(_ lines: [ChartModel.PriceLine], colors: ChartColors, on series: Series) {
         for line in libraryPriceLines {
             series.removePriceLine(line: line)
@@ -469,6 +558,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
         libraryPriceLines = []
         appliedMarkers = []
+        appliedExtremes = nil
     }
 
     private func removeSeries(_ series: SeriesObject, on chart: LightweightCharts) {

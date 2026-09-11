@@ -208,6 +208,84 @@ enum ChartTimeScalePaging {
     }
 }
 
+/// Highest, lowest, and last close in the visible logical range (partially visible bars count).
+enum ChartVisibleExtremes {
+    struct Labels: Equatable {
+        var highIndex: Int
+        var high: Double
+        var lowIndex: Int
+        var low: Double
+        var lastIndex: Int
+        var last: Double
+    }
+
+    static func labels(
+        in bars: [Bar],
+        from: Double?,
+        to: Double?,
+        style: ChartStyle
+    ) -> Labels? {
+        guard !bars.isEmpty, let from, let to else { return nil }
+        let start = max(0, Int(floor(from)))
+        let end = min(bars.count - 1, Int(ceil(to)))
+        guard start <= end else { return nil }
+        var highIndex = start
+        var lowIndex = start
+        var high = extremeValue(bars[start], style: style, high: true)
+        var low = extremeValue(bars[start], style: style, high: false)
+        if start < end {
+            for index in (start + 1)...end {
+                let bar = bars[index]
+                let nextHigh = extremeValue(bar, style: style, high: true)
+                let nextLow = extremeValue(bar, style: style, high: false)
+                if nextHigh > high {
+                    high = nextHigh
+                    highIndex = index
+                }
+                if nextLow < low {
+                    low = nextLow
+                    lowIndex = index
+                }
+            }
+        }
+        return Labels(
+            highIndex: highIndex,
+            high: high,
+            lowIndex: lowIndex,
+            low: low,
+            lastIndex: end,
+            last: bars[end].close
+        )
+    }
+
+    static func fractionDigits(in bars: [Bar]) -> Int {
+        var smallest = Double.infinity
+        for bar in bars {
+            if bar.open.isFinite { smallest = min(smallest, abs(bar.open)) }
+            if bar.high.isFinite { smallest = min(smallest, abs(bar.high)) }
+            if bar.low.isFinite { smallest = min(smallest, abs(bar.low)) }
+            if bar.close.isFinite { smallest = min(smallest, abs(bar.close)) }
+        }
+        guard smallest.isFinite else { return 2 }
+        return OrderSizing.priceFractionDigits(for: smallest)
+    }
+
+    static func priceText(_ value: Double, precision: Int) -> String {
+        guard value.isFinite else { return "" }
+        let digits = min(8, max(0, precision))
+        return String(format: "%.\(digits)f", value)
+    }
+
+    private static func extremeValue(_ bar: Bar, style: ChartStyle, high: Bool) -> Double {
+        switch style {
+        case .candle:
+            return high ? bar.high : bar.low
+        case .line:
+            return bar.close
+        }
+    }
+}
+
 /// First paint and double-tap both fit every loaded bar into the current plot.
 enum ChartViewportReset {
     static func shouldFitOnFirstLayout(didFit: Bool, hasBars: Bool, hasSize: Bool) -> Bool {

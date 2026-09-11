@@ -93,6 +93,103 @@ final class ChartTimeScalePagingTests: XCTestCase {
     }
 }
 
+final class ChartVisibleExtremesTests: XCTestCase {
+    func testCandleUsesWickHighLowInsideLogicalRange() {
+        let bars = sampleBars(
+            (high: 10, low: 8, close: 9),
+            (high: 12, low: 9, close: 11),
+            (high: 11, low: 7, close: 8),
+            (high: 11, low: 10, close: 10.5)
+        )
+        let labels = ChartVisibleExtremes.labels(in: bars, from: 0.2, to: 2.4, style: .candle)
+        XCTAssertEqual(labels?.highIndex, 1)
+        XCTAssertEqual(labels?.high, 12)
+        XCTAssertEqual(labels?.lowIndex, 2)
+        XCTAssertEqual(labels?.low, 7)
+        XCTAssertEqual(labels?.lastIndex, 3)
+        XCTAssertEqual(labels?.last, 10.5)
+    }
+
+    func testLineModeUsesCloseNotWicks() {
+        let bars = sampleBars(
+            (high: 20, low: 1, close: 9),
+            (high: 11, low: 8, close: 10),
+            (high: 19, low: 2, close: 7)
+        )
+        let labels = ChartVisibleExtremes.labels(in: bars, from: 0, to: 2, style: .line)
+        XCTAssertEqual(labels?.highIndex, 1)
+        XCTAssertEqual(labels?.high, 10)
+        XCTAssertEqual(labels?.lowIndex, 2)
+        XCTAssertEqual(labels?.low, 7)
+        XCTAssertEqual(labels?.last, 7)
+    }
+
+    func testKeepsLeftmostBarWhenExtremesTie() {
+        let bars = sampleBars(
+            (high: 12, low: 8, close: 9),
+            (high: 11, low: 8, close: 10),
+            (high: 12, low: 9, close: 11)
+        )
+        let labels = ChartVisibleExtremes.labels(in: bars, from: 0, to: 2, style: .candle)
+        XCTAssertEqual(labels?.highIndex, 0)
+        XCTAssertEqual(labels?.lowIndex, 0)
+    }
+
+    func testClampsPaddedLogicalRangeAndRejectsEmpty() {
+        let bars = sampleBars(
+            (high: 10, low: 8, close: 9),
+            (high: 11, low: 7, close: 8)
+        )
+        let leftPad = ChartVisibleExtremes.labels(in: bars, from: -0.5, to: 0, style: .candle)
+        XCTAssertEqual(leftPad?.highIndex, 0)
+        XCTAssertEqual(leftPad?.high, 10)
+        XCTAssertEqual(leftPad?.lastIndex, 0)
+        let padded = ChartVisibleExtremes.labels(in: bars, from: -0.5, to: 1.2, style: .candle)
+        XCTAssertEqual(padded?.highIndex, 1)
+        XCTAssertEqual(padded?.high, 11)
+        XCTAssertEqual(padded?.lowIndex, 1)
+        XCTAssertEqual(padded?.low, 7)
+        XCTAssertEqual(padded?.lastIndex, 1)
+        XCTAssertEqual(padded?.last, 8)
+        XCTAssertNil(ChartVisibleExtremes.labels(in: bars, from: nil, to: 1, style: .candle))
+        XCTAssertNil(ChartVisibleExtremes.labels(in: [], from: 0, to: 1, style: .candle))
+        XCTAssertNil(ChartVisibleExtremes.labels(in: bars, from: 8, to: 9, style: .candle))
+    }
+
+    func testPriceTextFollowsSeriesPrecision() {
+        XCTAssertEqual(ChartVisibleExtremes.priceText(11.8, precision: 2), "11.80")
+        XCTAssertEqual(ChartVisibleExtremes.priceText(11, precision: 2), "11.00")
+        XCTAssertEqual(ChartVisibleExtremes.priceText(0.1234, precision: 4), "0.1234")
+        XCTAssertEqual(ChartVisibleExtremes.priceText(0.1234, precision: 2), "0.12")
+    }
+
+    func testFractionDigitsUsesInstrumentTick() {
+        XCTAssertEqual(
+            ChartVisibleExtremes.fractionDigits(in: sampleBars((high: 11.8, low: 11.2, close: 11.4))),
+            2
+        )
+        XCTAssertEqual(
+            ChartVisibleExtremes.fractionDigits(in: sampleBars((high: 0.1234, low: 0.1201, close: 0.1211))),
+            4
+        )
+        XCTAssertEqual(ChartVisibleExtremes.fractionDigits(in: []), 2)
+    }
+
+    private func sampleBars(_ values: (high: Double, low: Double, close: Double)...) -> [Bar] {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        return values.enumerated().map { index, value in
+            Bar(
+                time: start.addingTimeInterval(TimeInterval(index * 60)),
+                open: value.close,
+                high: value.high,
+                low: value.low,
+                close: value.close,
+                volume: 1
+            )
+        }
+    }
+}
+
 final class ChartViewportResetTests: XCTestCase {
     func testFirstLayoutFitsOnlyWhenBarsAndSizeAreReady() {
         XCTAssertFalse(ChartViewportReset.shouldFitOnFirstLayout(didFit: false, hasBars: false, hasSize: true))
