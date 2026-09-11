@@ -10,6 +10,7 @@ struct SymbolSearchField: View {
     var placeholder: String
     var busy: Bool
     var chrome: Chrome = .bordered
+    var isFocused: FocusState<Bool>.Binding
     var onSubmit: () -> Void
 
     var body: some View {
@@ -22,7 +23,7 @@ struct SymbolSearchField: View {
             if busy {
                 ProgressView()
             } else {
-                Button(L10n.Market.search, action: onSubmit)
+                Button(L10n.Market.search, action: dismissAndSubmit)
                     .disabled(SymbolCode.normalize(text).isEmpty)
             }
         }
@@ -39,14 +40,21 @@ struct SymbolSearchField: View {
                 .disableAutocorrection(true)
                 .textFieldStyle(.roundedBorder)
                 .submitLabel(.search)
-                .onSubmit(onSubmit)
+                .focused(isFocused)
+                .onSubmit(dismissAndSubmit)
         } else {
             TextField(placeholder, text: $text)
                 .autocapitalization(.allCharacters)
                 .disableAutocorrection(true)
                 .textFieldStyle(.plain)
                 .submitLabel(.search)
-                .onSubmit(onSubmit)
+                .focused(isFocused)
+                .onSubmit(dismissAndSubmit)
         }
+    }
+
+    private func dismissAndSubmit() {
+        isFocused.wrappedValue = false
+        onSubmit()
     }
 }

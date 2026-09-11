@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct DashboardView: View {
     @EnvironmentObject private var summaries: SymbolSummaryStore
@@ -10,6 +11,7 @@ struct DashboardView: View {
     @EnvironmentObject private var router: AppRouter
     @StateObject private var search = SymbolSearchSession()
     @State private var searchText = ""
+    @FocusState private var isSearchFocused: Bool
 
     private let tileColumns = [
         GridItem(.flexible(), spacing: 12),
@@ -17,51 +19,58 @@ struct DashboardView: View {
     ]
 
     var body: some View {
-        List {
-            dashboardContent
-                .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 32, trailing: 16))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color(uiColor: .systemBackground))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                if showsBanners {
+                    banners
+                }
+                overviewSection
+                shortcutsSection
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ios15PullToRefresh)
         }
-        .listStyle(.plain)
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .navigationTitle(L10n.Dashboard.title)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await trading.refresh() }
-    }
-
-    private var dashboardContent: some View {
-        VStack(alignment: .leading, spacing: 28) {
-            banners
-            overviewSection
-            shortcutsSection
+        .dismissKeyboardOnScroll()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button(L10n.Common.done) {
+                    isSearchFocused = false
+                }
+            }
         }
     }
 
-    @ViewBuilder
-    private var banners: some View {
-        let hasBanner =
-            !hasBrokerage
+    private var showsBanners: Bool {
+        !hasBrokerage
             || trading.environment != nil
             || brokerage.current?.environment != nil
             || portfolio.snapshot?.tradingBlocked == true
             || trading.needsCredentials
             || dashboardErrorText != nil
-        if hasBanner {
-            VStack(alignment: .leading, spacing: 8) {
-                if !hasBrokerage {
-                    NoBrokerageBanner()
-                }
-                if let environment = trading.environment ?? brokerage.current?.environment {
-                    EnvironmentBanner(environment: environment)
-                }
-                if portfolio.snapshot?.tradingBlocked == true {
-                    TradingBlockedBanner()
-                }
-                if trading.needsCredentials || dashboardErrorText != nil {
-                    TradingIssueBanner(errorText: dashboardErrorText) {
-                        Task { await trading.refresh() }
-                    }
+    }
+
+    private var banners: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !hasBrokerage {
+                NoBrokerageBanner()
+            }
+            if let environment = trading.environment ?? brokerage.current?.environment {
+                EnvironmentBanner(environment: environment)
+            }
+            if portfolio.snapshot?.tradingBlocked == true {
+                TradingBlockedBanner()
+            }
+            if trading.needsCredentials || dashboardErrorText != nil {
+                TradingIssueBanner(errorText: dashboardErrorText) {
+                    Task { await trading.refresh() }
                 }
             }
         }
@@ -71,9 +80,10 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L10n.Dashboard.overview)
                 .font(.title2.weight(.bold))
+                .onTapGesture { isSearchFocused = false }
 
             HStack(alignment: .top, spacing: 10) {
-                NavigationLink(destination: AppRouter.destination(.portfolio)) {
+                cardLink(.portfolio) {
                     DashboardStatCard(
                         title: L10n.Dashboard.todayPnl,
                         fill: pnlCardFill
@@ -81,16 +91,12 @@ struct DashboardView: View {
                         todayPnlValue
                     }
                 }
-                .buttonStyle(DashboardPressStyle())
-
-                NavigationLink(destination: AppRouter.destination(.positions)) {
+                cardLink(.positions) {
                     DashboardStatCard(title: L10n.Dashboard.positions) {
                         positionsValue
                     }
                 }
-                .buttonStyle(DashboardPressStyle())
-
-                NavigationLink(destination: AppRouter.destination(.orders)) {
+                cardLink(.orders) {
                     DashboardStatCard(
                         title: L10n.Dashboard.orders,
                         hint: hasBrokerage ? L10n.Dashboard.ordersHint : nil
@@ -98,7 +104,6 @@ struct DashboardView: View {
                         ordersValue
                     }
                 }
-                .buttonStyle(DashboardPressStyle())
             }
         }
     }
@@ -107,15 +112,13 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(L10n.Dashboard.quickAccess)
                 .font(.title2.weight(.bold))
-
+                .onTapGesture { isSearchFocused = false }
             searchCard
-
             LazyVGrid(columns: tileColumns, spacing: 12) {
                 ForEach(shortcuts) { item in
-                    NavigationLink(destination: AppRouter.destination(item.route)) {
+                    cardLink(item.route) {
                         DashboardQuickTile(item: item)
                     }
-                    .buttonStyle(DashboardPressStyle())
                 }
             }
         }
@@ -128,6 +131,7 @@ struct DashboardView: View {
                 placeholder: L10n.Dashboard.searchPlaceholder,
                 busy: summaries.isLookingUp,
                 chrome: .inset,
+                isFocused: $isSearchFocused,
                 onSubmit: submitSearch
             )
             if let searchError = search.errorText {
@@ -264,11 +268,35 @@ struct DashboardView: View {
         orders.hasMoreClosed ? "\(orders.orders.count)+" : "\(orders.orders.count)"
     }
 
+    private func cardLink<Label: View>(
+        _ route: AppRoute,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        NavigationLink(destination: AppRouter.destination(route)) {
+            label()
+        }
+        .buttonStyle(DashboardPressStyle())
+    }
+
     private func submitSearch() {
+        isSearchFocused = false
         Task {
             if let symbol = await search.submit(searchText, lookup: { try await summaries.lookup($0) }) {
                 router.openSymbol(symbol)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var ios15PullToRefresh: some View {
+        if #available(iOS 16.0, *) {
+            EmptyView()
+        } else {
+            IOS15ScrollRefreshControl {
+                await trading.refresh()
+            }
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
         }
     }
 }
@@ -355,5 +383,125 @@ private struct DashboardPressStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.72 : 1)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func dismissKeyboardOnScroll() -> some View {
+        if #available(iOS 16.0, *) {
+            self.scrollDismissesKeyboard(.immediately)
+        } else {
+            self
+        }
+    }
+}
+
+/// SwiftUI `.refreshable` on `ScrollView` only runs from iOS 16. Dashboard still
+/// targets 15, so attach `UIRefreshControl` to the underlying scroll view.
+private struct IOS15ScrollRefreshControl: UIViewRepresentable {
+    var action: () async -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(action: action)
+    }
+
+    func makeUIView(context: Context) -> AnchorView {
+        let view = AnchorView()
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        view.onInstalled = { [weak coordinator = context.coordinator, weak view] in
+            guard let view else { return }
+            coordinator?.install(from: view)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: AnchorView, context: Context) {
+        context.coordinator.action = action
+        uiView.onInstalled = { [weak coordinator = context.coordinator, weak uiView] in
+            guard let uiView else { return }
+            coordinator?.install(from: uiView)
+        }
+        context.coordinator.install(from: uiView)
+    }
+
+    final class AnchorView: UIView {
+        var onInstalled: (() -> Void)?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil else { return }
+            onInstalled?()
+        }
+    }
+
+    final class Coordinator: NSObject {
+        var action: () async -> Void
+        private weak var control: UIRefreshControl?
+        private var running = false
+
+        init(action: @escaping () async -> Void) {
+            self.action = action
+        }
+
+        func install(from view: UIView) {
+            guard let scrollView = view.enclosingScrollView() else { return }
+            scrollView.alwaysBounceVertical = true
+            if let existing = scrollView.refreshControl {
+                if control !== existing {
+                    existing.addTarget(self, action: #selector(refresh), for: .valueChanged)
+                    control = existing
+                }
+                return
+            }
+            let fresh = UIRefreshControl()
+            fresh.addTarget(self, action: #selector(refresh), for: .valueChanged)
+            scrollView.refreshControl = fresh
+            control = fresh
+        }
+
+        @objc func refresh() {
+            guard !running else { return }
+            running = true
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await action()
+                self.control?.endRefreshing()
+                self.running = false
+            }
+        }
+    }
+}
+
+private extension UIView {
+    func enclosingScrollView() -> UIScrollView? {
+        var current: UIView? = self
+        while let view = current {
+            if let scroll = view as? UIScrollView {
+                return scroll
+            }
+            current = view.superview
+        }
+        current = superview
+        while let view = current {
+            if let scroll = view.firstScrollViewInSubtree() {
+                return scroll
+            }
+            current = view.superview
+        }
+        return nil
+    }
+
+    func firstScrollViewInSubtree() -> UIScrollView? {
+        if let scroll = self as? UIScrollView {
+            return scroll
+        }
+        for child in subviews {
+            if let found = child.firstScrollViewInSubtree() {
+                return found
+            }
+        }
+        return nil
     }
 }

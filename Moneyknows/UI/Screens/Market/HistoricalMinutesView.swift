@@ -14,6 +14,7 @@ private struct HistoricalMinutesBody: View {
     @EnvironmentObject private var trading: TradingSession
     @ObservedObject var session: HistoricalMinutesSession
     @ObservedObject var fills: DayFillsSession
+    @FocusState private var isSearchFocused: Bool
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -23,6 +24,7 @@ private struct HistoricalMinutesBody: View {
                         text: $session.draftSymbol,
                         placeholder: L10n.Historical.symbolPlaceholder,
                         busy: session.isLookingUp,
+                        isFocused: $isSearchFocused,
                         onSubmit: submit
                     )
                     DatePicker(
