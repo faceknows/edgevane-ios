@@ -2607,6 +2607,23 @@
         }
       }
     },
+    "market.barCount" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bar Count"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "K线数量"
+          }
+        }
+      }
+    },
     "market.catalog" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2704,7 +2721,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "向下"
+            "value" : "下跌"
           }
         }
       }
@@ -2817,13 +2834,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min price"
+            "value" : "Min Price"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最低价"
+            "value" : "最低价格"
           }
         }
       }
@@ -2964,6 +2981,23 @@
         }
       }
     },
+    "market.timeFrame" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time Frame"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周期"
+          }
+        }
+      }
+    },
     "market.unknownSymbol" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2993,7 +3027,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "向上"
+            "value" : "上涨"
           }
         }
       }

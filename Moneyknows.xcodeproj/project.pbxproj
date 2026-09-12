@@ -133,6 +133,10 @@
 		FF102709AD6A566AC9CCDE9A /* AlpacaTradingAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 711C8D1F733CE7A57B6A4AAB /* AlpacaTradingAPI.swift */; };
 		FF720C8BA64C8478D697D7C8 /* PushPreferenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A37A14962F1FF6C1F1FBAF5 /* PushPreferenceStore.swift */; };
 		FFE37CF44D87DDAC482BB9A7 /* PriceSlopeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B870286463E2535138EC83 /* PriceSlopeFilterView.swift */; };
+		C7D0F1111111111111110038 /* TappableValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110037 /* TappableValue.swift */; };
+		C7D0F111111111111111003A /* ScreenerFilterPickers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110039 /* ScreenerFilterPickers.swift */; };
+		C7D0F111111111111111003C /* MomentumFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111003B /* MomentumFilterView.swift */; };
+		C7D0F1111111111111110041 /* ATRFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110040 /* ATRFilterView.swift */; };
 		C7D0F1111111111111110002 /* DayFills.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110001 /* DayFills.swift */; };
 		C7D0F1111111111111110004 /* HistoricalMinutesSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110003 /* HistoricalMinutesSession.swift */; };
 		C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110005 /* IndexChartSession.swift */; };
@@ -327,6 +331,10 @@
 		C7D0F111111111111111002B /* SymbolNavigationTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolNavigationTitle.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002D /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110035 /* SparklineChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineChrome.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110037 /* TappableValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TappableValue.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110039 /* ScreenerFilterPickers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenerFilterPickers.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111003B /* MomentumFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentumFilterView.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110040 /* ATRFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ATRFilterView.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002F /* SubscriptionWatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSession.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSessionTests.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
@@ -447,12 +455,22 @@
 			isa = PBXGroup;
 			children = (
 				56F776812DFD66A97D414860 /* ChartChrome */,
+				C7D0F111111111111111003D /* Filters */,
 				2E126E8C497D34EAE486D0A3 /* Feedback */,
 				C7D0F1111111111111110033 /* Stats */,
 				0F29A8C971C4A39B0CF42C2C /* Symbol */,
 				016D0E91EE8C557669B3E1F2 /* Trading */,
 			);
 			path = Components;
+			sourceTree = "<group>";
+		};
+		C7D0F111111111111111003D /* Filters */ = {
+			isa = PBXGroup;
+			children = (
+				C7D0F1111111111111110039 /* ScreenerFilterPickers.swift */,
+				C7D0F1111111111111110037 /* TappableValue.swift */,
+			);
+			path = Filters;
 			sourceTree = "<group>";
 		};
 		C7D0F1111111111111110033 /* Stats */ = {
@@ -603,6 +621,8 @@
 		63A6D381A19E69F5D6ABCD3E /* Market */ = {
 			isa = PBXGroup;
 			children = (
+				C7D0F1111111111111110040 /* ATRFilterView.swift */,
+				C7D0F111111111111111003B /* MomentumFilterView.swift */,
 				13B870286463E2535138EC83 /* PriceSlopeFilterView.swift */,
 				6F0ADFD6E9CF4278A0135F85 /* ScreenerCatalogView.swift */,
 				628F0F10F9A5B622A165D793 /* ScreenerResultsView.swift */,
@@ -1145,6 +1165,8 @@
 				0C1CE099E21ED8CDD4B4CD27 /* PreferencesStore.swift in Sources */,
 				1478358ECCD1B08167CD4CB5 /* PreferencesView.swift in Sources */,
 				FFE37CF44D87DDAC482BB9A7 /* PriceSlopeFilterView.swift in Sources */,
+				C7D0F111111111111111003C /* MomentumFilterView.swift in Sources */,
+				C7D0F1111111111111110041 /* ATRFilterView.swift in Sources */,
 				A6CE9461F5234CB4767F0147 /* ProfileStore.swift in Sources */,
 				462CE3AEDCB1EA8FBCB683D2 /* ProfileView.swift in Sources */,
 				FF720C8BA64C8478D697D7C8 /* PushPreferenceStore.swift in Sources */,
@@ -1171,6 +1193,8 @@
 				615C46F24DA9A061D9F5DF44 /* SubscribeAPI.swift in Sources */,
 				C7D0F111111111111111002E /* SparklineView.swift in Sources */,
 				C7D0F1111111111111110036 /* SparklineChrome.swift in Sources */,
+				C7D0F111111111111111003A /* ScreenerFilterPickers.swift in Sources */,
+				C7D0F1111111111111110038 /* TappableValue.swift in Sources */,
 				C7D0F1111111111111110030 /* SubscriptionWatchSession.swift in Sources */,
 				1ECE196DAD8181BD8D8258D2 /* SubscriptionStore.swift in Sources */,
 				B376F028F872E6C165379213 /* SubscriptionsView.swift in Sources */,

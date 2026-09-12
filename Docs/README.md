@@ -10,4 +10,4 @@
 
 ## 当前状态
 
-**阶段 C：按切片实现。** 当前切片 C0，见 [ExecutablePlan.md](ExecutablePlan.md)。
+**阶段 C：按切片实现。** 当前切片 C11，见 [ExecutablePlan.md](ExecutablePlan.md)。

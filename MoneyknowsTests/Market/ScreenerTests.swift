@@ -206,6 +206,47 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(ScreenerQuery.defaults(for: .atr).barCount, "10")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).barCount, "0")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).timeFrame, "1Min")
+        XCTAssertTrue(ScreenerKind.momentum.showsFilters)
+        XCTAssertTrue(ScreenerKind.atr.showsFilters)
+        XCTAssertTrue(ScreenerKind.priceSlope.showsFilters)
+        XCTAssertFalse(ScreenerKind.yahoo.showsFilters)
+        XCTAssertTrue(ScreenerKind.momentum.usesImplicitTradingDate)
+        XCTAssertTrue(ScreenerKind.atr.usesImplicitTradingDate)
+        XCTAssertFalse(ScreenerKind.priceSlope.usesImplicitTradingDate)
+    }
+
+    func testMomentumDefaultsUseLastTradingDateAndFilterValues() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 5
+        parts.hour = 12
+        let saturday = calendar.date(from: parts)!
+        let query = ScreenerQuery.defaults(for: .momentum, now: saturday)
+        XCTAssertEqual(query.date, "2026-09-04")
+        XCTAssertEqual(query.direction, "up")
+        XCTAssertEqual(query.timeFrame, "5Min")
+        XCTAssertEqual(query.minVolume, "1M")
+    }
+
+    func testATRDefaultsUseLastTradingDateAndFilterValues() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 5
+        parts.hour = 12
+        let saturday = calendar.date(from: parts)!
+        let query = ScreenerQuery.defaults(for: .atr, now: saturday)
+        XCTAssertEqual(query.date, "2026-09-04")
+        XCTAssertEqual(query.timeFrame, "1Min")
+        XCTAssertEqual(query.barCount, "10")
+        XCTAssertEqual(query.minPrice, "6")
+        XCTAssertEqual(query.minVolume, "1M")
+        XCTAssertTrue(query.time.isEmpty)
     }
 
     func testResetDiscardsInFlightResults() async {
@@ -496,6 +537,135 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(http.requests.first?.query["market"], "us")
     }
 
+    func testMomentumRequestSendsDirectionTimeFrameAndMinVolume() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data(#"[{"symbol":"NVDA"}]"#.utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .momentum)
+        query.direction = "down"
+        query.timeFrame = "1Min"
+        query.minVolume = "5M"
+        await store.load(.momentum, query: query)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/top-momentum")
+        XCTAssertEqual(http.requests.first?.query["direction"], "down")
+        XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Min")
+        XCTAssertEqual(http.requests.first?.query["minVolume"], "5M")
+        XCTAssertEqual(http.requests.first?.query["date"], query.date)
+        XCTAssertEqual(store.rows.map(\.symbol), ["NVDA"])
+    }
+
+    func testMomentumReloadsRefreshLastTradingDateAndKeepFilters() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            return calendar.date(from: parts)!
+        }
+        let friday = date(2026, 9, 4, 15)
+        let nextSession = date(2026, 9, 8, 10)
+        var now = friday
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"TAP"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        var query = ScreenerQuery.defaults(for: .momentum, now: friday)
+        query.direction = "down"
+        query.timeFrame = "1Min"
+        query.minVolume = "5M"
+        query.date = "2026-08-01"
+        await store.load(.momentum, query: query)
+        XCTAssertEqual(http.requests[0].query["date"], "2026-09-04")
+        XCTAssertEqual(store.query.date, "2026-09-04")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.timeFrame, "1Min")
+        XCTAssertEqual(store.query.minVolume, "5M")
+
+        now = nextSession
+        await store.appear(.momentum)
+        XCTAssertEqual(http.requests[1].query["date"], "2026-09-08")
+        XCTAssertEqual(store.query.date, "2026-09-08")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.timeFrame, "1Min")
+        XCTAssertEqual(store.query.minVolume, "5M")
+
+        await store.load(.momentum, query: store.query)
+        XCTAssertEqual(http.requests[2].query["date"], "2026-09-08")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.rows.map(\.symbol), ["TAP"])
+    }
+
+    func testATRReloadsRefreshLastTradingDateAndKeepFilters() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            return calendar.date(from: parts)!
+        }
+        let friday = date(2026, 9, 4, 15)
+        let nextSession = date(2026, 9, 8, 10)
+        var now = friday
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        var query = ScreenerQuery.defaults(for: .atr, now: friday)
+        query.timeFrame = "5Min"
+        query.barCount = "20"
+        query.minPrice = "10"
+        query.minVolume = "2M"
+        query.date = "2026-08-01"
+        await store.load(.atr, query: query)
+        now = nextSession
+        await store.appear(.atr)
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-08")
+        XCTAssertEqual(store.query.timeFrame, "5Min")
+        XCTAssertEqual(store.query.barCount, "20")
+        XCTAssertEqual(store.query.minPrice, "10")
+        XCTAssertEqual(store.query.minVolume, "2M")
+    }
+
+    func testPriceSlopeKeepsUserSelectedDateAcrossSessions() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            return calendar.date(from: parts)!
+        }
+        var now = date(2026, 9, 4, 15)
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"AAPL"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"MSFT"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        var query = ScreenerQuery.defaults(for: .priceSlope, now: now)
+        query.date = "2026-09-04"
+        query.direction = "down"
+        await store.load(.priceSlope, query: query)
+        now = date(2026, 9, 8, 10)
+        await store.appear(.priceSlope)
+        XCTAssertEqual(store.query.date, "2026-09-04")
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-04")
+        XCTAssertEqual(store.query.direction, "down")
+    }
+
     func testStairDefaultSendsBarCountZero() async {
         let http = ScriptedHTTP()
         http.rawResults = [.success(Data("[]".utf8))]
@@ -512,7 +682,45 @@ final class ScreenerStoreTests: XCTestCase {
         http.rawResults = [.success(Data("[]".utf8))]
         let store = ScreenerStore(api: ScreenerAPI(client: http))
         await store.load(.atr)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/top-atr-stocks")
         XCTAssertEqual(http.requests.first?.query["barCount"], "10")
+        XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Min")
+        XCTAssertEqual(http.requests.first?.query["minPrice"], "6")
+        XCTAssertEqual(http.requests.first?.query["minVolume"], "1M")
+        XCTAssertEqual(http.requests.first?.query["date"], store.query.date)
+        XCTAssertNil(http.requests.first?.query["time"])
+    }
+
+    func testATRSendsTimeWhenProvidedLikeRN() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .atr)
+        query.time = "10:15"
+        await store.load(.atr, query: query)
+        XCTAssertEqual(http.requests.first?.query["time"], "10:15")
+    }
+
+    func testATRFilterChangeSendsUpdatedQueryAndOmitsEmptyTime() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"AMD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NVDA"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .atr)
+        await store.load(.atr, query: query)
+        query.timeFrame = "5Min"
+        query.barCount = "20"
+        query.minPrice = "10"
+        query.minVolume = "5M"
+        await store.load(.atr, query: query)
+        XCTAssertEqual(http.requests.last?.query["timeFrame"], "5Min")
+        XCTAssertEqual(http.requests.last?.query["barCount"], "20")
+        XCTAssertEqual(http.requests.last?.query["minPrice"], "10")
+        XCTAssertEqual(http.requests.last?.query["minVolume"], "5M")
+        XCTAssertNil(http.requests.last?.query["time"])
+        XCTAssertEqual(store.rows.map(\.symbol), ["NVDA"])
     }
 
     func testIBKRResultsSortedByDailyVolumeDescending() async {

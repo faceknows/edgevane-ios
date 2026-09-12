@@ -9,13 +9,15 @@ final class ScreenerStore: ObservableObject {
     @Published private(set) var errorText: String?
 
     private let api: ScreenerAPI
+    private let now: () -> Date
     private var epoch: UInt64 = 0
     private var requestID: UInt64 = 0
     private var pending: (ScreenerKind, ScreenerQuery)?
     private var drainTask: Task<Void, Never>?
 
-    init(api: ScreenerAPI) {
+    init(api: ScreenerAPI, now: @escaping () -> Date = { Date() }) {
         self.api = api
+        self.now = now
     }
 
     func reset() {
@@ -33,7 +35,8 @@ final class ScreenerStore: ObservableObject {
     }
 
     func load(_ kind: ScreenerKind, query: ScreenerQuery? = nil) async {
-        let resolved = query ?? (self.kind == kind ? self.query : ScreenerQuery.defaults(for: kind))
+        var resolved = query ?? (self.kind == kind ? self.query : ScreenerQuery.defaults(for: kind, now: now()))
+        resolved.pinImplicitTradingDate(for: kind, now: now())
         requestID += 1
         self.kind = kind
         self.query = resolved
@@ -116,6 +119,7 @@ final class ScreenerStore: ObservableObject {
             dtos = try await api.topATR(query: [
                 "market": query.market,
                 "date": query.date,
+                "time": query.time,
                 "timeFrame": query.timeFrame,
                 "barCount": query.barCount,
                 "minPrice": query.minPrice,

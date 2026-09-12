@@ -251,6 +251,7 @@ UI/Components/
   Badges/          涨跌、今日盈亏、RSI/ADX/ATR
   Trading/         确认框、数量倍数、模拟/实盘条
   ChartChrome/     周期分段、蜡烛/线、VWAP 开关（不持有库）
+  Filters/         扫描器可点选项（`TappableValue`；方向、周期、最低价、最低量、K 线数量）
   Stats/           迷你图（订阅监视折线、扫描器结果蜡烛 + VWAP）；仪表盘统计图以后也放这里
 ```
 

@@ -269,9 +269,11 @@ enum L10n {
         static var direction: String { localized("market.direction") }
         static var up: String { localized("market.up") }
         static var down: String { localized("market.down") }
+        static var timeFrame: String { localized("market.timeFrame") }
         static var window: String { localized("market.window") }
         static var minPrice: String { localized("market.minPrice") }
         static var minVolume: String { localized("market.minVolume") }
+        static var barCount: String { localized("market.barCount") }
         static var endTime: String { localized("market.endTime") }
         static var applyFilters: String { localized("market.applyFilters") }
         static var invalidEndTime: String { localized("market.invalidEndTime") }

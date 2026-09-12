@@ -26,8 +26,86 @@ enum ScreenerKind: String, CaseIterable, Identifiable {
     }
 
     var showsFilters: Bool {
-        self == .priceSlope
+        switch self {
+        case .momentum, .atr, .priceSlope: return true
+        default: return false
+        }
     }
+
+    var usesImplicitTradingDate: Bool {
+        switch self {
+        case .momentum, .atr: return true
+        default: return false
+        }
+    }
+}
+
+enum ScreenerDirection: String, CaseIterable, Identifiable {
+    case up
+    case down
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .up: return L10n.Market.up
+        case .down: return L10n.Market.down
+        }
+    }
+}
+
+enum ScreenerTimeFrame: String, CaseIterable, Identifiable {
+    case one = "1Min"
+    case three = "3Min"
+    case five = "5Min"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .one: return L10n.Chart.oneMinute
+        case .three: return L10n.Chart.threeMinutes
+        case .five: return L10n.Chart.fiveMinutes
+        }
+    }
+}
+
+enum ScreenerMinVolume: String, CaseIterable, Identifiable {
+    case oneMillion = "1M"
+    case twoMillion = "2M"
+    case fiveMillion = "5M"
+    case tenMillion = "10M"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+}
+
+enum ScreenerMinPrice: String, CaseIterable, Identifiable {
+    case four = "4"
+    case six = "6"
+    case eight = "8"
+    case ten = "10"
+    case twenty = "20"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    static let standard: [ScreenerMinPrice] = [.four, .six, .eight, .ten]
+    static let atr: [ScreenerMinPrice] = [.six, .ten, .twenty]
+}
+
+enum ScreenerBarCount: String, CaseIterable, Identifiable {
+    case zero = "0"
+    case five = "5"
+    case ten = "10"
+    case twenty = "20"
+    case thirty = "30"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+
+    static let atr: [ScreenerBarCount] = [.five, .ten, .twenty, .thirty]
+    static let stair: [ScreenerBarCount] = [.zero, .five, .ten, .twenty, .thirty]
 }
 
 struct ScreenerQuery: Equatable {
@@ -42,6 +120,7 @@ struct ScreenerQuery: Equatable {
     var barCount = "10"
     var spanMinutes = "30"
     var endTime = ""
+    var time = ""
     var rsiLow = "50"
     var rsiHigh = "60"
     var adxLow = "20"
@@ -57,10 +136,16 @@ struct ScreenerQuery: Equatable {
         case .yahoo:
             break
         case .momentum:
-            query.timeFrame = "5Min"
+            query.date = MarketClock.lastTradingDate(from: now)
+            query.direction = ScreenerDirection.up.rawValue
+            query.timeFrame = ScreenerTimeFrame.five.rawValue
+            query.minVolume = ScreenerMinVolume.oneMillion.rawValue
         case .atr:
-            query.timeFrame = "1Min"
-            query.barCount = "10"
+            query.date = MarketClock.lastTradingDate(from: now)
+            query.timeFrame = ScreenerTimeFrame.one.rawValue
+            query.barCount = ScreenerBarCount.ten.rawValue
+            query.minPrice = ScreenerMinPrice.six.rawValue
+            query.minVolume = ScreenerMinVolume.oneMillion.rawValue
         case .stair:
             query.timeFrame = "1Min"
             query.barCount = "0"
@@ -75,5 +160,10 @@ struct ScreenerQuery: Equatable {
             break
         }
         return query
+    }
+
+    mutating func pinImplicitTradingDate(for kind: ScreenerKind, now: Date = Date()) {
+        guard kind.usesImplicitTradingDate else { return }
+        date = MarketClock.lastTradingDate(from: now)
     }
 }

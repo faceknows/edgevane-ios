@@ -11,9 +11,7 @@ struct ScreenerResultsView: View {
         List {
             if kind.showsFilters, isCurrentKind {
                 Section(L10n.Market.filters) {
-                    PriceSlopeFilterView(query: $store.query) {
-                        Task { await store.applyPriceSlope(store.query) }
-                    }
+                    filterControls
                 }
             }
 
@@ -36,6 +34,26 @@ struct ScreenerResultsView: View {
 
     private var watchKey: String {
         "\(kind.rawValue):\(store.rows.map(\.symbol).joined(separator: ","))"
+    }
+
+    @ViewBuilder
+    private var filterControls: some View {
+        switch kind {
+        case .momentum:
+            MomentumFilterView(query: $store.query) {
+                Task { await store.load(.momentum, query: store.query) }
+            }
+        case .atr:
+            ATRFilterView(query: $store.query) {
+                Task { await store.load(.atr, query: store.query) }
+            }
+        case .priceSlope:
+            PriceSlopeFilterView(query: $store.query) {
+                Task { await store.applyPriceSlope(store.query) }
+            }
+        default:
+            EmptyView()
+        }
     }
 
     @ViewBuilder
