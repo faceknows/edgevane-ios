@@ -262,8 +262,15 @@ enum L10n {
         static var priceSlope: String { localized("market.priceSlope") }
         static var stair: String { localized("market.stair") }
         static var rsiAdx: String { localized("market.rsiAdx") }
+        static var rsi: String { localized("market.rsi") }
+        static var adx: String { localized("market.adx") }
+        static var diGap: String { localized("market.diGap") }
         static var volume: String { localized("market.volume") }
         static var ibkr: String { localized("market.ibkr") }
+        static var scanType: String { localized("market.scanType") }
+        static var mostActive: String { localized("market.mostActive") }
+        static var hotVolume: String { localized("market.hotVolume") }
+        static var minMarketCap: String { localized("market.minMarketCap") }
         static var filters: String { localized("market.filters") }
         static var date: String { localized("market.date") }
         static var direction: String { localized("market.direction") }

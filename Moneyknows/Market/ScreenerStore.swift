@@ -14,6 +14,7 @@ final class ScreenerStore: ObservableObject {
     private var requestID: UInt64 = 0
     private var pending: (ScreenerKind, ScreenerQuery)?
     private var drainTask: Task<Void, Never>?
+    private var queries: [ScreenerKind: ScreenerQuery] = [:]
 
     init(api: ScreenerAPI, now: @escaping () -> Date = { Date() }) {
         self.api = api
@@ -25,18 +26,21 @@ final class ScreenerStore: ObservableObject {
         requestID += 1
         pending = nil
         kind = nil
+        query = ScreenerQuery.defaults(for: .yahoo)
+        queries.removeAll()
         rows = []
         errorText = nil
         isLoading = false
     }
 
     func appear(_ kind: ScreenerKind) async {
-        await load(kind, query: self.kind == kind ? query : nil)
+        await load(kind, query: kind == self.kind ? query : queries[kind])
     }
 
     func load(_ kind: ScreenerKind, query: ScreenerQuery? = nil) async {
-        var resolved = query ?? (self.kind == kind ? self.query : ScreenerQuery.defaults(for: kind, now: now()))
-        resolved.pinImplicitTradingDate(for: kind, now: now())
+        var resolved = query ?? queries[kind] ?? ScreenerQuery.defaults(for: kind, now: now())
+        resolved.pinHiddenSession(for: kind, now: now())
+        queries[kind] = resolved
         requestID += 1
         self.kind = kind
         self.query = resolved
@@ -45,10 +49,6 @@ final class ScreenerStore: ObservableObject {
         isLoading = true
         pending = (kind, resolved)
         await waitForIdleDrain()
-    }
-
-    func applyPriceSlope(_ query: ScreenerQuery) async {
-        await load(.priceSlope, query: query)
     }
 
     private func waitForIdleDrain() async {
@@ -69,7 +69,7 @@ final class ScreenerStore: ObservableObject {
             let requestID = self.requestID
             let epoch = self.epoch
             do {
-                let rows = try await Self.fetch(work.0, query: work.1, api: api)
+                let rows = try await Self.fetch(work.0, query: work.1, api: api, now: now())
                 guard isCurrent(epoch: epoch, requestID: requestID), pending == nil else { continue }
                 self.rows = rows
                 isLoading = false
@@ -97,7 +97,8 @@ final class ScreenerStore: ObservableObject {
     private static func fetch(
         _ kind: ScreenerKind,
         query: ScreenerQuery,
-        api: ScreenerAPI
+        api: ScreenerAPI,
+        now: Date
     ) async throws -> [SymbolSummary] {
         let dtos: [SymbolSummaryDTO]
         switch kind {
@@ -126,7 +127,7 @@ final class ScreenerStore: ObservableObject {
                 "minVolume": query.minVolume,
             ])
         case .priceSlope:
-            let endTime = try MarketClock.resolvedPriceSlopeEndTime(query.endTime)
+            let endTime = try MarketClock.resolvedPriceSlopeEndTime(query.endTime, now: now)
             dtos = try await api.priceSlope(query: [
                 "market": query.market,
                 "date": query.date,
@@ -150,14 +151,16 @@ final class ScreenerStore: ObservableObject {
             dtos = try await api.topVolumes(query: [
                 "market": query.market,
                 "minVolume": query.minVolume,
-                "returnCount": query.returnCount,
+                "returnCount": "50",
             ])
         case .rsiAdx:
+            let rsi = ScreenerRSIRange(rawValue: query.rsiRange) ?? .from50to60
+            let adx = ScreenerADXRange(rawValue: query.adxRange) ?? .from20to30
             dtos = try await api.rsiAdx(query: [
-                "rsiLow": query.rsiLow,
-                "rsiHigh": query.rsiHigh,
-                "adxLow": query.adxLow,
-                "adxHigh": query.adxHigh,
+                "rsiLow": rsi.low,
+                "rsiHigh": rsi.high,
+                "adxLow": adx.low,
+                "adxHigh": adx.high,
                 "diGap": query.diGap,
                 "direction": query.direction,
                 "timeFrame": query.timeFrame,

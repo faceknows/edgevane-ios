@@ -2539,6 +2539,23 @@
         }
       }
     },
+    "market.adx" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADX"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ADX"
+          }
+        }
+      }
+    },
     "market.adxValue" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2675,6 +2692,23 @@
         }
       }
     },
+    "market.diGap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DI Gap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DI 差值"
+          }
+        }
+      }
+    },
     "market.direction" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2777,6 +2811,23 @@
         }
       }
     },
+    "market.hotVolume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hot Volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "热门成交量"
+          }
+        }
+      }
+    },
     "market.ibkr" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2824,6 +2875,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "请输入有效股票代码。"
+          }
+        }
+      }
+    },
+    "market.minMarketCap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Min Market Cap"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最低市值"
           }
         }
       }
@@ -2879,6 +2947,23 @@
         }
       }
     },
+    "market.mostActive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Most Active"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最活跃"
+          }
+        }
+      }
+    },
     "market.notificationSymbols" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2913,6 +2998,23 @@
         }
       }
     },
+    "market.rsi" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RSI"
+          }
+        }
+      }
+    },
     "market.rsiAdx" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2943,6 +3045,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "RSI %@"
+          }
+        }
+      }
+    },
+    "market.scanType" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scan Type"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描类型"
           }
         }
       }

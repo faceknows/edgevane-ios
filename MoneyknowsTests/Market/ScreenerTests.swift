@@ -206,13 +206,25 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(ScreenerQuery.defaults(for: .atr).barCount, "10")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).barCount, "0")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).timeFrame, "1Min")
+        XCTAssertEqual(ScreenerQuery.defaults(for: .momentum).minVolume, "1M")
+        XCTAssertEqual(ScreenerQuery.defaults(for: .atr).minVolume, "1M")
+        XCTAssertEqual(ScreenerQuery.defaults(for: .stair).minVolume, "5M")
+        XCTAssertEqual(ScreenerQuery.defaults(for: .volume).minVolume, "5M")
         XCTAssertTrue(ScreenerKind.momentum.showsFilters)
         XCTAssertTrue(ScreenerKind.atr.showsFilters)
         XCTAssertTrue(ScreenerKind.priceSlope.showsFilters)
+        XCTAssertTrue(ScreenerKind.stair.showsFilters)
+        XCTAssertTrue(ScreenerKind.rsiAdx.showsFilters)
+        XCTAssertTrue(ScreenerKind.volume.showsFilters)
+        XCTAssertTrue(ScreenerKind.ibkr.showsFilters)
         XCTAssertFalse(ScreenerKind.yahoo.showsFilters)
         XCTAssertTrue(ScreenerKind.momentum.usesImplicitTradingDate)
         XCTAssertTrue(ScreenerKind.atr.usesImplicitTradingDate)
+        XCTAssertTrue(ScreenerKind.stair.usesImplicitTradingDate)
         XCTAssertFalse(ScreenerKind.priceSlope.usesImplicitTradingDate)
+        XCTAssertFalse(ScreenerKind.rsiAdx.usesImplicitTradingDate)
+        XCTAssertFalse(ScreenerKind.volume.usesImplicitTradingDate)
+        XCTAssertFalse(ScreenerKind.ibkr.usesImplicitTradingDate)
     }
 
     func testMomentumDefaultsUseLastTradingDateAndFilterValues() {
@@ -483,25 +495,35 @@ final class ScreenerStoreTests: XCTestCase {
     }
 
     func testPriceSlopeSendsResolvedEndTime() async throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 4
+        parts.hour = 15
+        parts.minute = 12
+        let now = calendar.date(from: parts)!
         let http = ScriptedHTTP()
         http.rawResults = [.success(Data("[]".utf8))]
-        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
         await store.load(.priceSlope)
         XCTAssertEqual(http.requests.first?.path, "intraday-stocks/price-slope")
-        let endTime = try XCTUnwrap(http.requests.first?.query["endTime"])
-        XCTAssertEqual(MarketClock.normalizeEndTime(endTime), endTime)
-        XCTAssertFalse(endTime.isEmpty)
+        XCTAssertEqual(http.requests.first?.query["date"], "2026-09-04")
+        XCTAssertEqual(http.requests.first?.query["endTime"], "15:12")
+        XCTAssertTrue(store.query.endTime.isEmpty)
     }
 
-    func testInvalidPriceSlopeEndTimeDoesNotFetch() async {
+    func testPriceSlopeClearsStaleEndTimeBeforeFetch() async {
         let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
         let store = ScreenerStore(api: ScreenerAPI(client: http))
         var query = ScreenerQuery.defaults(for: .priceSlope)
         query.endTime = "08:00"
         await store.load(.priceSlope, query: query)
-        XCTAssertTrue(http.requests.isEmpty)
-        XCTAssertEqual(store.errorText, L10n.Market.invalidEndTime)
-        XCTAssertTrue(store.rows.isEmpty)
+        XCTAssertEqual(http.requests.count, 1)
+        XCTAssertTrue(store.query.endTime.isEmpty)
+        XCTAssertNil(store.errorText)
     }
 
     func testSearchLaterSymbolWins() async {
@@ -637,7 +659,7 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(store.query.minVolume, "2M")
     }
 
-    func testPriceSlopeKeepsUserSelectedDateAcrossSessions() async {
+    func testPriceSlopeReloadsRefreshCalendarDateAndKeepFilters() async {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/New_York")!
         func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
@@ -656,14 +678,20 @@ final class ScreenerStoreTests: XCTestCase {
         ]
         let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
         var query = ScreenerQuery.defaults(for: .priceSlope, now: now)
-        query.date = "2026-09-04"
+        query.date = "2026-08-01"
         query.direction = "down"
+        query.spanMinutes = "60"
         await store.load(.priceSlope, query: query)
+        XCTAssertEqual(http.requests[0].query["date"], "2026-09-04")
+        XCTAssertEqual(http.requests[0].query["endTime"], "15:00")
         now = date(2026, 9, 8, 10)
         await store.appear(.priceSlope)
-        XCTAssertEqual(store.query.date, "2026-09-04")
-        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-04")
+        XCTAssertEqual(store.query.date, "2026-09-08")
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-08")
+        XCTAssertEqual(http.requests.last?.query["endTime"], "10:00")
         XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.spanMinutes, "60")
+        XCTAssertTrue(store.query.endTime.isEmpty)
     }
 
     func testStairDefaultSendsBarCountZero() async {
@@ -675,6 +703,155 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(http.requests.first?.query["barCount"], "0")
         XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Min")
         XCTAssertEqual(http.requests.first?.query["direction"], "up")
+        XCTAssertEqual(http.requests.first?.query["minPrice"], "6")
+        XCTAssertEqual(http.requests.first?.query["minVolume"], "5M")
+        XCTAssertEqual(http.requests.first?.query["date"], store.query.date)
+    }
+
+    func testStairReloadsRefreshLastTradingDateAndKeepFilters() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int) -> Date {
+            var parts = DateComponents()
+            parts.year = year
+            parts.month = month
+            parts.day = day
+            parts.hour = hour
+            return calendar.date(from: parts)!
+        }
+        let friday = date(2026, 9, 4, 15)
+        let nextSession = date(2026, 9, 8, 10)
+        var now = friday
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        var query = ScreenerQuery.defaults(for: .stair, now: friday)
+        query.direction = "down"
+        query.timeFrame = "5Min"
+        query.barCount = "20"
+        query.minPrice = "10"
+        query.minVolume = "2M"
+        query.date = "2026-08-01"
+        await store.load(.stair, query: query)
+        now = nextSession
+        await store.appear(.stair)
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-08")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.timeFrame, "5Min")
+        XCTAssertEqual(store.query.barCount, "20")
+        XCTAssertEqual(store.query.minPrice, "10")
+        XCTAssertEqual(store.query.minVolume, "2M")
+    }
+
+    func testRSIADXDefaultSendsClosedRangesLikeRN() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        await store.load(.rsiAdx)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/indicators-rsi-adx")
+        XCTAssertEqual(http.requests.first?.query["rsiLow"], "50")
+        XCTAssertEqual(http.requests.first?.query["rsiHigh"], "60")
+        XCTAssertEqual(http.requests.first?.query["adxLow"], "20")
+        XCTAssertEqual(http.requests.first?.query["adxHigh"], "30")
+        XCTAssertEqual(http.requests.first?.query["diGap"], "20")
+        XCTAssertEqual(http.requests.first?.query["direction"], "up")
+        XCTAssertEqual(http.requests.first?.query["timeFrame"], "1Min")
+        XCTAssertNil(http.requests.first?.query["date"])
+    }
+
+    func testRSIADXOpenEndedRangeOmitsMissingBounds() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .rsiAdx)
+        query.rsiRange = ScreenerRSIRange.lt40.rawValue
+        query.adxRange = ScreenerADXRange.gt50.rawValue
+        query.diGap = ScreenerDIGap.ten.rawValue
+        query.direction = "down"
+        query.timeFrame = "5Min"
+        await store.load(.rsiAdx, query: query)
+        XCTAssertEqual(http.requests.first?.query["rsiHigh"], "40")
+        XCTAssertNil(http.requests.first?.query["rsiLow"])
+        XCTAssertEqual(http.requests.first?.query["adxLow"], "50")
+        XCTAssertNil(http.requests.first?.query["adxHigh"])
+        XCTAssertEqual(http.requests.first?.query["diGap"], "10")
+        XCTAssertEqual(http.requests.first?.query["direction"], "down")
+        XCTAssertEqual(http.requests.first?.query["timeFrame"], "5Min")
+        XCTAssertEqual(store.query.rsiRange, "lt40")
+        XCTAssertEqual(store.query.adxRange, "gt50")
+    }
+
+    func testRSIADXReloadsKeepFilters() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .rsiAdx)
+        query.rsiRange = ScreenerRSIRange.from60to70.rawValue
+        query.adxRange = ScreenerADXRange.from30to40.rawValue
+        query.diGap = "30"
+        query.direction = "down"
+        query.timeFrame = "3Min"
+        await store.load(.rsiAdx, query: query)
+        await store.appear(.rsiAdx)
+        XCTAssertEqual(http.requests.last?.query["rsiLow"], "60")
+        XCTAssertEqual(http.requests.last?.query["rsiHigh"], "70")
+        XCTAssertEqual(http.requests.last?.query["adxLow"], "30")
+        XCTAssertEqual(http.requests.last?.query["adxHigh"], "40")
+        XCTAssertEqual(store.query.diGap, "30")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.timeFrame, "3Min")
+        XCTAssertEqual(store.rows.map(\.symbol), ["NEW"])
+    }
+
+    func testVolumeDefaultSendsMinVolumeAndFirstFifty() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        await store.load(.volume)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/top-volumes-increased")
+        XCTAssertEqual(http.requests.first?.query["market"], "us")
+        XCTAssertEqual(http.requests.first?.query["minVolume"], "5M")
+        XCTAssertEqual(http.requests.first?.query["returnCount"], "50")
+        XCTAssertNil(http.requests.first?.query["minPrice"])
+        XCTAssertNil(http.requests.first?.query["date"])
+    }
+
+    func testVolumeAlwaysRequestsFirstFifty() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .volume)
+        query.returnCount = "200"
+        query.minPrice = "10"
+        query.minVolume = "2M"
+        await store.load(.volume, query: query)
+        XCTAssertEqual(http.requests.first?.query["returnCount"], "50")
+        XCTAssertEqual(http.requests.first?.query["minVolume"], "2M")
+        XCTAssertNil(http.requests.first?.query["minPrice"])
+    }
+
+    func testVolumeReloadsKeepMinVolume() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .volume)
+        query.minVolume = "10M"
+        await store.load(.volume, query: query)
+        await store.appear(.volume)
+        XCTAssertEqual(http.requests.last?.query["minVolume"], "10M")
+        XCTAssertEqual(http.requests.last?.query["returnCount"], "50")
+        XCTAssertNil(http.requests.last?.query["minPrice"])
+        XCTAssertEqual(store.query.minVolume, "10M")
+        XCTAssertEqual(store.rows.map(\.symbol), ["NEW"])
     }
 
     func testATRDefaultKeepsBarCountTen() async {
@@ -723,6 +900,102 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(store.rows.map(\.symbol), ["NVDA"])
     }
 
+    func testIBKRDefaultSendsDateTypePriceAndMarketCap() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 4
+        parts.hour = 15
+        let now = calendar.date(from: parts)!
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        await store.load(.ibkr)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/ibkr/screener")
+        XCTAssertEqual(http.requests.first?.query["date"], "2026-09-04")
+        XCTAssertEqual(http.requests.first?.query["type"], "MOST_ACTIVE")
+        XCTAssertEqual(http.requests.first?.query["filters"], "priceAbove=10,marketCapAbove=1000000000")
+    }
+
+    func testIBKRReloadsKeepSelectedDateAndFilters() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .ibkr)
+        query.date = "2026-08-01"
+        query.ibkrType = ScreenerIBKRType.hotByVolume.rawValue
+        query.minPrice = ScreenerMinPrice.five.rawValue
+        query.ibkrMarketCap = ScreenerMinMarketCap.fiveHundredMillion.rawValue
+        await store.load(.ibkr, query: query)
+        await store.appear(.ibkr)
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-08-01")
+        XCTAssertEqual(http.requests.last?.query["type"], "HOT_BY_VOLUME")
+        XCTAssertEqual(http.requests.last?.query["filters"], "priceAbove=5,marketCapAbove=500000000")
+        XCTAssertEqual(store.query.date, "2026-08-01")
+        XCTAssertEqual(store.query.ibkrType, "HOT_BY_VOLUME")
+        XCTAssertEqual(store.query.minPrice, "5")
+        XCTAssertEqual(store.query.ibkrMarketCap, "500000000")
+        XCTAssertEqual(store.rows.map(\.symbol), ["NEW"])
+    }
+
+    func testIBKRRemembersQueryAfterSwitchingToAnotherScreener() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"IBKR"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"VOL"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"BACK"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .ibkr)
+        query.date = "2026-08-01"
+        query.ibkrType = ScreenerIBKRType.hotByVolume.rawValue
+        query.minPrice = ScreenerMinPrice.five.rawValue
+        query.ibkrMarketCap = ScreenerMinMarketCap.fiveHundredMillion.rawValue
+        await store.load(.ibkr, query: query)
+        await store.appear(.volume)
+        await store.appear(.ibkr)
+        XCTAssertEqual(http.requests.last?.path, "intraday-stocks/ibkr/screener")
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-08-01")
+        XCTAssertEqual(http.requests.last?.query["type"], "HOT_BY_VOLUME")
+        XCTAssertEqual(http.requests.last?.query["filters"], "priceAbove=5,marketCapAbove=500000000")
+        XCTAssertEqual(store.query.date, "2026-08-01")
+        XCTAssertEqual(store.query.ibkrType, "HOT_BY_VOLUME")
+        XCTAssertEqual(store.query.minPrice, "5")
+        XCTAssertEqual(store.query.ibkrMarketCap, "500000000")
+        XCTAssertEqual(store.rows.map(\.symbol), ["BACK"])
+    }
+
+    func testResetClearsRememberedScreenerQueries() async {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = 2026
+        parts.month = 9
+        parts.day = 4
+        parts.hour = 15
+        let now = calendar.date(from: parts)!
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"OLD"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"NEW"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http), now: { now })
+        var query = ScreenerQuery.defaults(for: .ibkr, now: now)
+        query.date = "2026-08-01"
+        query.ibkrType = ScreenerIBKRType.hotByVolume.rawValue
+        await store.load(.ibkr, query: query)
+        store.reset()
+        await store.load(.ibkr)
+        XCTAssertEqual(http.requests.last?.query["date"], "2026-09-04")
+        XCTAssertEqual(http.requests.last?.query["type"], "MOST_ACTIVE")
+        XCTAssertEqual(http.requests.last?.query["filters"], "priceAbove=10,marketCapAbove=1000000000")
+    }
+
     func testIBKRResultsSortedByDailyVolumeDescending() async {
         let http = ScriptedHTTP()
         http.rawResults = [
@@ -737,5 +1010,51 @@ final class ScreenerStoreTests: XCTestCase {
         let store = ScreenerStore(api: ScreenerAPI(client: http))
         await store.load(.ibkr)
         XCTAssertEqual(store.rows.map(\.symbol), ["HIGH", "LOW", "NONE"])
+    }
+}
+
+final class TappableChipFlowTests: XCTestCase {
+    func testLayoutWrapsWhenRowWouldOverflow() {
+        let sizes = Array(repeating: CGSize(width: 60, height: TappableChipFlow.minTapLength), count: 5)
+        let packed = TappableChipFlow.layout(sizes: sizes, limit: 200)
+        XCTAssertEqual(packed.origins.count, 5)
+        XCTAssertEqual(packed.origins[0], .zero)
+        XCTAssertEqual(packed.origins[2].y, 0)
+        XCTAssertGreaterThan(packed.origins[3].y, 0)
+        XCTAssertEqual(packed.origins[3].x, 0)
+        XCTAssertEqual(packed.size.height, TappableChipFlow.minTapLength * 2 + TappableChipFlow.spacing)
+    }
+
+    func testLayoutKeepsASingleChipWithinTheLimit() {
+        let packed = TappableChipFlow.layout(
+            sizes: [CGSize(width: 180, height: 50)],
+            limit: 120
+        )
+        XCTAssertEqual(packed.origins, [.zero])
+        XCTAssertEqual(packed.size.width, 120)
+        XCTAssertEqual(packed.size.height, 50)
+    }
+
+    func testMinTapLengthIsAtLeastFortyFour() {
+        XCTAssertGreaterThanOrEqual(TappableChipFlow.minTapLength, 44)
+    }
+
+    func testResolvedWidthIgnoresInfiniteAndMissingProposal() {
+        XCTAssertEqual(TappableChipFlow.resolvedWidth(proposal: 320, arranged: 180), 320)
+        XCTAssertEqual(TappableChipFlow.resolvedWidth(proposal: nil, arranged: 180), 180)
+        XCTAssertEqual(TappableChipFlow.resolvedWidth(proposal: .infinity, arranged: 180), 180)
+        XCTAssertEqual(TappableChipFlow.resolvedWidth(proposal: -.infinity, arranged: 180), 180)
+        XCTAssertEqual(TappableChipFlow.resolvedWidth(proposal: .nan, arranged: 180), 180)
+    }
+
+    func testLayoutWithInfiniteLimitReturnsFiniteSingleRowWidth() {
+        let sizes = [
+            CGSize(width: 60, height: 44),
+            CGSize(width: 80, height: 44),
+        ]
+        let packed = TappableChipFlow.layout(sizes: sizes, limit: .infinity)
+        XCTAssertTrue(packed.size.width.isFinite)
+        XCTAssertEqual(packed.size.width, 60 + TappableChipFlow.spacing + 80)
+        XCTAssertEqual(packed.origins.map(\.y), [0, 0])
     }
 }

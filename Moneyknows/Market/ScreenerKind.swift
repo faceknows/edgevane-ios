@@ -27,14 +27,14 @@ enum ScreenerKind: String, CaseIterable, Identifiable {
 
     var showsFilters: Bool {
         switch self {
-        case .momentum, .atr, .priceSlope: return true
+        case .momentum, .atr, .priceSlope, .stair, .rsiAdx, .volume, .ibkr: return true
         default: return false
         }
     }
 
     var usesImplicitTradingDate: Bool {
         switch self {
-        case .momentum, .atr: return true
+        case .momentum, .atr, .stair: return true
         default: return false
         }
     }
@@ -82,6 +82,7 @@ enum ScreenerMinVolume: String, CaseIterable, Identifiable {
 
 enum ScreenerMinPrice: String, CaseIterable, Identifiable {
     case four = "4"
+    case five = "5"
     case six = "6"
     case eight = "8"
     case ten = "10"
@@ -92,6 +93,7 @@ enum ScreenerMinPrice: String, CaseIterable, Identifiable {
 
     static let standard: [ScreenerMinPrice] = [.four, .six, .eight, .ten]
     static let atr: [ScreenerMinPrice] = [.six, .ten, .twenty]
+    static let ibkr: [ScreenerMinPrice] = [.five, .ten, .twenty]
 }
 
 enum ScreenerBarCount: String, CaseIterable, Identifiable {
@@ -108,6 +110,137 @@ enum ScreenerBarCount: String, CaseIterable, Identifiable {
     static let stair: [ScreenerBarCount] = [.zero, .five, .ten, .twenty, .thirty]
 }
 
+enum ScreenerSpanMinutes: String, CaseIterable, Identifiable {
+    case fifteen = "15"
+    case thirty = "30"
+    case sixty = "60"
+    case ninety = "90"
+    case oneTwenty = "120"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+}
+
+enum ScreenerRSIRange: String, CaseIterable, Identifiable {
+    case lt40
+    case from40to50 = "40to50"
+    case from50to60 = "50to60"
+    case from60to70 = "60to70"
+    case gt70
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .lt40: return "<=40"
+        case .from40to50: return "40-50"
+        case .from50to60: return "50-60"
+        case .from60to70: return "60-70"
+        case .gt70: return ">=70"
+        }
+    }
+
+    var low: String {
+        switch self {
+        case .lt40: return ""
+        case .from40to50: return "40"
+        case .from50to60: return "50"
+        case .from60to70: return "60"
+        case .gt70: return "70"
+        }
+    }
+
+    var high: String {
+        switch self {
+        case .lt40: return "40"
+        case .from40to50: return "50"
+        case .from50to60: return "60"
+        case .from60to70: return "70"
+        case .gt70: return ""
+        }
+    }
+}
+
+enum ScreenerADXRange: String, CaseIterable, Identifiable {
+    case lt20
+    case from20to30 = "20to30"
+    case from30to40 = "30to40"
+    case from40to50 = "40to50"
+    case gt50
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .lt20: return "<=20"
+        case .from20to30: return "20-30"
+        case .from30to40: return "30-40"
+        case .from40to50: return "40-50"
+        case .gt50: return ">=50"
+        }
+    }
+
+    var low: String {
+        switch self {
+        case .lt20: return ""
+        case .from20to30: return "20"
+        case .from30to40: return "30"
+        case .from40to50: return "40"
+        case .gt50: return "50"
+        }
+    }
+
+    var high: String {
+        switch self {
+        case .lt20: return "20"
+        case .from20to30: return "30"
+        case .from30to40: return "40"
+        case .from40to50: return "50"
+        case .gt50: return ""
+        }
+    }
+}
+
+enum ScreenerDIGap: String, CaseIterable, Identifiable {
+    case ten = "10"
+    case twenty = "20"
+    case thirty = "30"
+    case forty = "40"
+
+    var id: String { rawValue }
+    var title: String { rawValue }
+}
+
+enum ScreenerIBKRType: String, CaseIterable, Identifiable {
+    case mostActive = "MOST_ACTIVE"
+    case hotByVolume = "HOT_BY_VOLUME"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .mostActive: return L10n.Market.mostActive
+        case .hotByVolume: return L10n.Market.hotVolume
+        }
+    }
+}
+
+enum ScreenerMinMarketCap: String, CaseIterable, Identifiable {
+    case fiveHundredMillion = "500000000"
+    case oneBillion = "1000000000"
+    case twoBillion = "2000000000"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .fiveHundredMillion: return "500M"
+        case .oneBillion: return "1B"
+        case .twoBillion: return "2B"
+        }
+    }
+}
+
 struct ScreenerQuery: Equatable {
     var market = "us"
     var date: String
@@ -121,14 +254,23 @@ struct ScreenerQuery: Equatable {
     var spanMinutes = "30"
     var endTime = ""
     var time = ""
-    var rsiLow = "50"
-    var rsiHigh = "60"
-    var adxLow = "20"
-    var adxHigh = "30"
-    var diGap = "20"
-    var returnCount = "100"
-    var ibkrType = "MOST_ACTIVE"
-    var ibkrFilters = "priceAbove=10,marketCapAbove=1000000000"
+    var rsiRange = ScreenerRSIRange.from50to60.rawValue
+    var adxRange = ScreenerADXRange.from20to30.rawValue
+    var diGap = ScreenerDIGap.twenty.rawValue
+    var returnCount = "50"
+    var ibkrType = ScreenerIBKRType.mostActive.rawValue
+    var ibkrMarketCap = ScreenerMinMarketCap.oneBillion.rawValue
+
+    var ibkrFilters: String {
+        var parts: [String] = []
+        if !minPrice.isEmpty {
+            parts.append("priceAbove=\(minPrice)")
+        }
+        if !ibkrMarketCap.isEmpty {
+            parts.append("marketCapAbove=\(ibkrMarketCap)")
+        }
+        return parts.joined(separator: ",")
+    }
 
     static func defaults(for kind: ScreenerKind, now: Date = Date()) -> ScreenerQuery {
         var query = ScreenerQuery(date: MarketClock.usDateString(from: now))
@@ -139,31 +281,46 @@ struct ScreenerQuery: Equatable {
             query.date = MarketClock.lastTradingDate(from: now)
             query.direction = ScreenerDirection.up.rawValue
             query.timeFrame = ScreenerTimeFrame.five.rawValue
-            query.minVolume = ScreenerMinVolume.oneMillion.rawValue
         case .atr:
             query.date = MarketClock.lastTradingDate(from: now)
             query.timeFrame = ScreenerTimeFrame.one.rawValue
             query.barCount = ScreenerBarCount.ten.rawValue
             query.minPrice = ScreenerMinPrice.six.rawValue
-            query.minVolume = ScreenerMinVolume.oneMillion.rawValue
         case .stair:
-            query.timeFrame = "1Min"
-            query.barCount = "0"
+            query.date = MarketClock.lastTradingDate(from: now)
+            query.timeFrame = ScreenerTimeFrame.one.rawValue
+            query.barCount = ScreenerBarCount.zero.rawValue
+            query.minVolume = ScreenerMinVolume.fiveMillion.rawValue
         case .priceSlope:
-            query.spanMinutes = "30"
-            query.minPrice = "6"
+            query.spanMinutes = ScreenerSpanMinutes.thirty.rawValue
+            query.minPrice = ScreenerMinPrice.six.rawValue
+            query.endTime = ""
         case .rsiAdx:
-            query.timeFrame = "1Min"
+            query.timeFrame = ScreenerTimeFrame.one.rawValue
+            query.rsiRange = ScreenerRSIRange.from50to60.rawValue
+            query.adxRange = ScreenerADXRange.from20to30.rawValue
+            query.diGap = ScreenerDIGap.twenty.rawValue
+            query.direction = ScreenerDirection.up.rawValue
         case .volume:
-            break
+            query.minVolume = ScreenerMinVolume.fiveMillion.rawValue
+            query.returnCount = "50"
         case .ibkr:
-            break
+            query.minPrice = ScreenerMinPrice.ten.rawValue
+            query.ibkrType = ScreenerIBKRType.mostActive.rawValue
+            query.ibkrMarketCap = ScreenerMinMarketCap.oneBillion.rawValue
         }
         return query
     }
 
-    mutating func pinImplicitTradingDate(for kind: ScreenerKind, now: Date = Date()) {
-        guard kind.usesImplicitTradingDate else { return }
-        date = MarketClock.lastTradingDate(from: now)
+    mutating func pinHiddenSession(for kind: ScreenerKind, now: Date = Date()) {
+        switch kind {
+        case .momentum, .atr, .stair:
+            date = MarketClock.lastTradingDate(from: now)
+        case .priceSlope:
+            date = MarketClock.usDateString(from: now)
+            endTime = ""
+        default:
+            break
+        }
     }
 }

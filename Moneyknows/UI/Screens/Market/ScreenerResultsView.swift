@@ -47,9 +47,25 @@ struct ScreenerResultsView: View {
             ATRFilterView(query: $store.query) {
                 Task { await store.load(.atr, query: store.query) }
             }
+        case .stair:
+            StairFilterView(query: $store.query) {
+                Task { await store.load(.stair, query: store.query) }
+            }
         case .priceSlope:
             PriceSlopeFilterView(query: $store.query) {
-                Task { await store.applyPriceSlope(store.query) }
+                Task { await store.load(.priceSlope, query: store.query) }
+            }
+        case .rsiAdx:
+            RsiAdxFilterView(query: $store.query) {
+                Task { await store.load(.rsiAdx, query: store.query) }
+            }
+        case .volume:
+            VolumeFilterView(query: $store.query) {
+                Task { await store.load(.volume, query: store.query) }
+            }
+        case .ibkr:
+            IBKRFilterView(query: $store.query) {
+                Task { await store.load(.ibkr, query: store.query) }
             }
         default:
             EmptyView()
