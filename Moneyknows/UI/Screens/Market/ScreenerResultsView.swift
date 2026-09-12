@@ -20,6 +20,7 @@ struct ScreenerResultsView: View {
             content
         }
         .navigationTitle(kind.title)
+        .listStyle(.plain)
         .task {
             await store.appear(kind)
         }
@@ -56,18 +57,18 @@ struct ScreenerResultsView: View {
                 EmptyStateView(title: L10n.Market.empty)
             }
         } else {
-            Section {
-                ForEach(store.rows) { row in
-                    ScreenerResultRow(
-                        summary: row,
-                        bars: watch.bars(for: row.symbol),
-                        isLoading: watch.isLoading(row.symbol),
-                        errorText: watch.failureText(for: row.symbol),
-                        retry: { watch.requestRetry(row.symbol) },
-                        onOpen: { router.openSymbol(row.symbol) },
-                        emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil
-                    )
-                }
+            ForEach(store.rows) { row in
+                ScreenerResultRow(
+                    summary: row,
+                    bars: watch.bars(for: row.symbol),
+                    isLoading: watch.isLoading(row.symbol),
+                    errorText: watch.failureText(for: row.symbol),
+                    retry: { watch.requestRetry(row.symbol) },
+                    onOpen: { router.openSymbol(row.symbol) },
+                    emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
+                .listRowSeparator(.visible, edges: .bottom)
             }
         }
     }
@@ -84,7 +85,7 @@ private struct ScreenerResultRow: View {
 
     var body: some View {
         let plot = SubscriptionSparklineAssembler.minuteCandles(bars1m: bars)
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: 2) {
             Button(action: onOpen) {
                 SymbolRow(summary: summary)
             }
@@ -92,8 +93,8 @@ private struct ScreenerResultRow: View {
             .contentShape(Rectangle())
             SparklinePane(
                 title: "",
-                plot: .candles(bars: plot.bars, vwap: plot.vwap),
-                chartHeight: 180,
+                plot: .candles(bars: plot.bars, vwap: plot.vwap, timeKind: .minute),
+                chartHeight: 120,
                 isLoading: isLoading,
                 errorText: errorText,
                 retry: retry,
@@ -101,6 +102,5 @@ private struct ScreenerResultRow: View {
                 emptyText: emptyText
             )
         }
-        .padding(.vertical, 4)
     }
 }

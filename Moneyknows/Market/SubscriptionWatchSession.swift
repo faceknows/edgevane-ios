@@ -9,6 +9,14 @@ enum SubscriptionSparklineAssembler {
         aligned(bars1m: bars1m, interval: interval).closes
     }
 
+    static func minuteLine(
+        bars1m: [Bar],
+        interval: MinuteInterval = minuteInterval
+    ) -> (values: [Double], times: [Date]) {
+        let plot = aligned(bars1m: bars1m, interval: interval)
+        return (plot.closes, plot.times)
+    }
+
     static func vwap(bars1m: [Bar], interval: MinuteInterval = minuteInterval) -> [Double] {
         aligned(bars1m: bars1m, interval: interval, includeVWAP: true).vwap
     }
@@ -37,12 +45,13 @@ enum SubscriptionSparklineAssembler {
         interval: MinuteInterval,
         includeVWAP: Bool = false,
         requireOHLC: Bool = false
-    ) -> (bars: [Bar], closes: [Double], vwap: [Double]) {
+    ) -> (bars: [Bar], closes: [Double], times: [Date], vwap: [Double]) {
         let aggregated = BarAggregator.aggregate(bars1m, minutes: interval.minutes)
         let size = TimeInterval(max(interval.minutes, 1) * 60)
         let lookup = includeVWAP ? vwapByBucket(VWAP.series(from: bars1m), size: size) : [:]
         var bars: [Bar] = []
         var closes: [Double] = []
+        var times: [Date] = []
         var overlays: [Double] = []
         for bar in aggregated {
             if requireOHLC {
@@ -58,8 +67,9 @@ enum SubscriptionSparklineAssembler {
                 bars.append(bar)
             }
             closes.append(bar.close)
+            times.append(bar.time)
         }
-        return (bars, closes, overlays)
+        return (bars, closes, times, overlays)
     }
 
     /// 每个展示桶只保留桶内最后一根 1 分钟 VWAP，避免对每根聚合棒扫描整条序列。
@@ -87,9 +97,22 @@ enum SubscriptionSparklineAssembler {
         interval: SecondInterval = secondInterval,
         now: Date = Date()
     ) -> [Double] {
-        BarAggregator.aggregate(recentSeconds(bars1s, now: now), seconds: interval.seconds)
-            .map(\.close)
-            .filter { $0.isFinite }
+        secondLine(bars1s: bars1s, interval: interval, now: now).values
+    }
+
+    static func secondLine(
+        bars1s: [Bar],
+        interval: SecondInterval = secondInterval,
+        now: Date = Date()
+    ) -> (values: [Double], times: [Date]) {
+        var values: [Double] = []
+        var times: [Date] = []
+        for bar in BarAggregator.aggregate(recentSeconds(bars1s, now: now), seconds: interval.seconds) {
+            guard bar.close.isFinite else { continue }
+            values.append(bar.close)
+            times.append(bar.time)
+        }
+        return (values, times)
     }
 }
 

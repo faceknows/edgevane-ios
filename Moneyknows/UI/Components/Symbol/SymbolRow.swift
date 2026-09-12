@@ -28,16 +28,32 @@ struct SymbolRowLayout<Leading: View, Trailing: View>: View {
 
 struct SymbolRow: View {
     var summary: SymbolSummary
+    var accessory: String? = nil
 
     var body: some View {
-        SymbolRowLayout {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(summary.symbol)
-                .font(.headline)
-            IndicatorChips(summary: summary)
-        } trailing: {
+                .font(.headline.weight(.bold))
             Text(MarketFormat.price(summary.lastPrice))
                 .font(.headline.monospacedDigit())
-            ChangePercentText(percent: summary.changePercent)
+            ChangePercentText(
+                percent: summary.changePercent,
+                font: .subheadline.weight(.semibold).monospacedDigit()
+            )
+            if let volume = summary.volume, volume.isFinite {
+                Text(MarketFormat.compact(volume))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+            if let accessory {
+                Text(accessory)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(.secondary)
+            }
+            Spacer(minLength: 0)
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .accessibilityElement(children: .combine)
     }
 }

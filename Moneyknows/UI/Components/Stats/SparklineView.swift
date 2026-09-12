@@ -1,4 +1,3 @@
-import Charts
 import SwiftUI
 
 enum SparklineGeometry {
@@ -72,41 +71,62 @@ enum SparklineGeometry {
     }
 
     static func y(_ value: Double, low: Double, high: Double, in size: CGSize, inset: CGFloat = 2) -> CGFloat {
-        let minY = inset
-        let maxY = max(minY, size.height - inset)
+        y(value, low: low, high: high, in: plotRect(in: size, inset: inset))
+    }
+
+    static func y(_ value: Double, low: Double, high: Double, in plot: CGRect) -> CGFloat {
         let span = high - low
-        if span == 0 { return (minY + maxY) / 2 }
+        if span == 0 { return plot.midY }
         let t = (value - low) / span
-        return maxY - CGFloat(t) * (maxY - minY)
+        return plot.maxY - CGFloat(t) * plot.height
+    }
+
+    static func lineX(index: Int, count: Int, in plot: CGRect) -> CGFloat {
+        guard count > 0 else { return plot.midX }
+        if count == 1 { return plot.midX }
+        return plot.minX + plot.width * CGFloat(index) / CGFloat(count - 1)
     }
 
     static func candleX(index: Int, count: Int, in size: CGSize, inset: CGFloat = 2) -> CGFloat {
-        let minX = inset
-        let maxX = max(minX, size.width - inset)
-        guard count > 0, maxX > minX else { return (minX + maxX) / 2 }
-        if count == 1 { return (minX + maxX) / 2 }
-        let slot = (maxX - minX) / CGFloat(count)
-        return minX + slot * (CGFloat(index) + 0.5)
+        candleX(index: index, count: count, in: plotRect(in: size, inset: inset))
+    }
+
+    static func candleX(index: Int, count: Int, in plot: CGRect) -> CGFloat {
+        guard count > 0, plot.width > 0 else { return plot.midX }
+        if count == 1 { return plot.midX }
+        let slot = plot.width / CGFloat(count)
+        return plot.minX + slot * (CGFloat(index) + 0.5)
     }
 
     static func candleBodyWidth(count: Int, in size: CGSize, inset: CGFloat = 2) -> CGFloat {
-        let minX = inset
-        let maxX = max(minX, size.width - inset)
-        guard count > 0, maxX > minX else { return 1 }
-        let slot = (maxX - minX) / CGFloat(count)
+        candleBodyWidth(count: count, in: plotRect(in: size, inset: inset))
+    }
+
+    static func candleBodyWidth(count: Int, in plot: CGRect) -> CGFloat {
+        guard count > 0, plot.width > 0 else { return 1 }
+        let slot = plot.width / CGFloat(count)
         return max(1, slot * 0.6)
+    }
+
+    private static func plotRect(in size: CGSize, inset: CGFloat) -> CGRect {
+        CGRect(
+            x: inset,
+            y: inset,
+            width: max(0, size.width - inset * 2),
+            height: max(0, size.height - inset * 2)
+        )
     }
 }
 
 enum SparklinePlot: Equatable {
-    case line(values: [Double], overlay: [Double] = [])
-    case candles(bars: [Bar], vwap: [Double] = [])
+    case line(values: [Double], times: [Date] = [], overlay: [Double] = [], timeKind: SparklineTimeKind = .minute)
+    case candles(bars: [Bar], vwap: [Double] = [], timeKind: SparklineTimeKind = .minute)
 
     var isEmpty: Bool {
         switch self {
-        case .line(let values, _):
+        case .line(let values, _, _, _):
             return values.filter(\.isFinite).isEmpty
-        case .candles(let bars, _):
+        case .candles(let bars, _, _):
             return bars.isEmpty
         }
     }
@@ -114,27 +134,48 @@ enum SparklinePlot: Equatable {
     /// Overlay / VWAP is kept only when it matches the drawable series 1:1.
     func aligned() -> SparklinePlot {
         switch self {
-        case .line(let values, let overlay):
-            let series = Self.alignedLine(values: values, overlay: overlay)
-            return .line(values: series.values, overlay: series.overlay)
-        case .candles(let bars, let vwap):
-            return .candles(bars: bars, vwap: Self.alignedOverlay(overlay: vwap, count: bars.count))
+        case .line(let values, let times, let overlay, let timeKind):
+            let series = Self.alignedLine(values: values, overlay: overlay, times: times)
+            return .line(values: series.values, times: series.times, overlay: series.overlay, timeKind: timeKind)
+        case .candles(let bars, let vwap, let timeKind):
+            return .candles(bars: bars, vwap: Self.alignedOverlay(overlay: vwap, count: bars.count), timeKind: timeKind)
         }
     }
 
-    private static func alignedLine(values: [Double], overlay: [Double]) -> (values: [Double], overlay: [Double]) {
-        let closes = values.filter(\.isFinite)
-        guard overlay.count == values.count else {
-            return (closes, [])
-        }
+    private static func alignedLine(
+        values: [Double],
+        overlay: [Double],
+        times: [Date]
+    ) -> (values: [Double], overlay: [Double], times: [Date]) {
+        let keepTimes = times.count == values.count
+        let keepOverlay = overlay.count == values.count
+        var closes: [Double] = []
         var extra: [Double] = []
-        extra.reserveCapacity(closes.count)
-        for (close, value) in zip(values, overlay) {
+        var keptTimes: [Date] = []
+        var overlayOK = keepOverlay
+        closes.reserveCapacity(values.count)
+        extra.reserveCapacity(values.count)
+        keptTimes.reserveCapacity(values.count)
+        for (index, close) in values.enumerated() {
             guard close.isFinite else { continue }
-            guard value.isFinite else { return (closes, []) }
-            extra.append(value)
+            closes.append(close)
+            if keepTimes {
+                keptTimes.append(times[index])
+            }
+            if overlayOK {
+                let value = overlay[index]
+                if value.isFinite {
+                    extra.append(value)
+                } else {
+                    overlayOK = false
+                }
+            }
         }
-        return extra.count == closes.count ? (closes, extra) : (closes, [])
+        return (
+            closes,
+            overlayOK && extra.count == closes.count ? extra : [],
+            keepTimes && keptTimes.count == closes.count ? keptTimes : []
+        )
     }
 
     private static func alignedOverlay(overlay: [Double], count: Int) -> [Double] {
@@ -178,7 +219,7 @@ struct SparklineView: View {
                 ProgressView()
                     .scaleEffect(0.75)
             } else if !plot.isEmpty {
-                drawn
+                canvas
                     .opacity(errorText == nil ? 1 : 0.28)
                     .accessibilityHidden(true)
             }
@@ -189,103 +230,41 @@ struct SparklineView: View {
         .accessibilityHidden(errorText == nil)
     }
 
-    @ViewBuilder
-    private var drawn: some View {
-        switch plot.aligned() {
-        case .line(let values, let overlay):
-            plotted(values, overlay: overlay)
-        case .candles(let bars, let vwap):
-            candles(bars: bars, vwap: vwap)
-        }
-    }
-
-    @ViewBuilder
-    private func plotted(_ values: [Double], overlay: [Double]) -> some View {
-        if #available(iOS 16.0, *) {
-            chart(values, overlay: overlay)
-        } else {
-            canvas(values, overlay: overlay)
-        }
-    }
-
-    @available(iOS 16.0, *)
-    private func chart(_ values: [Double], overlay: [Double]) -> some View {
-        let closes = values.enumerated().map { SparklineSample(id: "c-\($0.offset)", index: $0.offset, value: $0.element) }
-        let overlays = overlay.enumerated().compactMap { index, value -> SparklineSample? in
-            guard value.isFinite else { return nil }
-            return SparklineSample(id: "v-\(index)", index: index, value: value)
-        }
-        let domain = SparklineGeometry.domain(values: values, overlay: overlay)
-        let low = domain?.low ?? 0
-        let high = domain?.high ?? 0
-        let pad = high == low ? max(abs(high) * 0.001, 0.01) : 0
-        return Chart {
-            if values.count == 1 {
-                ForEach(closes) { sample in
-                    PointMark(
-                        x: .value("i", Double(sample.index)),
-                        y: .value("v", sample.value)
-                    )
-                    .foregroundStyle(color)
-                    .symbolSize(9)
-                }
-                ForEach(overlays) { sample in
-                    PointMark(
-                        x: .value("i", Double(sample.index)),
-                        y: .value("v", sample.value)
-                    )
-                    .foregroundStyle(overlayColor)
-                    .symbolSize(9)
-                }
-            } else {
-                ForEach(closes) { sample in
-                    LineMark(
-                        x: .value("i", Double(sample.index)),
-                        y: .value("v", sample.value)
-                    )
-                    .foregroundStyle(color)
-                    .lineStyle(StrokeStyle(lineWidth: 1.5, lineJoin: .round))
-                    .interpolationMethod(.linear)
-                }
-                ForEach(overlays) { sample in
-                    LineMark(
-                        x: .value("i", Double(sample.index)),
-                        y: .value("v", sample.value)
-                    )
-                    .foregroundStyle(overlayColor)
-                    .lineStyle(StrokeStyle(lineWidth: 1.25, lineJoin: .round))
-                    .interpolationMethod(.linear)
-                }
-            }
-        }
-        .chartXAxis(.hidden)
-        .chartYAxis(.hidden)
-        .chartLegend(.hidden)
-        .chartXScale(domain: SparklineGeometry.chartXDomain(count: values.count))
-        .chartYScale(domain: (low - pad)...(high + pad))
-    }
-
-    private func canvas(_ values: [Double], overlay: [Double]) -> some View {
+    private var canvas: some View {
         Canvas { context, size in
-            let domain = SparklineGeometry.domain(values: values, overlay: overlay)
-            let low = domain?.low ?? 0
-            let high = domain?.high ?? 0
-            draw(values: values, color: color, low: low, high: high, in: &context, size: size)
-            if !overlay.isEmpty {
-                draw(values: overlay, color: overlayColor, low: low, high: high, in: &context, size: size)
+            guard let prepared = SparklineChrome.prepare(plot),
+                  let layout = SparklineChrome.layout(for: prepared, in: size) else { return }
+            if prepared.usesCandles {
+                drawCandles(prepared.bars, vwap: prepared.overlay, layout: layout, in: &context)
+            } else {
+                drawLine(prepared.values, color: color, layout: layout, in: &context)
+                if !prepared.overlay.isEmpty {
+                    drawLine(prepared.overlay, color: overlayColor, layout: layout, in: &context)
+                }
             }
+            drawLastLine(layout, in: &context)
+            drawMarks(layout, in: &context)
+            drawAxes(layout, in: &context, size: size)
         }
     }
 
-    private func draw(
-        values: [Double],
+    private var axisColor: Color { .secondary }
+    private var markColor: Color { Color(uiColor: .label) }
+    private var lastColor: Color { .accentColor }
+
+    private func drawLine(
+        _ values: [Double],
         color: Color,
-        low: Double,
-        high: Double,
-        in context: inout GraphicsContext,
-        size: CGSize
+        layout: SparklineChrome.Layout,
+        in context: inout GraphicsContext
     ) {
-        let points = SparklineGeometry.points(values: values, in: size, low: low, high: high)
+        let points = values.enumerated().compactMap { index, value -> CGPoint? in
+            guard value.isFinite else { return nil }
+            return CGPoint(
+                x: SparklineGeometry.lineX(index: index, count: values.count, in: layout.plot),
+                y: y(value, layout: layout)
+            )
+        }
         guard let first = points.first else { return }
         if points.count == 1 {
             let dot = Path(ellipseIn: CGRect(x: first.x - 1.5, y: first.y - 1.5, width: 3, height: 3))
@@ -300,51 +279,144 @@ struct SparklineView: View {
         context.stroke(line, with: .color(color), style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
     }
 
-    private func candles(bars: [Bar], vwap: [Double]) -> some View {
-        Canvas { context, size in
-            guard let domain = SparklineGeometry.barDomain(bars: bars, overlay: vwap) else { return }
-            let count = bars.count
-            let bodyWidth = SparklineGeometry.candleBodyWidth(count: count, in: size)
-            for (index, bar) in bars.enumerated() {
-                let x = SparklineGeometry.candleX(index: index, count: count, in: size)
-                let color = bar.close >= bar.open ? upColor : downColor
-                let high = SparklineGeometry.y(bar.high, low: domain.low, high: domain.high, in: size)
-                let low = SparklineGeometry.y(bar.low, low: domain.low, high: domain.high, in: size)
-                var wick = Path()
-                wick.move(to: CGPoint(x: x, y: high))
-                wick.addLine(to: CGPoint(x: x, y: low))
-                context.stroke(wick, with: .color(color), lineWidth: 1)
+    private func drawCandles(
+        _ bars: [Bar],
+        vwap: [Double],
+        layout: SparklineChrome.Layout,
+        in context: inout GraphicsContext
+    ) {
+        let count = bars.count
+        let bodyWidth = SparklineGeometry.candleBodyWidth(count: count, in: layout.plot)
+        for (index, bar) in bars.enumerated() {
+            let x = SparklineGeometry.candleX(index: index, count: count, in: layout.plot)
+            let color = bar.close >= bar.open ? upColor : downColor
+            let high = y(bar.high, layout: layout)
+            let low = y(bar.low, layout: layout)
+            var wick = Path()
+            wick.move(to: CGPoint(x: x, y: high))
+            wick.addLine(to: CGPoint(x: x, y: low))
+            context.stroke(wick, with: .color(color), lineWidth: 1)
 
-                let open = SparklineGeometry.y(bar.open, low: domain.low, high: domain.high, in: size)
-                let close = SparklineGeometry.y(bar.close, low: domain.low, high: domain.high, in: size)
-                let body = CGRect(
-                    x: x - bodyWidth / 2,
-                    y: min(open, close),
-                    width: bodyWidth,
-                    height: max(1, abs(close - open))
-                )
-                context.fill(Path(body), with: .color(color))
-            }
-            guard vwap.count == count else { return }
-            let points = vwap.enumerated().map { index, value in
-                CGPoint(
-                    x: SparklineGeometry.candleX(index: index, count: count, in: size),
-                    y: SparklineGeometry.y(value, low: domain.low, high: domain.high, in: size)
-                )
-            }
-            guard let first = points.first else { return }
-            if points.count == 1 {
-                let dot = Path(ellipseIn: CGRect(x: first.x - 1.5, y: first.y - 1.5, width: 3, height: 3))
-                context.fill(dot, with: .color(overlayColor))
-                return
-            }
-            var line = Path()
-            line.move(to: first)
-            for point in points.dropFirst() {
-                line.addLine(to: point)
-            }
-            context.stroke(line, with: .color(overlayColor), style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+            let open = y(bar.open, layout: layout)
+            let close = y(bar.close, layout: layout)
+            let body = CGRect(
+                x: x - bodyWidth / 2,
+                y: min(open, close),
+                width: bodyWidth,
+                height: max(1, abs(close - open))
+            )
+            context.fill(Path(body), with: .color(color))
         }
+        guard vwap.count == count else { return }
+        let points = vwap.enumerated().map { index, value in
+            CGPoint(
+                x: SparklineGeometry.candleX(index: index, count: count, in: layout.plot),
+                y: y(value, layout: layout)
+            )
+        }
+        guard let first = points.first else { return }
+        if points.count == 1 {
+            let dot = Path(ellipseIn: CGRect(x: first.x - 1.5, y: first.y - 1.5, width: 3, height: 3))
+            context.fill(dot, with: .color(overlayColor))
+            return
+        }
+        var line = Path()
+        line.move(to: first)
+        for point in points.dropFirst() {
+            line.addLine(to: point)
+        }
+        context.stroke(line, with: .color(overlayColor), style: StrokeStyle(lineWidth: 1.5, lineJoin: .round))
+    }
+
+    private func drawLastLine(_ layout: SparklineChrome.Layout, in context: inout GraphicsContext) {
+        guard let last = layout.last, layout.lastEndX - last.x > 1 else { return }
+        var dash = Path()
+        dash.move(to: CGPoint(x: last.x, y: last.y))
+        dash.addLine(to: CGPoint(x: layout.lastEndX, y: last.y))
+        context.stroke(dash, with: .color(lastColor), style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+    }
+
+    private func drawAxes(
+        _ layout: SparklineChrome.Layout,
+        in context: inout GraphicsContext,
+        size: CGSize
+    ) {
+        if let caption = layout.vwapCaption {
+            context.draw(
+                Text(caption)
+                    .font(.system(size: 10, weight: .regular, design: .monospaced))
+                    .foregroundColor(overlayColor),
+                at: CGPoint(x: layout.plot.minX, y: layout.plot.minY - 2),
+                anchor: .bottomLeading
+            )
+        }
+        for tick in layout.xTicks {
+            context.draw(
+                axisLabel(tick.text),
+                at: CGPoint(x: tick.position, y: layout.plot.maxY + 4),
+                anchor: xAnchor(x: tick.position, plot: layout.plot)
+            )
+        }
+        for tick in layout.yTicks {
+            context.draw(
+                axisLabel(tick.text),
+                at: CGPoint(x: size.width - 2, y: tick.position),
+                anchor: .trailing
+            )
+        }
+        if let last = layout.last {
+            context.draw(
+                lastLabel(last.text),
+                at: CGPoint(x: size.width - 2, y: last.y),
+                anchor: .trailing
+            )
+        }
+    }
+
+    private func drawMarks(_ layout: SparklineChrome.Layout, in context: inout GraphicsContext) {
+        if let high = layout.high {
+            context.draw(
+                markLabel(high.text),
+                at: high.point,
+                anchor: high.onLeftHalf ? .leading : .trailing
+            )
+        }
+        if let low = layout.low {
+            context.draw(
+                markLabel(low.text),
+                at: low.point,
+                anchor: low.onLeftHalf ? .leading : .trailing
+            )
+        }
+    }
+
+    private func y(_ value: Double, layout: SparklineChrome.Layout) -> CGFloat {
+        SparklineGeometry.y(value, low: layout.domainLow, high: layout.domainHigh, in: layout.plot)
+    }
+
+    private func axisLabel(_ text: String) -> Text {
+        Text(text)
+            .font(.system(size: 9, weight: .regular, design: .monospaced))
+            .foregroundColor(axisColor)
+    }
+
+    private func lastLabel(_ text: String) -> Text {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+            .foregroundColor(lastColor)
+    }
+
+    private func markLabel(_ text: String) -> Text {
+        Text(text)
+            .font(.system(size: 9, weight: .regular, design: .monospaced))
+            .foregroundColor(markColor)
+    }
+
+    private func xAnchor(x: CGFloat, plot: CGRect) -> UnitPoint {
+        let t = (x - plot.minX) / max(plot.width, 1)
+        if t < 0.15 { return .topLeading }
+        if t > 0.85 { return .topTrailing }
+        return .top
     }
 }
 
@@ -353,7 +425,7 @@ struct SparklinePane: View {
     var plot: SparklinePlot
     var overlayColor: Color? = nil
     var baseline: Double?
-    var chartHeight: CGFloat = 72
+    var chartHeight: CGFloat = 120
     var isLoading: Bool
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
@@ -363,7 +435,7 @@ struct SparklinePane: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 2) {
             if !title.isEmpty {
                 Text(title)
                     .font(.caption2.weight(.semibold))
@@ -421,7 +493,7 @@ struct SparklinePane: View {
 
     private var strokeColor: Color {
         switch plot {
-        case .line(let values, _):
+        case .line(let values, _, _, _):
             return MarketFormat.changeColor(SparklineGeometry.delta(values: values, baseline: baseline))
         case .candles:
             return MarketFormat.changeColor(nil)
@@ -448,10 +520,4 @@ struct SparklineFailure: View {
         }
         .padding(.horizontal, 4)
     }
-}
-
-private struct SparklineSample: Identifiable {
-    var id: String
-    var index: Int
-    var value: Double
 }

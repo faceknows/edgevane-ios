@@ -145,6 +145,7 @@
 		C7D0F111111111111111002A /* PositionTapeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110029 /* PositionTapeTests.swift */; };
 		C7D0F111111111111111002C /* SymbolNavigationTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002B /* SymbolNavigationTitle.swift */; };
 		C7D0F111111111111111002E /* SparklineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002D /* SparklineView.swift */; };
+		C7D0F1111111111111110036 /* SparklineChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110035 /* SparklineChrome.swift */; };
 		C7D0F1111111111111110030 /* SubscriptionWatchSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111002F /* SubscriptionWatchSession.swift */; };
 		C7D0F1111111111111110032 /* SubscriptionWatchSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */; };
 		C7D0F1111111111111110008 /* HistoricalMinutesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110007 /* HistoricalMinutesView.swift */; };
@@ -325,6 +326,7 @@
 		C7D0F1111111111111110029 /* PositionTapeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PositionTapeTests.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002B /* SymbolNavigationTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SymbolNavigationTitle.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002D /* SparklineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineView.swift; sourceTree = "<group>"; };
+		C7D0F1111111111111110035 /* SparklineChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineChrome.swift; sourceTree = "<group>"; };
 		C7D0F111111111111111002F /* SubscriptionWatchSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSession.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110031 /* SubscriptionWatchSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionWatchSessionTests.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110007 /* HistoricalMinutesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoricalMinutesView.swift; sourceTree = "<group>"; };
@@ -456,6 +458,7 @@
 		C7D0F1111111111111110033 /* Stats */ = {
 			isa = PBXGroup;
 			children = (
+				C7D0F1111111111111110035 /* SparklineChrome.swift */,
 				C7D0F111111111111111002D /* SparklineView.swift */,
 			);
 			path = Stats;
@@ -1167,6 +1170,7 @@
 				C049F1EB10F17B3DA3B686B5 /* SocketStatus.swift in Sources */,
 				615C46F24DA9A061D9F5DF44 /* SubscribeAPI.swift in Sources */,
 				C7D0F111111111111111002E /* SparklineView.swift in Sources */,
+				C7D0F1111111111111110036 /* SparklineChrome.swift in Sources */,
 				C7D0F1111111111111110030 /* SubscriptionWatchSession.swift in Sources */,
 				1ECE196DAD8181BD8D8258D2 /* SubscriptionStore.swift in Sources */,
 				B376F028F872E6C165379213 /* SubscriptionsView.swift in Sources */,

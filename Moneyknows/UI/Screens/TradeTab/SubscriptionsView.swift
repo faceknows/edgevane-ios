@@ -45,12 +45,13 @@ struct SubscriptionsView: View {
                             symbol: symbol,
                             summary: rowSummary(symbol),
                             quote: quotes.quote(for: symbol),
-                            minuteCloses: minuteCloses(symbol),
+                            minutePlot: minutePlot(symbol),
                             isMinuteLoading: watch.isLoading(symbol),
                             minuteError: watch.failureText(for: symbol),
                             retryMinutes: { watch.requestRetry(symbol) },
                             onOpen: { router.openSymbol(symbol) }
                         )
+                        .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
                     }
                     .onDelete(perform: unsubscribe)
                 }
@@ -134,8 +135,9 @@ struct SubscriptionsView: View {
         return summary
     }
 
-    private func minuteCloses(_ symbol: String) -> [Double] {
-        SubscriptionSparklineAssembler.closes(bars1m: watch.bars(for: symbol))
+    private func minutePlot(_ symbol: String) -> SparklinePlot {
+        let line = SubscriptionSparklineAssembler.minuteLine(bars1m: watch.bars(for: symbol))
+        return .line(values: line.values, times: line.times, timeKind: .minute)
     }
 
     private func addSymbols() async {
@@ -177,23 +179,23 @@ struct SubscriptionWatchRow: View {
     var symbol: String
     var summary: SymbolSummary
     var quote: SymbolQuote?
-    var minuteCloses: [Double]
+    var minutePlot: SparklinePlot
     var isMinuteLoading: Bool
     var minuteError: String? = nil
     var retryMinutes: (() -> Void)? = nil
     var onOpen: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 2) {
             Button(action: onOpen) {
                 header
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 SparklinePane(
                     title: L10n.Chart.fiveMinutes,
-                    plot: .line(values: minuteCloses),
+                    plot: minutePlot,
                     baseline: summary.previousClose,
                     isLoading: isMinuteLoading,
                     errorText: minuteError,
@@ -207,34 +209,15 @@ struct SubscriptionWatchRow: View {
                 .accessibilityHidden(true)
             }
         }
-        .padding(.vertical, 4)
     }
 
     private var header: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(symbol)
-                    .font(.headline)
-                if let bid = quote?.liveBid, let ask = quote?.liveAsk {
-                    Text("\(MarketFormat.price(bid))  |  \(MarketFormat.price(ask))")
-                        .font(.caption.monospacedDigit())
-                        .foregroundColor(.secondary)
-                }
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(MarketFormat.price(summary.lastPrice))
-                    .font(.headline.monospacedDigit())
-                ChangePercentText(percent: changePercent)
-            }
-        }
+        SymbolRow(summary: summary, accessory: quoteAccessory)
     }
 
-    private var changePercent: Double? {
-        guard let last = summary.lastPrice, let previous = summary.previousClose, previous != 0 else {
-            return summary.changePercent
-        }
-        return (last - previous) / previous * 100
+    private var quoteAccessory: String? {
+        guard let bid = quote?.liveBid, let ask = quote?.liveAsk else { return nil }
+        return "\(MarketFormat.price(bid))  |  \(MarketFormat.price(ask))"
     }
 }
 
@@ -243,14 +226,14 @@ private struct SubscriptionSecondPane: View {
     var symbol: String
 
     var body: some View {
-        let values = SubscriptionSparklineAssembler.closes(
+        let line = SubscriptionSparklineAssembler.secondLine(
             bars1s: seconds.bars(for: symbol),
             now: Date()
         )
         return SparklinePane(
             title: L10n.Chart.fiveSeconds,
-            plot: .line(values: values),
-            baseline: values.first,
+            plot: .line(values: line.values, times: line.times, timeKind: .second),
+            baseline: line.values.first,
             isLoading: false
         )
     }

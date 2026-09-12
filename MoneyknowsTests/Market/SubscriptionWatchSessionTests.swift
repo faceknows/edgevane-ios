@@ -154,6 +154,195 @@ final class SparklineGeometryTests: XCTestCase {
 
         let candleOk = SparklinePlot.candles(bars: [bar], vwap: [1.5]).aligned()
         XCTAssertEqual(candleOk, .candles(bars: [bar], vwap: [1.5]))
+
+        let t0 = Date(timeIntervalSince1970: 100)
+        let t1 = Date(timeIntervalSince1970: 160)
+        let t2 = Date(timeIntervalSince1970: 220)
+        let timesKept = SparklinePlot.line(
+            values: [1, .nan, 3],
+            times: [t0, t1, t2],
+            overlay: [10, 20, 30]
+        ).aligned()
+        XCTAssertEqual(timesKept, .line(values: [1, 3], times: [t0, t2], overlay: [10, 30]))
+    }
+
+    func testLineXMatchesFirstAndLastPlotEdges() {
+        let plot = CGRect(x: 10, y: 4, width: 100, height: 40)
+        XCTAssertEqual(SparklineGeometry.lineX(index: 0, count: 3, in: plot), 10, accuracy: 0.001)
+        XCTAssertEqual(SparklineGeometry.lineX(index: 2, count: 3, in: plot), 110, accuracy: 0.001)
+        XCTAssertEqual(SparklineGeometry.lineX(index: 0, count: 1, in: plot), 60, accuracy: 0.001)
+    }
+
+    func testChromePlotRectLeavesRoomForAxes() {
+        let rect = SparklineChrome.plotRect(in: CGSize(width: 200, height: 120))
+        XCTAssertEqual(rect.minX, SparklineChrome.leadingInset)
+        XCTAssertEqual(rect.minY, SparklineChrome.topInset)
+        XCTAssertEqual(rect.maxX, 200 - SparklineChrome.trailingInset, accuracy: 0.001)
+        XCTAssertEqual(rect.maxY, 120 - SparklineChrome.bottomInset, accuracy: 0.001)
+    }
+
+    func testChromeXTicksUseEasternTime() {
+        let open = eastern(2026, 9, 4, 9, 30)
+        let mid = eastern(2026, 9, 4, 12, 45)
+        let close = eastern(2026, 9, 4, 16, 0)
+        XCTAssertEqual(SparklineTimeKind.minute.tickKind, .time)
+        XCTAssertEqual(SparklineTimeKind.second.tickKind, .timeWithSeconds)
+        XCTAssertEqual(
+            SparklineChrome.xTicks(times: [open, mid, close], kind: .time).map(\.text),
+            ["09:30", "12:45", "16:00"]
+        )
+        let start = eastern(2026, 9, 4, 10, 1, 5)
+        let end = eastern(2026, 9, 4, 10, 9, 55)
+        XCTAssertEqual(
+            SparklineChrome.xTicks(times: [start, end], kind: .timeWithSeconds).map(\.text),
+            ["10:01:05", "10:09:55"]
+        )
+        XCTAssertTrue(SparklineChrome.xTicks(times: [], kind: .time).isEmpty)
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 0), [])
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 1), [0])
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 2), [0, 1])
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 5), [0, 1, 2, 3, 4])
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 6), [0, 1, 2, 3, 4, 5])
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 7).count, 6)
+        XCTAssertEqual(SparklineChrome.xTickIndices(count: 7, capacity: 1), [6])
+    }
+
+    func testChromeXTickCountFollowsPlotWidth() {
+        let open = eastern(2026, 9, 4, 9, 30)
+        let times = (0..<12).map { open.addingTimeInterval(TimeInterval($0 * 60)) }
+        XCTAssertEqual(SparklineChrome.xTickCapacity(plotWidth: 400, kind: .time), 6)
+        XCTAssertEqual(
+            SparklineChrome.xTicks(times: times, kind: .time, plotWidth: 400).count,
+            6
+        )
+        XCTAssertEqual(SparklineChrome.xTickCapacity(plotWidth: 80, kind: .timeWithSeconds), 1)
+        XCTAssertEqual(
+            SparklineChrome.xTicks(times: times, kind: .timeWithSeconds, plotWidth: 80).count,
+            1
+        )
+    }
+
+    func testChromeYTicksAreEvenlySpacedFromHighToLow() {
+        let ticks = SparklineChrome.yTickPrices(low: 7, high: 12)
+        XCTAssertEqual(ticks.count, 4)
+        XCTAssertEqual(ticks[0], 12)
+        XCTAssertEqual(ticks[1], 12 - 5.0 / 3, accuracy: 0.0001)
+        XCTAssertEqual(ticks[2], 12 - 10.0 / 3, accuracy: 0.0001)
+        XCTAssertEqual(ticks[3], 7)
+        XCTAssertEqual(SparklineChrome.yTickPrices(low: 10, high: 10), [10])
+        XCTAssertEqual(SparklineChrome.extremeCaption(price: "11.17", onLeftHalf: false), "11.17--")
+        XCTAssertEqual(SparklineChrome.extremeCaption(price: "10.93", onLeftHalf: true), "--10.93")
+    }
+
+    func testChromeLayoutMarksWickHighLowAndLastClose() {
+        let t0 = eastern(2026, 9, 4, 9, 30)
+        let t1 = eastern(2026, 9, 4, 9, 31)
+        let bars = [
+            Bar(time: t0, open: 10, high: 12, low: 9, close: 11, volume: 1),
+            Bar(time: t1, open: 11, high: 11, low: 7, close: 8, volume: 1),
+        ]
+        let layout = SparklineChrome.layout(
+            for: .candles(bars: bars, timeKind: .minute),
+            in: CGSize(width: 200, height: 140)
+        )
+        XCTAssertEqual(layout?.high?.text, "--12.00")
+        XCTAssertEqual(layout?.low?.text, "7.00--")
+        XCTAssertEqual(layout?.last?.text, "8.00")
+        XCTAssertEqual(layout?.xTicks.map(\.text), ["09:30", "09:31"])
+        XCTAssertEqual(layout?.yTicks.count, 4)
+        XCTAssertEqual(layout?.yTicks.first?.text, "12.00")
+        XCTAssertEqual(layout?.yTicks.last?.text, "7.00")
+        XCTAssertNil(layout?.vwapCaption)
+        if let high = layout?.high, let low = layout?.low, let last = layout?.last {
+            XCTAssertTrue(high.onLeftHalf)
+            XCTAssertFalse(low.onLeftHalf)
+            XCTAssertLessThan(high.point.y, low.point.y)
+            XCTAssertEqual(last.x, low.point.x, accuracy: 0.001)
+            XCTAssertLessThan(last.y, low.point.y)
+            XCTAssertGreaterThan(layout!.lastEndX, last.x)
+        } else {
+            XCTFail("expected high, low, and last")
+        }
+        let withVWAP = SparklineChrome.layout(
+            for: .candles(bars: bars, vwap: [10.5, 9.8], timeKind: .minute),
+            in: CGSize(width: 200, height: 140)
+        )
+        XCTAssertEqual(withVWAP?.vwapCaption, "\(L10n.Chart.vwap):9.80")
+        let line = SparklineChrome.layout(
+            for: .line(
+                values: [9, 11, 8],
+                times: [t0, t1, t1.addingTimeInterval(60)],
+                timeKind: .minute
+            ),
+            in: CGSize(width: 200, height: 140)
+        )
+        XCTAssertEqual(line?.high?.text, "11.00--")
+        XCTAssertEqual(line?.low?.text, "8.00--")
+        XCTAssertEqual(line?.last?.text, "8.00")
+        XCTAssertEqual(line?.last?.x, line?.low?.point.x)
+        XCTAssertEqual(line!.last!.x, line!.plot.maxX, accuracy: 0.001)
+        XCTAssertGreaterThan(line!.lastEndX, line!.plot.maxX)
+        XCTAssertEqual(line?.xTicks.map(\.text), ["09:30", "09:31", "09:32"])
+        let seconds = SparklineChrome.layout(
+            for: .line(
+                values: [9, 11],
+                times: [t0, eastern(2026, 9, 4, 16, 0)],
+                timeKind: .second
+            ),
+            in: CGSize(width: 200, height: 140)
+        )
+        XCTAssertEqual(seconds?.xTicks.map(\.text), ["09:30:00", "16:00:00"])
+        XCTAssertNil(SparklineChrome.layout(for: .line(values: []), in: CGSize(width: 200, height: 140)))
+    }
+
+    func testChromeLayoutKeepsSinglePointFlatLineAndLastDash() {
+        let t0 = eastern(2026, 9, 4, 9, 30)
+        let size = CGSize(width: 200, height: 140)
+        let point = SparklineChrome.layout(
+            for: .line(values: [10], times: [t0], timeKind: .minute),
+            in: size
+        )
+        XCTAssertNotNil(point)
+        XCTAssertEqual(point?.last?.text, "10.00")
+        XCTAssertEqual(point?.yTicks.count, 1)
+        XCTAssertGreaterThan(point!.lastEndX, point!.last!.x)
+
+        let flat = SparklineChrome.layout(
+            for: .line(
+                values: [10, 10, 10],
+                times: [t0, t0.addingTimeInterval(60), t0.addingTimeInterval(120)],
+                timeKind: .minute
+            ),
+            in: size
+        )
+        XCTAssertNotNil(flat)
+        XCTAssertEqual(flat?.last?.text, "10.00")
+        XCTAssertEqual(flat!.last!.x, flat!.plot.maxX, accuracy: 0.001)
+        XCTAssertGreaterThan(flat!.lastEndX, flat!.plot.maxX)
+
+        let candle = SparklineChrome.layout(
+            for: .candles(
+                bars: [Bar(time: t0, open: 10, high: 10, low: 10, close: 10, volume: 1)],
+                timeKind: .minute
+            ),
+            in: size
+        )
+        XCTAssertNotNil(candle)
+        XCTAssertEqual(candle?.last?.text, "10.00")
+        XCTAssertGreaterThan(candle!.lastEndX, candle!.last!.x)
+    }
+
+    private func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int, _ second: Int = 0) -> Date {
+        var parts = DateComponents()
+        parts.calendar = Calendar(identifier: .gregorian)
+        parts.timeZone = MarketClock.easternTimeZone
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        parts.hour = hour
+        parts.minute = minute
+        parts.second = second
+        return parts.date!
     }
 
     func testMinuteClockParsesWithSessionDate() throws {
@@ -268,7 +457,13 @@ final class SubscriptionWatchSessionTests: XCTestCase {
             Bar(time: now.addingTimeInterval(120), open: 2, high: 3, low: 1, close: 2.5, volume: 1),
         ]
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1m: bars, interval: .one), [1, 2.5])
+        let minuteLine = SubscriptionSparklineAssembler.minuteLine(bars1m: bars, interval: .one)
+        XCTAssertEqual(minuteLine.values, [1, 2.5])
+        XCTAssertEqual(minuteLine.times, [now, now.addingTimeInterval(120)])
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1s: bars, interval: .one, now: now.addingTimeInterval(120)), [1, 2.5])
+        let secondLine = SubscriptionSparklineAssembler.secondLine(bars1s: bars, interval: .one, now: now.addingTimeInterval(120))
+        XCTAssertEqual(secondLine.values, [1, 2.5])
+        XCTAssertEqual(secondLine.times, [now, now.addingTimeInterval(120)])
     }
 
     func testMinuteVWAPUsesOneMinuteBarsThenAlignsToInterval() {
