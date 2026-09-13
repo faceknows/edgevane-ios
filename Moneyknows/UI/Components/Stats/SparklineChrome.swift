@@ -37,7 +37,6 @@ enum SparklineChrome {
     static let xLabelGap: CGFloat = 8
     static let minuteLabelWidth: CGFloat = 36
     static let secondLabelWidth: CGFloat = 52
-    static let lastLineEndInset: CGFloat = 2
 
     struct Tick: Equatable {
         var position: CGFloat
@@ -184,7 +183,10 @@ enum SparklineChrome {
             high: high,
             low: low,
             last: last,
-            lastEndX: max(plotArea.maxX, size.width - lastLineEndInset),
+            lastEndX: CGFloat(ChartVisibleExtremes.lastLineEndX(
+                plotRight: Double(plotArea.maxX),
+                canvasWidth: Double(size.width)
+            )),
             vwapCaption: prepared.vwapCaption
         )
     }
@@ -238,7 +240,7 @@ enum SparklineChrome {
     }
 
     static func extremeCaption(price: String, onLeftHalf: Bool) -> String {
-        onLeftHalf ? "--\(price)" : "\(price)--"
+        ChartVisibleExtremes.extremeCaption(price: price, onLeftHalf: onLeftHalf)
     }
 
     private static func mark(

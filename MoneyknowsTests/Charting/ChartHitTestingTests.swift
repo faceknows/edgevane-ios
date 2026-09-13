@@ -163,6 +163,15 @@ final class ChartVisibleExtremesTests: XCTestCase {
         XCTAssertEqual(ChartVisibleExtremes.priceText(0.1234, precision: 2), "0.12")
     }
 
+    func testExtremeCaptionMatchesSparklineLeftAndRight() {
+        XCTAssertEqual(ChartVisibleExtremes.extremeCaption(price: "10.93", onLeftHalf: true), "--10.93")
+        XCTAssertEqual(ChartVisibleExtremes.extremeCaption(price: "11.17", onLeftHalf: false), "11.17--")
+        XCTAssertTrue(ChartVisibleExtremes.isOnLeftHalf(index: 0, from: 0, to: 9))
+        XCTAssertFalse(ChartVisibleExtremes.isOnLeftHalf(index: 8, from: 0, to: 9))
+        XCTAssertEqual(ChartVisibleExtremes.lastLineEndX(plotRight: 100, canvasWidth: 160), 158)
+        XCTAssertEqual(ChartVisibleExtremes.lastLineEndX(plotRight: 200, canvasWidth: 160), 200)
+    }
+
     func testFractionDigitsUsesInstrumentTick() {
         XCTAssertEqual(
             ChartVisibleExtremes.fractionDigits(in: sampleBars((high: 11.8, low: 11.2, close: 11.4))),

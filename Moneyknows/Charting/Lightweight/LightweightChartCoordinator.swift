@@ -23,7 +23,6 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var libraryPriceLines: [PriceLine] = []
     private var appliedBars: [Bar] = []
     private var appliedMarkers: [ChartMarker] = []
-    private var appliedExtremes: ChartVisibleExtremes.Labels?
     private var appliedPricePrecision = 2
     private var didFitContent = false
     private var hasTimeScaleSize = false
@@ -39,6 +38,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     func lightweightChartsDidLoad(_ lightweightCharts: LightweightCharts) {
         Self.installHoveredObjectIdBridge(on: lightweightCharts)
         Self.installFillCaretBridge(on: lightweightCharts)
+        Self.installVisibleChromeBridge(on: lightweightCharts)
         Self.installVerticalPageScrollBridge(on: lightweightCharts)
         isLoaded = true
         lightweightCharts.subscribeCrosshairMove()
@@ -114,6 +114,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     func didReceiveTimeScaleSizeChangeWithParameters(onTimeScale timeScale: TimeScaleApi, parameters: Rectangle?) {
         guard let parameters else { return }
         notePlotSize(width: CGFloat(parameters.width), height: CGFloat(parameters.height))
+        requestVisibleExtremes()
     }
 
     func resetViewport() {
@@ -221,7 +222,6 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         syncVolume(model, colors: colors, on: chart)
         syncFillDots(markers, colors: colors, usesCalendarDays: model.usesCalendarDays, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
-        appliedExtremes = nil
         capturePlotSizeIfNeeded(from: chart)
         fitAllContentIfNeeded()
         if model.followLatest {
@@ -273,14 +273,14 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             removeSeries(current.series, on: chart)
             mainSeries = nil
             libraryPriceLines = []
-            appliedExtremes = nil
         }
         switch style {
         case .candle:
             mainSeries = (style, chart.addCandlestickSeries(options: candlestickOptions(colors)))
         case .line:
-            mainSeries = (style, chart.addLineSeries(options: lineOptions(colors.up, lastPriceColor: colors.buy)))
+            mainSeries = (style, chart.addLineSeries(options: lineOptions(colors.up, isMain: true)))
         }
+        rememberMainSeriesJS()
     }
 
     private func applyMainOptions(_ colors: ChartColors) {
@@ -288,7 +288,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         case .candle:
             (mainSeries?.series as? CandlestickSeries)?.applyOptions(options: candlestickOptions(colors))
         case .line:
-            (mainSeries?.series as? LineSeries)?.applyOptions(options: lineOptions(colors.up, lastPriceColor: colors.buy))
+            (mainSeries?.series as? LineSeries)?.applyOptions(options: lineOptions(colors.up, isMain: true))
         case .none:
             break
         }
@@ -296,12 +296,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
 
     private func candlestickOptions(_ colors: ChartColors) -> CandlestickSeriesOptions {
         CandlestickSeriesOptions(
-            lastValueVisible: true,
-            priceLineVisible: true,
-            priceLineSource: .lastVisible,
-            priceLineWidth: .one,
-            priceLineColor: chartColor(colors.buy),
-            priceLineStyle: .dashed,
+            lastValueVisible: false,
+            priceLineVisible: false,
             priceFormat: seriesPriceFormat(),
             upColor: chartColor(colors.up),
             downColor: chartColor(colors.down),
@@ -311,16 +307,11 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         )
     }
 
-    private func lineOptions(_ color: ChartRGBA, width: Double = 1, lastPriceColor: ChartRGBA? = nil) -> LineSeriesOptions {
-        let showsLast = lastPriceColor != nil
-        return LineSeriesOptions(
-            lastValueVisible: showsLast,
-            priceLineVisible: showsLast,
-            priceLineSource: showsLast ? .lastVisible : nil,
-            priceLineWidth: showsLast ? .one : nil,
-            priceLineColor: lastPriceColor.map { chartColor($0) },
-            priceLineStyle: showsLast ? .dashed : nil,
-            priceFormat: showsLast ? seriesPriceFormat() : nil,
+    private func lineOptions(_ color: ChartRGBA, width: Double = 1, isMain: Bool = false) -> LineSeriesOptions {
+        LineSeriesOptions(
+            lastValueVisible: false,
+            priceLineVisible: false,
+            priceFormat: isMain ? seriesPriceFormat() : nil,
             color: chartColor(color),
             lineWidth: lineWidth(width)
         )
@@ -473,53 +464,89 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             to: range?.to,
             style: mainSeries?.style ?? .candle
         )
-        guard labels != appliedExtremes else { return }
-        appliedExtremes = labels
-        setMainMarkers(extremeMarkers(labels))
+        drawVisibleChrome(labels, range: range)
     }
 
-    private func setMainMarkers(_ markers: [SeriesMarker]) {
-        if let series = mainSeries?.series as? CandlestickSeries {
-            series.setMarkers(data: markers)
-        } else if let series = mainSeries?.series as? LineSeries {
-            series.setMarkers(data: markers)
+    private func rememberMainSeriesJS() {
+        evaluate("""
+        if (typeof seriesArray !== 'undefined' && seriesArray.length) {
+          window.__mkMainSeries = seriesArray[seriesArray.length - 1].series;
         }
+        """)
     }
 
-    private func extremeMarkers(_ labels: ChartVisibleExtremes.Labels?) -> [SeriesMarker] {
+    private func drawVisibleChrome(_ labels: ChartVisibleExtremes.Labels?, range: LogicalRange?) {
         guard let labels,
               let colors = applied?.colors,
               appliedBars.indices.contains(labels.highIndex),
-              appliedBars.indices.contains(labels.lowIndex)
+              appliedBars.indices.contains(labels.lowIndex),
+              appliedBars.indices.contains(labels.lastIndex)
         else {
-            return []
+            evaluate("if (window.__mkDrawVisibleChrome) window.__mkDrawVisibleChrome(null);")
+            return
         }
         let usesCalendarDays = applied?.model.usesCalendarDays ?? false
+        let from = range?.from ?? Double(labels.highIndex)
+        let to = range?.to ?? Double(labels.lastIndex)
         let precision = appliedPricePrecision
-        var markers = [
-            SeriesMarker(
-                time: Self.libraryTime(appliedBars[labels.highIndex].time, usesCalendarDays: usesCalendarDays),
-                position: .aboveBar,
-                shape: .circle,
-                color: chartColor(colors.text),
-                id: "visible-high",
-                text: ChartVisibleExtremes.priceText(labels.high, precision: precision),
-                size: 0
-            ),
-            SeriesMarker(
-                time: Self.libraryTime(appliedBars[labels.lowIndex].time, usesCalendarDays: usesCalendarDays),
-                position: .belowBar,
-                shape: .circle,
-                color: chartColor(colors.text),
-                id: "visible-low",
-                text: ChartVisibleExtremes.priceText(labels.low, precision: precision),
-                size: 0
-            )
-        ]
-        if labels.highIndex == labels.lowIndex, labels.high == labels.low {
-            markers = [markers[0]]
+        let highLeft = ChartVisibleExtremes.isOnLeftHalf(index: labels.highIndex, from: from, to: to)
+        let lowLeft = ChartVisibleExtremes.isOnLeftHalf(index: labels.lowIndex, from: from, to: to)
+        let highText = ChartVisibleExtremes.extremeCaption(
+            price: ChartVisibleExtremes.priceText(labels.high, precision: precision),
+            onLeftHalf: highLeft
+        )
+        let showLow = labels.highIndex != labels.lowIndex || labels.high != labels.low
+        let lowText = ChartVisibleExtremes.extremeCaption(
+            price: ChartVisibleExtremes.priceText(labels.low, precision: precision),
+            onLeftHalf: lowLeft
+        )
+        let lastText = ChartVisibleExtremes.priceText(labels.last, precision: precision)
+        let lastT = Self.jsTime(Self.libraryTime(appliedBars[labels.lastIndex].time, usesCalendarDays: usesCalendarDays))
+        let highT = Self.jsTime(Self.libraryTime(appliedBars[labels.highIndex].time, usesCalendarDays: usesCalendarDays))
+        let lowT = Self.jsTime(Self.libraryTime(appliedBars[labels.lowIndex].time, usesCalendarDays: usesCalendarDays))
+        let lowJSON = showLow
+            ? "{\"t\":\(lowT),\"p\":\(labels.low),\"text\":\(Self.jsString(lowText)),\"left\":\(lowLeft ? "true" : "false")}"
+            : "null"
+        evaluate("""
+        if (window.__mkDrawVisibleChrome) window.__mkDrawVisibleChrome({
+          last:{t:\(lastT),p:\(labels.last),text:\(Self.jsString(lastText))},
+          high:{t:\(highT),p:\(labels.high),text:\(Self.jsString(highText)),left:\(highLeft ? "true" : "false")},
+          low:\(lowJSON),
+          line:\(Self.jsString(Self.cssColor(colors.buy))),
+          text:\(Self.jsString(Self.cssColor(colors.text))),
+          background:\(Self.jsString(Self.cssColor(colors.background)))
+        });
+        """)
+    }
+
+    private func evaluate(_ script: String) {
+        guard let chart else { return }
+        Self.webView(in: chart)?.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    private static func jsTime(_ time: Time) -> String {
+        switch time {
+        case let .utc(timestamp):
+            return String(timestamp)
+        case let .businessDay(day):
+            return "{\"year\":\(day.year),\"month\":\(day.month),\"day\":\(day.day)}"
+        case let .string(raw):
+            return jsString(raw)
         }
-        return markers
+    }
+
+    private static func jsString(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
+    }
+
+    private static func cssColor(_ rgba: ChartRGBA) -> String {
+        let red = Int((rgba.red * 255).rounded())
+        let green = Int((rgba.green * 255).rounded())
+        let blue = Int((rgba.blue * 255).rounded())
+        return "rgba(\(red),\(green),\(blue),\(rgba.alpha))"
     }
 
     private func applyPriceLines<Series: SeriesApi>(_ lines: [ChartModel.PriceLine], colors: ChartColors, on series: Series) {
@@ -558,7 +585,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
         libraryPriceLines = []
         appliedMarkers = []
-        appliedExtremes = nil
+        evaluate("if (window.__mkDrawVisibleChrome) window.__mkDrawVisibleChrome(null);")
     }
 
     private func removeSeries(_ series: SeriesObject, on chart: LightweightCharts) {
@@ -741,6 +768,113 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
           };
         })();
         """, completionHandler: nil)
+    }
+
+    /// High/low and last-price chrome sit above the plot. Last close is a dashed stub,
+    /// then the axis label is painted on top so the dash does not run through the digits.
+    private static func installVisibleChromeBridge(on chart: LightweightCharts) {
+        guard let webView = webView(in: chart) else { return }
+        webView.evaluateJavaScript(#"""
+        (function() {
+          if (window.__mkVisibleChromeBridge) { return; }
+          window.__mkVisibleChromeBridge = true;
+          var overlay = document.createElement('canvas');
+          overlay.style.position = 'absolute';
+          overlay.style.left = '0';
+          overlay.style.top = '0';
+          overlay.style.width = '100%';
+          overlay.style.height = '100%';
+          overlay.style.pointerEvents = 'none';
+          overlay.style.zIndex = '8';
+          document.body.appendChild(overlay);
+          window.__mkLastChromePayload = null;
+          function mkChart() {
+            for (var key in window) {
+              if (typeof key !== 'string' || key.indexOf('chart') !== 0) { continue; }
+              var value = window[key];
+              if (value && typeof value.timeScale === 'function') { return value; }
+            }
+            return null;
+          }
+          function lastLineEndX(plotRight, canvasWidth) {
+            return Math.max(plotRight, canvasWidth - \(ChartVisibleExtremes.lastLineEndInset));
+          }
+          function paint() {
+            var payload = window.__mkLastChromePayload;
+            var ratio = window.devicePixelRatio || 1;
+            var width = overlay.clientWidth || document.body.clientWidth || 0;
+            var height = overlay.clientHeight || document.body.clientHeight || 0;
+            overlay.width = Math.max(1, Math.round(width * ratio));
+            overlay.height = Math.max(1, Math.round(height * ratio));
+            overlay.style.width = width + 'px';
+            overlay.style.height = height + 'px';
+            var ctx = overlay.getContext('2d');
+            if (!ctx) { return; }
+            ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+            ctx.clearRect(0, 0, width, height);
+            if (!payload) { return; }
+            var chart = mkChart();
+            var series = window.__mkMainSeries;
+            if (!chart || !series) { return; }
+            var timeScale = chart.timeScale();
+            function xOf(time) { return timeScale.timeToCoordinate(time); }
+            function yOf(price) { return series.priceToCoordinate(price); }
+            function drawMark(mark) {
+              if (!mark) { return; }
+              var x = xOf(mark.t);
+              var y = yOf(mark.p);
+              if (x == null || y == null) { return; }
+              ctx.fillStyle = payload.text;
+              ctx.font = '9px ui-monospace, Menlo, monospace';
+              ctx.textBaseline = 'middle';
+              ctx.textAlign = mark.left ? 'left' : 'right';
+              ctx.fillText(mark.text, x, y);
+            }
+            var lastX = xOf(payload.last.t);
+            var lastY = yOf(payload.last.p);
+            var endX = lastLineEndX(timeScale.width(), width);
+            if (lastX != null && lastY != null && endX - lastX > 1) {
+              ctx.save();
+              ctx.strokeStyle = payload.line;
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.beginPath();
+              ctx.moveTo(lastX, lastY);
+              ctx.lineTo(endX, lastY);
+              ctx.stroke();
+              ctx.restore();
+            }
+            drawMark(payload.high);
+            drawMark(payload.low);
+            if (lastX != null && lastY != null && payload.last.text) {
+              ctx.font = '600 9px ui-monospace, Menlo, monospace';
+              ctx.textAlign = 'right';
+              ctx.textBaseline = 'middle';
+              var label = payload.last.text;
+              var metrics = ctx.measureText(label);
+              var pad = 2;
+              ctx.fillStyle = payload.background || 'rgba(0,0,0,0)';
+              ctx.fillRect(endX - metrics.width - pad, lastY - 7, metrics.width + pad * 2, 14);
+              ctx.fillStyle = payload.line;
+              ctx.fillText(label, endX, lastY);
+            }
+          }
+          window.__mkDrawVisibleChrome = function(payload) {
+            window.__mkLastChromePayload = payload;
+            paint();
+          };
+          window.addEventListener('resize', paint);
+          var tries = 0;
+          (function subscribe() {
+            var chart = mkChart();
+            if (chart && chart.timeScale) {
+              chart.timeScale().subscribeVisibleLogicalRangeChange(paint);
+              return;
+            }
+            if (tries++ < 20) { setTimeout(subscribe, 50); }
+          })();
+        })();
+        """#, completionHandler: nil)
     }
 
     private static func webView(in view: UIView) -> WKWebView? {

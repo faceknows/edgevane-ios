@@ -270,10 +270,24 @@ enum ChartVisibleExtremes {
         return OrderSizing.priceFractionDigits(for: smallest)
     }
 
+    static let lastLineEndInset = 2.0
+
+    static func lastLineEndX(plotRight: Double, canvasWidth: Double) -> Double {
+        max(plotRight, canvasWidth - lastLineEndInset)
+    }
+
     static func priceText(_ value: Double, precision: Int) -> String {
         guard value.isFinite else { return "" }
         let digits = min(8, max(0, precision))
         return String(format: "%.\(digits)f", value)
+    }
+
+    static func extremeCaption(price: String, onLeftHalf: Bool) -> String {
+        onLeftHalf ? "--\(price)" : "\(price)--"
+    }
+
+    static func isOnLeftHalf(index: Int, from: Double, to: Double) -> Bool {
+        Double(index) < (from + to) / 2
     }
 
     private static func extremeValue(_ bar: Bar, style: ChartStyle, high: Bool) -> Double {
