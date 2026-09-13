@@ -178,6 +178,7 @@
 		C9D0F111111111111111000E /* NotificationToastBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D0F111111111111111000D /* NotificationToastBanner.swift */; };
 		C9D0F1111111111111110010 /* NotificationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D0F111111111111111000F /* NotificationTests.swift */; };
 		C9D0F1111111111111110012 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = C9D0F1111111111111110011 /* GoogleService-Info.plist */; };
+		C9D0F111111111111111001A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C9D0F1111111111111110019 /* Assets.xcassets */; };
 		C9D0F1111111111111110018 /* FirebaseMessaging in Frameworks */ = {isa = PBXBuildFile; productRef = C9D0F1111111111111110017 /* FirebaseMessaging */; };
 /* End PBXBuildFile section */
 
@@ -368,6 +369,7 @@
 		C9D0F111111111111111000F /* NotificationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationTests.swift; sourceTree = "<group>"; };
 		C9D0F1111111111111110011 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		C9D0F1111111111111110013 /* Moneyknows.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Moneyknows.entitlements; sourceTree = "<group>"; };
+		C9D0F1111111111111110019 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -827,6 +829,7 @@
 				C9D0F1111111111111110009 /* AppDelegate.swift */,
 				67BF6501D6C90A4DCC16FF09 /* AppEnvironment.swift */,
 				2695734731C0C5C6A865E568 /* AppModel.swift */,
+				C9D0F1111111111111110019 /* Assets.xcassets */,
 				C9D0F1111111111111110011 /* GoogleService-Info.plist */,
 				EBAD1F7F31301B743F12E429 /* Info.plist */,
 				C9D0F1111111111111110013 /* Moneyknows.entitlements */,
@@ -1087,6 +1090,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2199FA517F101A68FBB9D970 /* Localizable.xcstrings in Resources */,
+				C9D0F111111111111111001A /* Assets.xcassets in Resources */,
 				C9D0F1111111111111110012 /* GoogleService-Info.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

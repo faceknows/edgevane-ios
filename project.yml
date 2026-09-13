@@ -54,6 +54,7 @@ targets:
         DEVELOPMENT_TEAM: R3HTGEDVSW
         INFOPLIST_FILE: Moneyknows/App/Info.plist
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_CFBundleDisplayName: moneyknows
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
