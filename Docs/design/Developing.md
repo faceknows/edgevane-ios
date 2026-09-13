@@ -251,7 +251,7 @@ UI/Components/
   Badges/          涨跌、今日盈亏、RSI/ADX/ATR
   Trading/         确认框、数量倍数、模拟/实盘条
   ChartChrome/     周期分段、蜡烛/线、VWAP 开关（不持有库）
-  Filters/         扫描器可点选项（`TappableValue`；方向、周期、窗口、最低价、最低量、K 线数量、RSI、ADX、DI、类型、最低市值；过宽换行，iOS 15 横向滚动；点击高度 ≥ 44pt）
+  Filters/         扫描器可点选项（`TappableValue`；方向、周期、窗口、最低价、最低量、RSI、ADX、DI、类型、最低市值；标题在左选项同一行，挤不下横向滚动；单独成列时过宽换行；点击高度 ≥ 44pt。ATR / 阶梯窗口请求仍传 `barCount`）
   Stats/           迷你图（订阅监视折线、扫描器结果蜡烛 + VWAP）；仪表盘统计图以后也放这里
 ```
 

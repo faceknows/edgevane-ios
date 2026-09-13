@@ -11,6 +11,11 @@ enum MarketFormat {
         return String(format: "%+.2f%%", value)
     }
 
+    static func percentUnsigned(_ value: Double?, digits: Int = 2) -> String {
+        guard let value, value.isFinite else { return "—" }
+        return String(format: "%.\(max(0, digits))f%%", value)
+    }
+
     static func changeColor(_ value: Double?) -> Color {
         guard let value else { return .secondary }
         if value > 0 { return .green }

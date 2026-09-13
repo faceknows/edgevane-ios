@@ -41,13 +41,18 @@ struct SymbolSummary: Equatable, Identifiable {
             volume: dto.snapshot?.dailyBar?.v,
             rsi: dto.indicators?.rsi,
             adx: dto.indicators?.adx,
-            atr: dto.indicators?.atr
+            atr: dto.indicators?.atr ?? dto.atr
         )
     }
 
     var changePercent: Double? {
         guard let lastPrice, let previousClose, previousClose != 0 else { return nil }
         return (lastPrice - previousClose) / previousClose * 100
+    }
+
+    var atrPercent: Double? {
+        guard let atr, atr.isFinite, let lastPrice, lastPrice.isFinite, lastPrice != 0 else { return nil }
+        return (atr / lastPrice) * 100
     }
 }
 

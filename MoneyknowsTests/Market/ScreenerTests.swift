@@ -181,6 +181,23 @@ final class ScreenerAPIDecodingTests: XCTestCase {
         XCTAssertEqual(rows[0].rsi, 52.3)
         XCTAssertEqual(rows[0].adx, 18)
         XCTAssertEqual(rows[0].atr, 1.25)
+        XCTAssertEqual(rows[0].atrPercent ?? -1, 1.25 / 190.5 * 100, accuracy: 0.0001)
+    }
+
+    func testDecodesTopLevelATRWhenIndicatorsOmitIt() throws {
+        let json = Data(#"""
+        [{"symbol":"AAPL","atr":"2.5","snapshot":{"currentPrice":"190.5"}}]
+        """#.utf8)
+        let rows = try ScreenerAPI.decodeList(from: json).map(SymbolSummary.init(dto:))
+        XCTAssertEqual(rows[0].atr, 2.5)
+    }
+
+    func testPrefersIndicatorsATROverTopLevel() throws {
+        let json = Data(#"""
+        [{"symbol":"AAPL","atr":"9","indicators":{"atr":"1.25"}}]
+        """#.utf8)
+        let rows = try ScreenerAPI.decodeList(from: json).map(SymbolSummary.init(dto:))
+        XCTAssertEqual(rows[0].atr, 1.25)
     }
 
     func testIgnoresNonFiniteNumericStrings() throws {
@@ -192,6 +209,17 @@ final class ScreenerAPIDecodingTests: XCTestCase {
         XCTAssertNil(rows[0].volume)
         XCTAssertNil(rows[0].rsi)
         XCTAssertNil(rows[0].changePercent)
+        XCTAssertNil(rows[0].atrPercent)
+    }
+
+    func testATRPercentRequiresFinitePrice() {
+        XCTAssertEqual(
+            SymbolSummary(symbol: "AAPL", lastPrice: 100, atr: 2.5).atrPercent ?? -1,
+            2.5,
+            accuracy: 0.0001
+        )
+        XCTAssertNil(SymbolSummary(symbol: "AAPL", lastPrice: 0, atr: 2.5).atrPercent)
+        XCTAssertNil(SymbolSummary(symbol: "AAPL", atr: 2.5).atrPercent)
     }
 }
 

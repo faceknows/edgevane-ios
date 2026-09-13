@@ -96,7 +96,19 @@ struct SymbolSummaryDTO: Decodable, Equatable {
     var symbol: String
     var snapshot: SnapshotDTO?
     var indicators: LiteIndicatorsDTO?
+    var atr: Double?
 
+    enum CodingKeys: String, CodingKey {
+        case symbol, snapshot, indicators, atr
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        symbol = try container.decode(String.self, forKey: .symbol)
+        snapshot = try container.decodeIfPresent(SnapshotDTO.self, forKey: .snapshot)
+        indicators = try container.decodeIfPresent(LiteIndicatorsDTO.self, forKey: .indicators)
+        atr = FlexibleJSON.decodeDouble(container, forKey: .atr)
+    }
 }
 
 @MainActor

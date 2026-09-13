@@ -15,7 +15,7 @@ struct StairFilterView: View {
                 options: ScreenerBarCount.stair,
                 onSelect: { _ in apply() }
             )
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
                 ScreenerMinPricePicker(value: $query.minPrice, onSelect: { _ in apply() })
                 ScreenerMinVolumePicker(value: $query.minVolume, onSelect: { _ in apply() })
             }

@@ -251,6 +251,10 @@ enum L10n {
     enum Market {
         static var catalogTitle: String { localized("market.catalogTitle") }
         static var catalog: String { localized("market.catalog") }
+        static var columnSymbol: String { localized("market.columnSymbol") }
+        static var columnPrice: String { localized("market.columnPrice") }
+        static var columnVolume: String { localized("market.columnVolume") }
+        static var columnChange: String { localized("market.columnChange") }
         static var notificationSymbols: String { localized("market.notificationSymbols") }
         static var search: String { localized("market.search") }
         static var empty: String { localized("market.empty") }

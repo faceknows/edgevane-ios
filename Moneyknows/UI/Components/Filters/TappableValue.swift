@@ -47,23 +47,20 @@ struct TappableValue<Value: Hashable>: View {
     var options: [TappableOption<Value>]
     @Binding var selection: Value
     var onSelect: ((Value) -> Void)? = nil
+    var singleRow: Bool = false
 
     var body: some View {
         Group {
-            if #available(iOS 16.0, *) {
+            if singleRow {
+                chipRow
+            } else if #available(iOS 16.0, *) {
                 ChipWrapLayout(spacing: TappableChipFlow.spacing) {
                     ForEach(options, id: \.value) { option in
                         chip(for: option)
                     }
                 }
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: TappableChipFlow.spacing) {
-                        ForEach(options, id: \.value) { option in
-                            chip(for: option)
-                        }
-                    }
-                }
+                chipRow
             }
         }
         .padding(TappableChipFlow.inset)
@@ -73,6 +70,33 @@ struct TappableValue<Value: Hashable>: View {
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color(uiColor: .separator), lineWidth: 1)
         )
+    }
+
+    private var chipRow: some View {
+        Group {
+            if #available(iOS 16.0, *) {
+                ViewThatFits(in: .horizontal) {
+                    chipHStack
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        chipHStack
+                    }
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    chipHStack
+                }
+            }
+        }
+        .frame(minHeight: TappableChipFlow.minTapLength)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var chipHStack: some View {
+        HStack(spacing: TappableChipFlow.spacing) {
+            ForEach(options, id: \.value) { option in
+                chip(for: option)
+            }
+        }
     }
 
     private func chip(for option: TappableOption<Value>) -> some View {
@@ -152,14 +176,45 @@ struct TappableValueField<Value: Hashable>: View {
     @Binding var selection: Value
     var options: [TappableOption<Value>]
     var onSelect: ((Value) -> Void)? = nil
+    var layout: TappableValueLayout = .inline
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            TappableValue(options: options, selection: $selection, onSelect: onSelect)
+        Group {
+            switch layout {
+            case .stacked:
+                VStack(alignment: .leading, spacing: 4) {
+                    titleLabel
+                    TappableValue(
+                        options: options,
+                        selection: $selection,
+                        onSelect: onSelect
+                    )
+                }
+            case .inline:
+                HStack(alignment: .center, spacing: 8) {
+                    titleLabel
+                        .fixedSize(horizontal: true, vertical: false)
+                        .lineLimit(2)
+                    TappableValue(
+                        options: options,
+                        selection: $selection,
+                        onSelect: onSelect,
+                        singleRow: true
+                    )
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    private var titleLabel: some View {
+        Text(title)
+            .font(.caption)
+            .foregroundColor(.secondary)
+    }
+}
+
+enum TappableValueLayout {
+    case stacked
+    case inline
 }

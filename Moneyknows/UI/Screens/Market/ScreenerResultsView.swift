@@ -91,18 +91,24 @@ struct ScreenerResultsView: View {
                 EmptyStateView(title: L10n.Market.empty)
             }
         } else {
-            ForEach(store.rows) { row in
-                ScreenerResultRow(
-                    summary: row,
-                    bars: watch.bars(for: row.symbol),
-                    isLoading: watch.isLoading(row.symbol),
-                    errorText: watch.failureText(for: row.symbol),
-                    retry: { watch.requestRetry(row.symbol) },
-                    onOpen: { router.openSymbol(row.symbol) },
-                    emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil
-                )
-                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
-                .listRowSeparator(.visible, edges: .bottom)
+            Section {
+                ScreenerColumnHeader(showsATR: kind == .atr)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 0, trailing: 12))
+                    .listRowSeparator(.hidden)
+                ForEach(store.rows) { row in
+                    ScreenerResultRow(
+                        summary: row,
+                        bars: watch.bars(for: row.symbol),
+                        isLoading: watch.isLoading(row.symbol),
+                        errorText: watch.failureText(for: row.symbol),
+                        retry: { watch.requestRetry(row.symbol) },
+                        onOpen: { router.openSymbol(row.symbol) },
+                        emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil,
+                        showsATR: kind == .atr
+                    )
+                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
+                    .listRowSeparator(.visible, edges: .bottom)
+                }
             }
         }
     }
@@ -116,19 +122,20 @@ private struct ScreenerResultRow: View {
     var retry: () -> Void
     var onOpen: () -> Void
     var emptyText: String?
+    var showsATR: Bool = false
 
     var body: some View {
         let plot = SubscriptionSparklineAssembler.minuteCandles(bars1m: bars)
         return VStack(alignment: .leading, spacing: 2) {
             Button(action: onOpen) {
-                SymbolRow(summary: summary)
+                SymbolRow(summary: summary, arrangement: .distributed, showsATR: showsATR)
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
             SparklinePane(
                 title: "",
                 plot: .candles(bars: plot.bars, vwap: plot.vwap, timeKind: .minute),
-                chartHeight: 120,
+                chartHeight: 150,
                 isLoading: isLoading,
                 errorText: errorText,
                 retry: retry,

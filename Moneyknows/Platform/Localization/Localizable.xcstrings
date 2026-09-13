@@ -2630,13 +2630,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bar Count"
+            "value" : "Window"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "K线数量"
+            "value" : "窗口"
           }
         }
       }
@@ -2671,6 +2671,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "市场数据"
+          }
+        }
+      }
+    },
+    "market.columnChange" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "涨跌幅"
+          }
+        }
+      }
+    },
+    "market.columnPrice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Price"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "价格"
+          }
+        }
+      }
+    },
+    "market.columnSymbol" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代码"
+          }
+        }
+      }
+    },
+    "market.columnVolume" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volume"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成交量"
           }
         }
       }
@@ -2885,13 +2953,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min Market Cap"
+            "value" : "M-Cap"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最低市值"
+            "value" : "市值"
           }
         }
       }
@@ -2902,13 +2970,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min Price"
+            "value" : "Price"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最低价格"
+            "value" : "价格"
           }
         }
       }
@@ -2919,13 +2987,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min volume"
+            "value" : "Volume"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最低量"
+            "value" : "成交"
           }
         }
       }
@@ -3027,7 +3095,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "RSI ADX 指标"
+            "value" : "指标"
           }
         }
       }
@@ -3157,13 +3225,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top Volume Increased"
+            "value" : "Volume Increased"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "成交量增幅最大"
+            "value" : "成交量增幅"
           }
         }
       }
@@ -3180,7 +3248,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "窗口（分钟）"
+            "value" : "窗口"
           }
         }
       }
@@ -3197,7 +3265,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "热门筛选器"
+            "value" : "热门"
           }
         }
       }
