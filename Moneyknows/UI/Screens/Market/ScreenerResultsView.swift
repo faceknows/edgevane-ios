@@ -10,7 +10,7 @@ struct ScreenerResultsView: View {
     var body: some View {
         List {
             if kind.showsFilters, isCurrentKind {
-                Section(L10n.Market.filters) {
+                Section {
                     filterControls
                 }
             }
