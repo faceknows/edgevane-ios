@@ -25,7 +25,7 @@ Root
 
 不是独立领域。读：
 
-- `PortfolioStore` → 今日盈亏卡
+- `PortfolioStore` → 今日盈亏卡（仪表盘仅此卡显示模拟/实盘徽标；下单弹窗另显）
 - `PositionStore` → 持仓摘要
 - `OrderStore` → 订单摘要
 - 搜索 → `SymbolDetail(symbol)`

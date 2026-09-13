@@ -108,27 +108,6 @@ struct SymbolRow: View {
     }
 }
 
-struct ScreenerColumnHeader: View {
-    var showsATR: Bool
-
-    var body: some View {
-        ScreenerMetricsColumns(showsATR: showsATR) {
-            Text(L10n.Market.columnSymbol)
-        } atr: {
-            Text(L10n.Detail.atr)
-        } price: {
-            Text(L10n.Market.columnPrice)
-        } volume: {
-            Text(L10n.Market.columnVolume)
-        } change: {
-            Text(L10n.Market.columnChange)
-        }
-        .font(.caption)
-        .foregroundColor(.secondary)
-        .accessibilityAddTraits(.isHeader)
-    }
-}
-
 private struct ScreenerMetricsColumns<Symbol: View, ATR: View, Price: View, Volume: View, Change: View>: View {
     var showsATR: Bool
     var symbol: Symbol

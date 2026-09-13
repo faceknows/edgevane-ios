@@ -51,9 +51,6 @@ struct PortfolioView: View {
     @ViewBuilder
     private var banners: some View {
         Section {
-            if let environment = trading.environment ?? brokerage.current?.environment {
-                EnvironmentBanner(environment: environment)
-            }
             if portfolio.snapshot?.tradingBlocked == true {
                 TradingBlockedBanner()
             }

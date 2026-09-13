@@ -91,24 +91,19 @@ struct ScreenerResultsView: View {
                 EmptyStateView(title: L10n.Market.empty)
             }
         } else {
-            Section {
-                ScreenerColumnHeader(showsATR: kind == .atr)
-                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 0, trailing: 12))
-                    .listRowSeparator(.hidden)
-                ForEach(store.rows) { row in
-                    ScreenerResultRow(
-                        summary: row,
-                        bars: watch.bars(for: row.symbol),
-                        isLoading: watch.isLoading(row.symbol),
-                        errorText: watch.failureText(for: row.symbol),
-                        retry: { watch.requestRetry(row.symbol) },
-                        onOpen: { router.openSymbol(row.symbol) },
-                        emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil,
-                        showsATR: kind == .atr
-                    )
-                    .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
-                    .listRowSeparator(.visible, edges: .bottom)
-                }
+            ForEach(store.rows) { row in
+                ScreenerResultRow(
+                    summary: row,
+                    bars: watch.bars(for: row.symbol),
+                    isLoading: watch.isLoading(row.symbol),
+                    errorText: watch.failureText(for: row.symbol),
+                    retry: { watch.requestRetry(row.symbol) },
+                    onOpen: { router.openSymbol(row.symbol) },
+                    emptyText: watch.hasResolved(row.symbol) ? L10n.Chart.empty : nil,
+                    showsATR: kind == .atr
+                )
+                .listRowInsets(EdgeInsets(top: 6, leading: 12, bottom: 4, trailing: 12))
+                .listRowSeparator(.visible, edges: .bottom)
             }
         }
     }

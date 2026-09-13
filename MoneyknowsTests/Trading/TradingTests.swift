@@ -39,6 +39,29 @@ final class DailyPnLTests: XCTestCase {
     }
 }
 
+final class TradeConfirmCopyTests: XCTestCase {
+    func testMessageIncludesLiveOrPaper() {
+        let live = TradeConfirmCopy.message(
+            symbol: "AAPL",
+            side: .buy,
+            price: 10,
+            quantity: 2,
+            environment: .live
+        )
+        let paper = TradeConfirmCopy.message(
+            symbol: "AAPL",
+            sideTitle: "\(L10n.Trading.buy)/\(L10n.Trading.sell)",
+            price: 10,
+            quantity: 2,
+            environment: .paper
+        )
+        XCTAssertTrue(live.contains(BrokerageEnvironment.live.title))
+        XCTAssertTrue(paper.contains(BrokerageEnvironment.paper.title))
+        XCTAssertTrue(paper.contains(L10n.Trading.buy))
+        XCTAssertTrue(paper.contains(L10n.Trading.sell))
+    }
+}
+
 final class OrderFilterTests: XCTestCase {
     func testFilledIncludesPartialAndNewIsExactStatus() {
         XCTAssertTrue(sampleOrder(status: .filled).matches(.filled))

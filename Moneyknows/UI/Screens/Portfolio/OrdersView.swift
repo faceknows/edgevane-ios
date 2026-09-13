@@ -27,9 +27,6 @@ struct OrdersView: View {
             } else {
                 List {
                     Section {
-                        if let environment = trading.environment ?? brokerage.current?.environment {
-                            EnvironmentBanner(environment: environment)
-                        }
                         if portfolio.snapshot?.tradingBlocked == true {
                             TradingBlockedBanner()
                         }
@@ -252,9 +249,6 @@ struct AmendOrderView: View {
     var body: some View {
         Form {
             Section {
-                if let environment = trading.environment ?? brokerage.current?.environment {
-                    EnvironmentBanner(environment: environment)
-                }
                 TextField(L10n.Trading.quantity, text: $quantityInput)
                     .keyboardType(.decimalPad)
                 TextField(L10n.Trading.price, text: $priceInput)

@@ -27,7 +27,7 @@ struct ScreenerCatalogView: View {
                 }
             }
 
-            Section(L10n.Market.catalog) {
+            Section {
                 ForEach(ScreenerKind.allCases) { kind in
                     NavigationLink(destination: AppRouter.destination(.screenerResults(kind))) {
                         Text(kind.title)

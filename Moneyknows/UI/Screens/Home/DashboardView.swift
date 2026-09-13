@@ -50,8 +50,6 @@ struct DashboardView: View {
 
     private var showsBanners: Bool {
         !hasBrokerage
-            || trading.environment != nil
-            || brokerage.current?.environment != nil
             || portfolio.snapshot?.tradingBlocked == true
             || trading.needsCredentials
             || dashboardErrorText != nil
@@ -61,9 +59,6 @@ struct DashboardView: View {
         VStack(alignment: .leading, spacing: 8) {
             if !hasBrokerage {
                 NoBrokerageBanner()
-            }
-            if let environment = trading.environment ?? brokerage.current?.environment {
-                EnvironmentBanner(environment: environment)
             }
             if portfolio.snapshot?.tradingBlocked == true {
                 TradingBlockedBanner()
@@ -86,7 +81,8 @@ struct DashboardView: View {
                 cardLink(.portfolio) {
                     DashboardStatCard(
                         title: L10n.Dashboard.todayPnl,
-                        fill: pnlCardFill
+                        fill: pnlCardFill,
+                        environment: trading.environment ?? brokerage.current?.environment
                     ) {
                         todayPnlValue
                     }
@@ -314,15 +310,21 @@ private struct DashboardStatCard<Value: View>: View {
     var title: String
     var hint: String? = nil
     var fill: Color = DashboardPalette.cardFill
+    var environment: BrokerageEnvironment? = nil
     @ViewBuilder var value: () -> Value
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let environment {
+                    EnvironmentBanner(environment: environment)
+                }
+            }
             value()
             if let hint, !hint.isEmpty {
                 Text(hint)

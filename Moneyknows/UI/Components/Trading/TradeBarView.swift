@@ -87,9 +87,6 @@ struct TradeBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let environment = trading.environment ?? brokerage.current?.environment {
-                EnvironmentBanner(environment: environment)
-            }
             if brokerage.current == nil {
                 TradingCredentialsPrompt(
                     title: L10n.Dashboard.noBrokerage,
@@ -460,14 +457,8 @@ struct TradeTicketView: View {
                 .foregroundColor(actionTint)
             Text(SymbolCode.normalize(symbol))
                 .foregroundColor(.primary)
+            EnvironmentBanner(environment: environment)
             Spacer(minLength: 8)
-            Text(environment.title)
-                .font(.caption.weight(.semibold))
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .background(Color(uiColor: .secondarySystemFill))
-                .clipShape(Capsule())
             Button(L10n.Common.close, action: dismiss)
                 .foregroundColor(.primary)
                 .disabled(busy)
@@ -514,19 +505,46 @@ struct TradeTicketView: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        HStack(spacing: 12) {
-            if action == .slider {
-                submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
-                submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
-            } else {
-                submitButton(title: L10n.Common.confirm, side: resolvedSide, tint: actionTint)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                EnvironmentBanner(environment: environment)
+                Text(ticketConfirmCopy)
+                    .font(.footnote)
+                    .foregroundColor(environment == .live ? .red : .orange)
+                    .lineLimit(2)
             }
-            Button(L10n.Common.cancel, action: dismiss)
-                .buttonStyle(.plain)
-                .foregroundColor(.accentColor)
-                .padding(.horizontal, 8)
-                .disabled(busy)
+            .accessibilityElement(children: .combine)
+            HStack(spacing: 12) {
+                if action == .slider {
+                    submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
+                    submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
+                } else {
+                    submitButton(title: L10n.Common.confirm, side: resolvedSide, tint: actionTint)
+                }
+                Button(L10n.Common.cancel, action: dismiss)
+                    .buttonStyle(.plain)
+                    .foregroundColor(.accentColor)
+                    .padding(.horizontal, 8)
+                    .disabled(busy)
+            }
         }
+    }
+
+    private var ticketConfirmCopy: String {
+        let quantity = TradeInput.parse(quantityInput)
+            ?? (action == .marketClose ? position?.quantity : nil)
+            ?? 0
+        let price = action == .marketClose ? nil : TradeInput.parse(priceInput)
+        let sideTitle = action == .slider
+            ? "\(L10n.Trading.buy)/\(L10n.Trading.sell)"
+            : (resolvedSide == .sell ? L10n.Trading.sell : L10n.Trading.buy)
+        return TradeConfirmCopy.message(
+            symbol: SymbolCode.normalize(symbol),
+            sideTitle: sideTitle,
+            price: price,
+            quantity: quantity,
+            environment: environment
+        )
     }
 
     private func submitButton(title: String, side: OrderSide, tint: Color) -> some View {
@@ -551,6 +569,7 @@ struct TradeTicketView: View {
         }
         .buttonStyle(.plain)
         .disabled(busy)
+        .accessibilityLabel("\(title) · \(environment.title)")
     }
 
     @ViewBuilder

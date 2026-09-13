@@ -4,10 +4,19 @@ struct EnvironmentBanner: View {
     var environment: BrokerageEnvironment
 
     var body: some View {
-        Text(environment == .live ? L10n.Credentials.live : L10n.Credentials.paper)
-            .font(.caption.weight(.semibold))
+        Text(environment.title)
+            .font(.caption2.weight(.semibold))
             .foregroundColor(environment == .live ? .red : .orange)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .overlay(
+                Capsule().strokeBorder(
+                    environment == .live ? Color.red.opacity(0.35) : Color.orange.opacity(0.35),
+                    lineWidth: 1
+                )
+            )
+            .clipShape(Capsule())
+            .fixedSize()
     }
 }
 
@@ -234,9 +243,25 @@ enum TradeConfirmCopy {
         quantity: Double,
         environment: BrokerageEnvironment
     ) -> String {
+        message(
+            symbol: symbol,
+            sideTitle: side == .sell ? L10n.Trading.sell : L10n.Trading.buy,
+            price: price,
+            quantity: quantity,
+            environment: environment
+        )
+    }
+
+    static func message(
+        symbol: String,
+        sideTitle: String,
+        price: Double?,
+        quantity: Double,
+        environment: BrokerageEnvironment
+    ) -> String {
         L10n.Trading.confirmMessage(
             symbol,
-            side == .sell ? L10n.Trading.sell : L10n.Trading.buy,
+            sideTitle,
             MarketFormat.price(price),
             MarketFormat.quantity(quantity),
             environment.title

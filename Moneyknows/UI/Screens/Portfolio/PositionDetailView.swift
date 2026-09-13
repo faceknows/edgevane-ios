@@ -20,9 +20,6 @@ struct PositionDetailView: View {
                 if let position {
                     List {
                         Section {
-                            if let environment = trading.environment ?? brokerage.current?.environment {
-                                EnvironmentBanner(environment: environment)
-                            }
                             if portfolio.snapshot?.tradingBlocked == true {
                                 TradingBlockedBanner()
                             }
