@@ -14,10 +14,10 @@ enum MinuteChartAssembler {
     ) -> ChartModel {
         let bars = BarAggregator.aggregate(bars1m, minutes: interval.minutes)
         var overlays: [OverlayLine] = []
-        if showVWAP, !bars1m.isEmpty {
+        if showVWAP, !bars.isEmpty {
             overlays.append(OverlayLine(
                 id: "vwap",
-                points: VWAP.series(from: bars1m),
+                points: VWAP.series(from: bars),
                 colorToken: .vwap,
                 width: 1
             ))

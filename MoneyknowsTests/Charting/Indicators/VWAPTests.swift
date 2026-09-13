@@ -92,7 +92,7 @@ final class BarTimeTests: XCTestCase {
 }
 
 final class MinuteChartAssemblerTests: XCTestCase {
-    func testVWAPUsesOneMinuteBarsAndPriceLinesFollowSnapshot() {
+    func testVWAPUsesDisplayedIntervalBarsNotOneMinuteSeries() {
         let start = Date(timeIntervalSince1970: 1_700_000_100)
         let bars1m = (0..<6).map { index in
             Bar(
@@ -123,7 +123,16 @@ final class MinuteChartAssemblerTests: XCTestCase {
         )
         XCTAssertEqual(model.bars.count, 2)
         XCTAssertEqual(model.overlays.first?.id, "vwap")
-        XCTAssertEqual(model.overlays.first?.points.count, bars1m.count)
+        XCTAssertEqual(model.overlays.first?.points.count, model.bars.count)
+        XCTAssertEqual(model.overlays.first?.points.map(\.time), model.bars.map(\.time))
+        XCTAssertEqual(
+            model.overlays.first?.points.map(\.value),
+            VWAP.series(from: model.bars).map(\.value)
+        )
+        XCTAssertNotEqual(
+            model.overlays.first?.points.map(\.value),
+            VWAP.series(from: bars1m).map(\.value)
+        )
         XCTAssertEqual(model.priceLines.map(\.id), ["prevClose", "sessionOpen"])
         XCTAssertTrue(model.priceLines.allSatisfy(\.dashed))
         XCTAssertEqual(model.markers.map(\.id), ["fill-1"])
