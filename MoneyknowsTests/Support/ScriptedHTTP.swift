@@ -33,6 +33,8 @@ final class ScriptedHTTP: HTTPSending {
         }
     }
 
+    var pausedCount: Int { paused.count }
+
     func send<T: Decodable>(_ request: HTTPRequest) async throws -> T {
         let data = try await sendRaw(request)
         if T.self == EmptyResponse.self {
@@ -97,6 +99,12 @@ private final class PauseGate: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return items.isEmpty
+    }
+
+    var count: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return items.count
     }
 
     func add(_ id: UInt64, _ continuation: CheckedContinuation<Void, Error>) {

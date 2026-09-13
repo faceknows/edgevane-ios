@@ -9,7 +9,7 @@ final class SymbolChartSession: ObservableObject {
     @Published private(set) var regularBars: [Bar] = []
     @Published private(set) var preBars: [Bar] = []
     @Published private(set) var afterBars: [Bar] = []
-    @Published private(set) var isLoadingRegular = false
+    @Published private(set) var isLoadingRegular = true
     @Published private(set) var errorText: String?
 
     @Published private(set) var regularDate = ""
@@ -60,6 +60,7 @@ final class SymbolChartSession: ObservableObject {
     func start(symbol: String, store: BarStore, now: Date = Date()) async {
         loadID += 1
         let loadID = self.loadID
+        isLoadingRegular = true
         let next = SymbolCode.normalize(symbol)
         if next != self.symbol, summary?.symbol != next {
             summary = nil
@@ -87,6 +88,7 @@ final class SymbolChartSession: ObservableObject {
         if nextRegular != regularDate {
             regularDate = nextRegular
             regularBars = store?.cached(symbol: symbol, date: nextRegular, session: .regular) ?? []
+            isLoadingRegular = true
             fills = []
             errorText = nil
             rolled.insert(.regular)
@@ -127,7 +129,12 @@ final class SymbolChartSession: ObservableObject {
             let now = Date()
             let rolled = syncDates(now: now)
             if rolled.contains(.regular) || shouldPoll(.regular, now: now) {
-                await refresh(.regular, date: regularDate, showLoading: false, now: now)
+                await refresh(
+                    .regular,
+                    date: regularDate,
+                    showLoading: rolled.contains(.regular),
+                    now: now
+                )
             }
             if rolled.contains(.premarket) || shouldPoll(.premarket, now: now) {
                 await refresh(.premarket, date: extendedDate, showLoading: false, now: now)

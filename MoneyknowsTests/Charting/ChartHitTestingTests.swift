@@ -244,6 +244,27 @@ final class ChartLibraryOptionsTests: XCTestCase {
         XCTAssertTrue(ChartTouchScrolling.chartOwnsPan(translationX: -12, translationY: 0))
     }
 
+    func testFollowerChartDoesNotOwnTimeScaleGestures() {
+        XCTAssertFalse(ChartTouchScrolling.horzTouchDrag(allowsTimeScaleInteraction: false))
+        XCTAssertTrue(ChartTouchScrolling.horzTouchDrag(allowsTimeScaleInteraction: true))
+        XCTAssertFalse(ChartTouchScrolling.pinch(allowsTimeScaleInteraction: false))
+        XCTAssertTrue(ChartTouchScrolling.pinch(allowsTimeScaleInteraction: true))
+        XCTAssertFalse(
+            ChartTouchScrolling.chartOwnsPan(
+                translationX: 20,
+                translationY: 2,
+                allowsTimeScaleInteraction: false
+            )
+        )
+        XCTAssertTrue(
+            ChartTouchScrolling.chartOwnsPan(
+                translationX: 20,
+                translationY: 2,
+                allowsTimeScaleInteraction: true
+            )
+        )
+    }
+
     func testDirectionLockWaitsUntilTheFingerMovesFarEnough() {
         XCTAssertFalse(ChartTouchScrolling.hasLockedDirection(translationX: 3, translationY: 4))
         XCTAssertTrue(ChartTouchScrolling.hasLockedDirection(translationX: 10, translationY: 1))
@@ -268,6 +289,107 @@ final class ChartLibraryOptionsTests: XCTestCase {
         let tall = ChartVolumeLayout.priceMargins(volumeHeight: 80, totalHeight: total)
         XCTAssertGreaterThan(tall.bottom, compact.bottom)
         XCTAssertEqual(ChartVolumeLayout.priceMargins(volumeHeight: nil, totalHeight: total).bottom, ChartVolumeLayout.priceBottomWithoutVolume)
+    }
+}
+
+final class ChartVisibleTimeRangeSyncTests: XCTestCase {
+    func testSameWindowIsNotRestoredAgain() {
+        let range = ChartVisibleTimeRange(from: t(0), to: t(3_600))
+        XCTAssertFalse(ChartVisibleTimeRangeSync.shouldRestore(current: range, target: range, dataChanged: false))
+        XCTAssertTrue(ChartVisibleTimeRangeSync.shouldRestore(current: nil, target: range, dataChanged: false))
+        XCTAssertTrue(ChartVisibleTimeRangeSync.shouldRestore(current: range, target: range, dataChanged: true))
+        XCTAssertFalse(ChartVisibleTimeRangeSync.shouldPublish(applied: range, observed: range))
+        XCTAssertTrue(ChartVisibleTimeRangeSync.shouldPublish(applied: nil, observed: range))
+    }
+
+    func testLogicalBarCountIsNotTheWindow() {
+        let open = t(0)
+        let close = t(6 * 3600)
+        let window = ChartVisibleTimeRange(from: open, to: close)
+        let oneMinute = bars(from: open, count: 360, stride: 60)
+        let fiveMinute = bars(from: open, count: 72, stride: 300)
+        XCTAssertTrue(ChartVisibleTimeRangeSync.intersects(window, bars: oneMinute))
+        XCTAssertTrue(ChartVisibleTimeRangeSync.intersects(window, bars: fiveMinute))
+        let one = ChartVisibleTimeRangeSync.logicalRange(for: window, in: oneMinute, barDuration: 60)
+        let five = ChartVisibleTimeRangeSync.logicalRange(for: window, in: fiveMinute, barDuration: 300)
+        XCTAssertEqual(one?.from ?? -1, 0, accuracy: 0.01)
+        XCTAssertEqual(five?.from ?? -1, 0, accuracy: 0.01)
+        XCTAssertEqual(one?.to ?? 0, 360, accuracy: 0.01)
+        XCTAssertEqual(five?.to ?? 0, 72, accuracy: 0.01)
+        XCTAssertLessThan(five?.to ?? 0, one?.to ?? 0)
+    }
+
+    func testShorterSeriesKeepsTheSameWallClockEnd() {
+        let open = t(0)
+        let close = t(6 * 3600)
+        let window = ChartVisibleTimeRange(from: open, to: close)
+        let nasdaq = bars(from: open, count: 60, stride: 300)
+        let logical = ChartVisibleTimeRangeSync.logicalRange(for: window, in: nasdaq, barDuration: 300)
+        XCTAssertEqual(logical?.from ?? -1, 0, accuracy: 0.01)
+        XCTAssertGreaterThan(logical?.to ?? 0, 59)
+        XCTAssertEqual(logical?.to ?? 0, 72, accuracy: 0.01)
+    }
+
+    func testBarTimeMapsToItsIndex() {
+        let start = t(0)
+        let sample = bars(from: start, count: 12, stride: 300)
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.logicalIndex(of: start.addingTimeInterval(1_500), in: sample, duration: 300),
+            5,
+            accuracy: 0.01
+        )
+    }
+
+    func testSingleFiveMinuteBarUsesPassedDurationNotOneMinute() {
+        XCTAssertEqual(MinuteInterval.five.barDuration, 300)
+        XCTAssertEqual(MinuteInterval.three.barDuration, 180)
+        let open = t(0)
+        let window = ChartVisibleTimeRange(from: open, to: open.addingTimeInterval(1_800))
+        let single = bars(from: open, count: 1, stride: 300)
+        let logical = ChartVisibleTimeRangeSync.logicalRange(for: window, in: single, barDuration: 300)
+        XCTAssertEqual(logical?.from ?? -1, 0, accuracy: 0.01)
+        XCTAssertEqual(logical?.to ?? 0, 6, accuracy: 0.01)
+        XCTAssertNil(ChartVisibleTimeRangeSync.logicalRange(for: window, in: single, barDuration: 0))
+    }
+
+    func testLeadingGapDoesNotBecomeTheBarDuration() {
+        let open = t(0)
+        let window = ChartVisibleTimeRange(from: open, to: open.addingTimeInterval(1_800))
+        let gapped = [
+            bar(at: open),
+            bar(at: open.addingTimeInterval(900))
+        ]
+        let logical = ChartVisibleTimeRangeSync.logicalRange(for: window, in: gapped, barDuration: 300)
+        XCTAssertEqual(logical?.from ?? -1, 0, accuracy: 0.01)
+        XCTAssertEqual(logical?.to ?? 0, 4, accuracy: 0.01)
+    }
+
+    func testRangeOutsideTheSessionDoesNotIntersect() {
+        let session = bars(from: t(0), count: 10, stride: 60)
+        let otherDay = ChartVisibleTimeRange(from: t(86_400), to: t(90_000))
+        XCTAssertFalse(ChartVisibleTimeRangeSync.intersects(otherDay, bars: session))
+        XCTAssertFalse(ChartVisibleTimeRangeSync.intersects(otherDay, bars: []))
+    }
+
+    func testSubSecondJitterCountsAsTheSameWindow() {
+        let range = ChartVisibleTimeRange(from: t(0), to: t(3_600))
+        let jittered = ChartVisibleTimeRange(from: t(0.4), to: t(3_600.4))
+        XCTAssertTrue(range.isApproximatelyEqual(to: jittered))
+        XCTAssertFalse(ChartVisibleTimeRangeSync.shouldRestore(current: range, target: jittered, dataChanged: false))
+    }
+
+    private func t(_ seconds: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: seconds)
+    }
+
+    private func bars(from start: Date, count: Int, stride: TimeInterval) -> [Bar] {
+        (0..<count).map { index in
+            bar(at: start.addingTimeInterval(TimeInterval(index) * stride))
+        }
+    }
+
+    private func bar(at time: Date) -> Bar {
+        Bar(time: time, open: 1, high: 1, low: 1, close: 1, volume: 1)
     }
 }
 

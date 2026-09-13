@@ -21,6 +21,7 @@ enum MinuteInterval: Int, CaseIterable, Identifiable {
 
     var id: Int { rawValue }
     var minutes: Int { rawValue }
+    var barDuration: TimeInterval { TimeInterval(minutes * 60) }
 
     var chromeTitle: String {
         switch self {
@@ -164,6 +165,83 @@ enum ChartEvent {
     case pickedMarker(id: String)
     case reachedOldest
     case loadFailed
+    case visibleTimeRange(ChartVisibleTimeRange)
+}
+
+/// Wall-clock window currently shown on a minute chart. 1/3/5 aggregation
+/// must keep this window; logical bar indices are not comparable across intervals.
+struct ChartVisibleTimeRange: Equatable {
+    var from: Date
+    var to: Date
+
+    static let syncTolerance: TimeInterval = 1
+
+    func isApproximatelyEqual(
+        to other: ChartVisibleTimeRange,
+        tolerance: TimeInterval = syncTolerance
+    ) -> Bool {
+        abs(from.timeIntervalSince(other.from)) < tolerance
+            && abs(to.timeIntervalSince(other.to)) < tolerance
+    }
+}
+
+enum ChartVisibleTimeRangeSync {
+    static let restoreSettleInterval: TimeInterval = 0.2
+
+    static func intersects(_ range: ChartVisibleTimeRange, bars: [Bar]) -> Bool {
+        guard let first = bars.first?.time, let last = bars.last?.time else { return false }
+        return range.from <= last && range.to >= first
+    }
+
+    /// Re-apply the same wall-clock window after 1/3/5 aggregation: logical
+    /// indices from the previous interval would squeeze the new bars.
+    static func shouldRestore(
+        current: ChartVisibleTimeRange?,
+        target: ChartVisibleTimeRange,
+        dataChanged: Bool
+    ) -> Bool {
+        if dataChanged { return true }
+        if let current, current.isApproximatelyEqual(to: target) { return false }
+        return true
+    }
+
+    static func shouldPublish(applied: ChartVisibleTimeRange?, observed: ChartVisibleTimeRange) -> Bool {
+        if let applied, applied.isApproximatelyEqual(to: observed) { return false }
+        return true
+    }
+
+    /// Logical from/to on `bars` for the same wall-clock window. `barDuration` is
+    /// the current 1/3/5 period, not inferred from bar gaps. `to` may extend past
+    /// the last bar so a shorter series keeps the same end as the source.
+    static func logicalRange(
+        for range: ChartVisibleTimeRange,
+        in bars: [Bar],
+        barDuration: TimeInterval
+    ) -> (from: Double, to: Double)? {
+        guard barDuration > 0, !bars.isEmpty, intersects(range, bars: bars) else { return nil }
+        let from = logicalIndex(of: range.from, in: bars, duration: barDuration)
+        let to = logicalIndex(of: range.to, in: bars, duration: barDuration)
+        guard from <= to else { return nil }
+        return (from, to)
+    }
+
+    static func logicalIndex(of time: Date, in bars: [Bar], duration: TimeInterval) -> Double {
+        guard let first = bars.first?.time else { return 0 }
+        if time <= first {
+            return duration > 0 ? time.timeIntervalSince(first) / duration : 0
+        }
+        for index in 1..<bars.count {
+            let barTime = bars[index].time
+            if time <= barTime {
+                let span = barTime.timeIntervalSince(bars[index - 1].time)
+                if span <= 0 { return Double(index) }
+                let fraction = time.timeIntervalSince(bars[index - 1].time) / span
+                return Double(index - 1) + min(1, max(0, fraction))
+            }
+        }
+        guard let last = bars.last?.time, duration > 0 else { return Double(max(bars.count - 1, 0)) }
+        return Double(bars.count - 1) + time.timeIntervalSince(last) / duration
+    }
 }
 
 enum ChartTimeScalePaging {
@@ -319,7 +397,8 @@ enum ChartLibraryOptions {
     }
 }
 
-/// Details stacks several `ChartSurface`s. Vertical pans belong to the page; the chart keeps left/right and pinch.
+/// Details stacks several `ChartSurface`s. Vertical pans belong to the page; the chart keeps left/right and pinch
+/// unless time-scale interaction is off (NASDAQ follower).
 enum ChartTouchScrolling {
     static let verticalTouchDrag = false
     static let horizontalTouchDrag = true
@@ -329,9 +408,21 @@ enum ChartTouchScrolling {
         hypot(translationX, translationY) >= lockDistance
     }
 
+    static func horzTouchDrag(allowsTimeScaleInteraction: Bool) -> Bool {
+        allowsTimeScaleInteraction && horizontalTouchDrag
+    }
+
+    static func pinch(allowsTimeScaleInteraction: Bool) -> Bool {
+        allowsTimeScaleInteraction
+    }
+
     /// Horizontal wins only when X is strictly larger; ties and vertical go to the page.
-    static func chartOwnsPan(translationX: Double, translationY: Double) -> Bool {
-        abs(translationX) > abs(translationY)
+    static func chartOwnsPan(
+        translationX: Double,
+        translationY: Double,
+        allowsTimeScaleInteraction: Bool = true
+    ) -> Bool {
+        allowsTimeScaleInteraction && abs(translationX) > abs(translationY)
     }
 }
 

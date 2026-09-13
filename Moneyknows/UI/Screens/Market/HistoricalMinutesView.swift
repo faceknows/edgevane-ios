@@ -15,6 +15,7 @@ private struct HistoricalMinutesBody: View {
     @ObservedObject var session: HistoricalMinutesSession
     @ObservedObject var fills: DayFillsSession
     @FocusState private var isSearchFocused: Bool
+    @State private var sessionTimeRange: ChartVisibleTimeRange?
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -48,7 +49,10 @@ private struct HistoricalMinutesBody: View {
                             isLoading: session.isLoading,
                             errorText: session.errorText,
                             retry: { Task { await session.reload(store: bars, trading: trading) } },
-                            onEvent: handleChartEvent
+                            onEvent: handleChartEvent,
+                            visibleTimeRange: sessionTimeRange,
+                            publishesVisibleTimeRange: true,
+                            barDuration: session.interval.barDuration
                         )
                         if !session.preBars.isEmpty {
                             ChartPanel(
@@ -83,7 +87,11 @@ private struct HistoricalMinutesBody: View {
         .navigationTitle(L10n.Historical.title)
         .navigationBarTitleDisplayMode(.inline)
         .onChange(of: session.dateString) { _ in
+            sessionTimeRange = nil
             Task { await session.reload(store: bars, trading: trading) }
+        }
+        .onChange(of: session.symbol) { _ in
+            sessionTimeRange = nil
         }
         .onChange(of: trading.orders.orders) { _ in
             session.refreshFills(trading: trading)
@@ -148,6 +156,11 @@ private struct HistoricalMinutesBody: View {
     private func handleChartEvent(_ event: ChartEvent) {
         if case let .pickedMarker(id) = event {
             fills.selectedFillID = id
+        }
+        if case let .visibleTimeRange(range) = event {
+            if sessionTimeRange?.isApproximatelyEqual(to: range) != true {
+                sessionTimeRange = range
+            }
         }
     }
 

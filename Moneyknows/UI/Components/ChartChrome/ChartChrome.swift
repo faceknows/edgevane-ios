@@ -73,6 +73,10 @@ struct ChartPanel: View {
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
     var onEvent: (ChartEvent) -> Void = { _ in }
+    var visibleTimeRange: ChartVisibleTimeRange? = nil
+    var publishesVisibleTimeRange = false
+    var allowsTimeScaleInteraction = true
+    var barDuration: TimeInterval? = nil
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -93,7 +97,11 @@ struct ChartPanel: View {
                 isLoading: isLoading,
                 errorText: errorText,
                 retry: retry,
-                onEvent: onEvent
+                onEvent: onEvent,
+                visibleTimeRange: visibleTimeRange,
+                publishesVisibleTimeRange: publishesVisibleTimeRange,
+                allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+                barDuration: barDuration
             )
         }
     }

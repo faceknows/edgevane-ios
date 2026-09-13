@@ -4,7 +4,7 @@ import Foundation
 final class DailyChartSession: ObservableObject {
     @Published var style: ChartStyle = .candle
     @Published private(set) var bars: [Bar] = []
-    @Published private(set) var isLoading = false
+    @Published private(set) var isLoading = true
     @Published private(set) var isPaging = false
     @Published private(set) var errorText: String?
 
@@ -30,7 +30,7 @@ final class DailyChartSession: ObservableObject {
         loadID += 1
         bars = []
         errorText = nil
-        isLoading = false
+        isLoading = true
         isPaging = false
         hasMore = true
         lastOlderStartDate = nil
@@ -45,11 +45,11 @@ final class DailyChartSession: ObservableObject {
         self.symbol = next
         self.store = store
         errorText = nil
-        isLoading = false
         isPaging = false
         hasMore = true
         lastOlderStartDate = nil
         bars = store.cachedDaily(symbol: next) ?? []
+        isLoading = bars.isEmpty
         await refreshLatest(now: now, showLoading: bars.isEmpty, force: false, loadID: loadID)
     }
 

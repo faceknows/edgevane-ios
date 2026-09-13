@@ -7,6 +7,18 @@ struct LightweightChartSnapshot: Equatable {
     var colors: ChartColors
     var volumeHeight: CGFloat?
     var chartHeight: CGFloat
+    var visibleTimeRange: ChartVisibleTimeRange?
+    var publishesVisibleTimeRange: Bool
+    var allowsTimeScaleInteraction: Bool
+    var barDuration: TimeInterval?
+
+    func hasSameDrawnData(as other: LightweightChartSnapshot) -> Bool {
+        model == other.model
+            && colors == other.colors
+            && volumeHeight == other.volumeHeight
+            && chartHeight == other.chartHeight
+            && allowsTimeScaleInteraction == other.allowsTimeScaleInteraction
+    }
 }
 
 final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, ChartDelegate, TimeScaleDelegate {
@@ -30,6 +42,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var oldestBarTime: Date?
     private var timeScaleAPI: TimeScaleApi?
     private var didInstallFormatters = false
+    private var appliedTimeRange: ChartVisibleTimeRange?
+    private var suppressTimeRangeUntil: Date?
 
     init(onEvent: @escaping (ChartEvent) -> Void) {
         self.onEvent = onEvent
@@ -46,6 +60,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         let scale = lightweightCharts.timeScale()
         scale.delegate = self
         scale.subscribeVisibleLogicalRangeChange()
+        scale.subscribeVisibleTimeRangeChange()
         scale.subscribeSizeChange()
         timeScaleAPI = scale
         notePlotSize(width: lightweightCharts.bounds.width, height: lightweightCharts.bounds.height)
@@ -64,13 +79,21 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         colors: ChartColors,
         volumeHeight: CGFloat?,
         chartHeight: CGFloat,
+        visibleTimeRange: ChartVisibleTimeRange?,
+        publishesVisibleTimeRange: Bool,
+        allowsTimeScaleInteraction: Bool,
+        barDuration: TimeInterval?,
         on chart: LightweightCharts
     ) {
         let snapshot = LightweightChartSnapshot(
             model: model,
             colors: colors,
             volumeHeight: volumeHeight,
-            chartHeight: chartHeight
+            chartHeight: chartHeight,
+            visibleTimeRange: visibleTimeRange,
+            publishesVisibleTimeRange: publishesVisibleTimeRange,
+            allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+            barDuration: barDuration
         )
         pending = snapshot
         guard isLoaded else { return }
@@ -78,6 +101,13 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             notePlotSize(width: chart.bounds.width, height: chart.bounds.height)
         }
         guard applied != snapshot else { return }
+        if let applied, applied.hasSameDrawnData(as: snapshot) {
+            let durationChanged = applied.barDuration != snapshot.barDuration
+            self.applied = snapshot
+            applyViewport(dataChanged: durationChanged)
+            requestVisibleExtremes()
+            return
+        }
         apply(snapshot, on: chart)
     }
 
@@ -97,7 +127,17 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
-    func didVisibleTimeRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: TimeRange?) {}
+    func didVisibleTimeRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: TimeRange?) {
+        guard let range = visibleTimeRange(from: parameters) else { return }
+        if let until = suppressTimeRangeUntil, Date() < until {
+            return
+        }
+        suppressTimeRangeUntil = nil
+        guard applied?.publishesVisibleTimeRange == true else { return }
+        guard ChartVisibleTimeRangeSync.shouldPublish(applied: appliedTimeRange, observed: range) else { return }
+        appliedTimeRange = range
+        onEvent(.visibleTimeRange(range))
+    }
 
     func didVisibleLogicalRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: LogicalRange?) {
         applyVisibleExtremes(range: parameters)
@@ -118,7 +158,9 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     }
 
     func resetViewport() {
+        guard applied?.allowsTimeScaleInteraction != false else { return }
         guard let chart, !appliedBars.isEmpty else { return }
+        appliedTimeRange = nil
         fitAllContent(on: chart)
     }
 
@@ -132,7 +174,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         lockLeftEdge: Bool,
         volumeHeight: CGFloat? = nil,
         chartHeight: CGFloat = 0,
-        timeVisible: Bool = true
+        timeVisible: Bool = true,
+        allowsTimeScaleInteraction: Bool = true
     ) -> ChartOptions {
         let grid = chartColor(colors.grid)
         let price = ChartVolumeLayout.priceMargins(volumeHeight: volumeHeight, totalHeight: chartHeight)
@@ -160,14 +203,24 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 ? LocalizationOptions(timeFormatter: .closure(Self.easternCrosshairTime))
                 : nil,
             handleScroll: .options(HandleScrollOptions.Options(
-                mouseWheel: true,
-                pressedMouseMove: true,
-                horzTouchDrag: ChartTouchScrolling.horizontalTouchDrag,
+                mouseWheel: allowsTimeScaleInteraction,
+                pressedMouseMove: allowsTimeScaleInteraction,
+                horzTouchDrag: ChartTouchScrolling.horzTouchDrag(
+                    allowsTimeScaleInteraction: allowsTimeScaleInteraction
+                ),
                 vertTouchDrag: ChartTouchScrolling.verticalTouchDrag
             )),
             handleScale: .options(HandleScaleOptions(
-                pinch: true,
-                axisPressedMouseMove: .options(AxisPressedMouseMoveOptions(time: true, price: false))
+                mouseWheel: allowsTimeScaleInteraction,
+                pinch: ChartTouchScrolling.pinch(allowsTimeScaleInteraction: allowsTimeScaleInteraction),
+                axisPressedMouseMove: .options(AxisPressedMouseMoveOptions(
+                    time: allowsTimeScaleInteraction,
+                    price: false
+                )),
+                axisDoubleClickReset: .options(AxisDoubleClickOptions(
+                    time: allowsTimeScaleInteraction,
+                    price: false
+                ))
             ))
         )
     }
@@ -188,7 +241,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             lockLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging),
             volumeHeight: snapshot.volumeHeight,
             chartHeight: snapshot.chartHeight,
-            timeVisible: !model.usesCalendarDays
+            timeVisible: !model.usesCalendarDays,
+            allowsTimeScaleInteraction: snapshot.allowsTimeScaleInteraction
         ))
         if attachFormatters {
             didInstallFormatters = true
@@ -197,6 +251,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             clear(on: chart)
             rememberBars([])
             didFitContent = false
+            appliedTimeRange = nil
             ChartTimeScalePaging.reset(&paging)
             return
         }
@@ -223,7 +278,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         syncFillDots(markers, colors: colors, usesCalendarDays: model.usesCalendarDays, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
         capturePlotSizeIfNeeded(from: chart)
-        fitAllContentIfNeeded()
+        applyViewport(dataChanged: true)
         if model.followLatest {
             chart.timeScale().scrollToRealTime()
         }
@@ -240,13 +295,51 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             guard let self else { return }
             guard ChartViewportReset.hasUsablePlotSize(width: width, height: height) else { return }
             self.hasTimeScaleSize = true
-            self.fitAllContentIfNeeded()
+            self.applyViewport(dataChanged: false)
         }
         if Thread.isMainThread {
             apply()
         } else {
             DispatchQueue.main.async(execute: apply)
         }
+    }
+
+    private func applyViewport(dataChanged: Bool) {
+        if restoreLinkedTimeRangeIfNeeded(force: dataChanged) { return }
+        if dataChanged {
+            didFitContent = false
+            appliedTimeRange = nil
+        } else if let range = applied?.visibleTimeRange,
+                  !ChartVisibleTimeRangeSync.intersects(range, bars: appliedBars) {
+            didFitContent = false
+            appliedTimeRange = nil
+        }
+        fitAllContentIfNeeded()
+    }
+
+    private func restoreLinkedTimeRangeIfNeeded(force: Bool) -> Bool {
+        guard let chart, hasTimeScaleSize, !appliedBars.isEmpty else { return false }
+        guard let range = applied?.visibleTimeRange,
+              let duration = applied?.barDuration,
+              let logical = ChartVisibleTimeRangeSync.logicalRange(
+                for: range,
+                in: appliedBars,
+                barDuration: duration
+              )
+        else { return false }
+        if ChartVisibleTimeRangeSync.shouldRestore(
+            current: appliedTimeRange,
+            target: range,
+            dataChanged: force
+        ) {
+            suppressTimeRangeUntil = Date().addingTimeInterval(ChartVisibleTimeRangeSync.restoreSettleInterval)
+            chart.timeScale().setVisibleLogicalRange(
+                range: LogicalRange(from: logical.from, to: logical.to)
+            )
+            appliedTimeRange = range
+        }
+        didFitContent = true
+        return true
     }
 
     private func fitAllContentIfNeeded() {
@@ -257,6 +350,28 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             hasSize: hasTimeScaleSize
         ) else { return }
         fitAllContent(on: chart)
+    }
+
+    private func visibleTimeRange(from parameters: TimeRange?) -> ChartVisibleTimeRange? {
+        guard let parameters,
+              let from = date(from: parameters.from),
+              let to = date(from: parameters.to),
+              from <= to
+        else { return nil }
+        return ChartVisibleTimeRange(from: from, to: to)
+    }
+
+    private func date(from time: Time) -> Date? {
+        switch time {
+        case let .utc(timestamp):
+            return Date(timeIntervalSince1970: timestamp)
+        case let .businessDay(day):
+            return ChartEasternTime.date(
+                calendarDay: ChartEasternTime.CalendarDay(year: day.year, month: day.month, day: day.day)
+            )
+        case let .string(raw):
+            return ChartEasternTime.parse(raw).instant
+        }
     }
 
     private func fitAllContent(on chart: LightweightCharts) {

@@ -28,6 +28,7 @@ struct SymbolDetailView: View {
     @State private var tradeAction: TradeActionKind?
     @State private var sliderPrice: Double?
     @State private var tradeTicketBusy = false
+    @State private var sessionTimeRange: ChartVisibleTimeRange?
 
     private var isSubscribed: Bool {
         subscriptions.contains(symbol)
@@ -101,7 +102,10 @@ struct SymbolDetailView: View {
                             height: 160,
                             isLoading: indexCharts.isLoading,
                             errorText: indexCharts.errorText,
-                            retry: { Task { await indexCharts.reload(date: charts.regularDate) } }
+                            retry: { Task { await indexCharts.reload(date: charts.regularDate) } },
+                            visibleTimeRange: sessionTimeRange,
+                            allowsTimeScaleInteraction: false,
+                            barDuration: charts.interval.barDuration
                         )
                     }
                     ChartPanel(
@@ -110,7 +114,11 @@ struct SymbolDetailView: View {
                         height: 260,
                         isLoading: charts.isLoadingRegular,
                         errorText: charts.errorText,
-                        retry: { Task { await charts.retryRegular() } }
+                        retry: { Task { await charts.retryRegular() } },
+                        onEvent: handleSessionChartEvent,
+                        visibleTimeRange: sessionTimeRange,
+                        publishesVisibleTimeRange: true,
+                        barDuration: charts.interval.barDuration
                     )
                     ChartChrome(
                         interval: $charts.interval,
@@ -217,6 +225,9 @@ struct SymbolDetailView: View {
         }
         .onChange(of: dayFills.fills) { _ in
             refreshMarkers()
+        }
+        .onChange(of: charts.regularDate) { _ in
+            sessionTimeRange = nil
         }
         .onChange(of: orders.orders) { _ in
             dayFills.refresh(orders: orders.orders, trading: trading)
@@ -325,6 +336,14 @@ struct SymbolDetailView: View {
     private func handleDailyChartEvent(_ event: ChartEvent) {
         if case .reachedOldest = event {
             Task { await dailyCharts.loadOlder() }
+        }
+    }
+
+    private func handleSessionChartEvent(_ event: ChartEvent) {
+        if case let .visibleTimeRange(range) = event {
+            if sessionTimeRange?.isApproximatelyEqual(to: range) != true {
+                sessionTimeRange = range
+            }
         }
     }
 

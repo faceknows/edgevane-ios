@@ -3,6 +3,13 @@ import XCTest
 
 @MainActor
 final class DailyChartSessionTests: XCTestCase {
+    func testEmptySessionAndResetRemainLoadingUntilRequested() {
+        let session = DailyChartSession()
+        XCTAssertTrue(session.isLoading)
+        session.reset()
+        XCTAssertTrue(session.isLoading)
+    }
+
     func testStartSkipsNetworkWhenCachedBarIsLatestTradingDay() async throws {
         let http = ScriptedHTTP()
         http.rawResults = [
@@ -93,9 +100,13 @@ final class DailyChartSessionTests: XCTestCase {
         _ = try await store.loadDaily(symbol: "MSFT", startDate: "2026-05-27")
         http.pauseSends = true
         let session = DailyChartSession()
-        let first = Task { await session.start(symbol: "AAPL", store: store, now: Self.eastern(2026, 9, 4, 10)) }
-        await waitUntil { session.isLoading }
-        await session.start(symbol: "MSFT", store: store, now: Self.eastern(2026, 9, 4, 10))
+        let now = Self.eastern(2026, 9, 4, 10)
+        let first = Task { await session.start(symbol: "AAPL", store: store, now: now) }
+        await waitUntil {
+            http.pausedCount >= 1
+                && http.requests.contains { $0.query["symbol"] == "AAPL" }
+        }
+        await session.start(symbol: "MSFT", store: store, now: now)
         XCTAssertFalse(session.isLoading)
         XCTAssertFalse(session.isPaging)
         XCTAssertEqual(session.bars.map(\.close), [2])

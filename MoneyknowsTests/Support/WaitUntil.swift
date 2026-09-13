@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 func waitUntil(
-    _ condition: @escaping () -> Bool,
+    _ condition: @escaping @MainActor () -> Bool,
     timeoutSeconds: TimeInterval = 2,
     file: StaticString = #filePath,
     line: UInt = #line

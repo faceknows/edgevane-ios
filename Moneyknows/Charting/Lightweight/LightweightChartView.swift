@@ -7,6 +7,10 @@ struct LightweightChartView: UIViewRepresentable {
     var colors: ChartColors
     var volumeHeight: CGFloat?
     var chartHeight: CGFloat
+    var visibleTimeRange: ChartVisibleTimeRange?
+    var publishesVisibleTimeRange: Bool
+    var allowsTimeScaleInteraction: Bool
+    var barDuration: TimeInterval?
     var onEvent: (ChartEvent) -> Void
 
     func makeCoordinator() -> LightweightChartCoordinator {
@@ -27,31 +31,44 @@ struct LightweightChartView: UIViewRepresentable {
             model: model,
             colors: colors,
             volumeHeight: volumeHeight,
-            chartHeight: chartHeight
+            chartHeight: chartHeight,
+            visibleTimeRange: visibleTimeRange,
+            publishesVisibleTimeRange: publishesVisibleTimeRange,
+            allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+            barDuration: barDuration
         )
+        context.coordinator.pageScrollPassthrough.allowsTimeScaleInteraction = allowsTimeScaleInteraction
         context.coordinator.pageScrollPassthrough.install(on: chart)
         return chart
     }
 
     func updateUIView(_ uiView: LightweightCharts, context: Context) {
         context.coordinator.onEvent = onEvent
+        context.coordinator.pageScrollPassthrough.allowsTimeScaleInteraction = allowsTimeScaleInteraction
         context.coordinator.pageScrollPassthrough.install(on: uiView)
         context.coordinator.applyIfNeeded(
             model,
             colors: colors,
             volumeHeight: volumeHeight,
             chartHeight: chartHeight,
+            visibleTimeRange: visibleTimeRange,
+            publishesVisibleTimeRange: publishesVisibleTimeRange,
+            allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+            barDuration: barDuration,
             on: uiView
         )
     }
 }
 
-/// Vertical pans cancel the WebView and go to the page. Horizontal pans stay on the chart.
-/// Double-tap fits every loaded bar into the current plot.
+/// Vertical pans cancel the WebView and go to the page. Horizontal pans stay on the chart
+/// when time-scale interaction is on; otherwise they do not move the plot.
 final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
     var onDoubleTap: (() -> Void)?
-    private let chartPan = ChartDirectionLockGesture(ownsPan: { ChartTouchScrolling.chartOwnsPan(translationX: $0, translationY: $1) })
-    private let pagePan = ChartDirectionLockGesture(ownsPan: { !ChartTouchScrolling.chartOwnsPan(translationX: $0, translationY: $1) })
+    var allowsTimeScaleInteraction = true {
+        didSet { resetTap.isEnabled = allowsTimeScaleInteraction }
+    }
+    private let chartPan = ChartDirectionLockGesture(ownsPan: { _, _ in false })
+    private let pagePan = ChartDirectionLockGesture(ownsPan: { _, _ in true })
     private let resetTap = UITapGestureRecognizer()
     private let windowHook = ChartWindowHookView()
     private weak var installedOn: UIView?
@@ -59,6 +76,20 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
 
     override init() {
         super.init()
+        chartPan.ownsPan = { [weak self] x, y in
+            ChartTouchScrolling.chartOwnsPan(
+                translationX: x,
+                translationY: y,
+                allowsTimeScaleInteraction: self?.allowsTimeScaleInteraction ?? true
+            )
+        }
+        pagePan.ownsPan = { [weak self] x, y in
+            !ChartTouchScrolling.chartOwnsPan(
+                translationX: x,
+                translationY: y,
+                allowsTimeScaleInteraction: self?.allowsTimeScaleInteraction ?? true
+            )
+        }
         chartPan.cancelsTouchesInView = false
         chartPan.delegate = self
         pagePan.cancelsTouchesInView = true
@@ -67,6 +98,7 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
         resetTap.cancelsTouchesInView = true
         resetTap.delegate = self
         resetTap.addTarget(self, action: #selector(handleDoubleTap))
+        resetTap.isEnabled = allowsTimeScaleInteraction
         windowHook.isUserInteractionEnabled = false
     }
 
@@ -86,6 +118,7 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
             view.insertSubview(windowHook, at: 0)
             installedOn = view
         }
+        resetTap.isEnabled = allowsTimeScaleInteraction
         windowHook.onMovedToWindow = { [weak self, weak view] in
             guard let self, let view else { return }
             self.bindEnclosingScrollView(from: view)
@@ -139,7 +172,7 @@ private final class ChartWindowHookView: UIView {
 }
 
 private final class ChartDirectionLockGesture: UIGestureRecognizer {
-    private let ownsPan: (Double, Double) -> Bool
+    var ownsPan: (Double, Double) -> Bool
     private var origin: CGPoint = .zero
 
     init(ownsPan: @escaping (Double, Double) -> Bool) {

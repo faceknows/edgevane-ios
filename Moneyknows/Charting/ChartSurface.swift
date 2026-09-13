@@ -9,6 +9,10 @@ struct ChartSurface: View {
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
     var onEvent: (ChartEvent) -> Void = { _ in }
+    var visibleTimeRange: ChartVisibleTimeRange? = nil
+    var publishesVisibleTimeRange = false
+    var allowsTimeScaleInteraction = true
+    var barDuration: TimeInterval? = nil
 
     @State private var picked: Bar?
     @State private var engineGeneration = 0
@@ -49,6 +53,10 @@ struct ChartSurface: View {
                 colors: colors,
                 volumeHeight: resolvedVolumeHeight,
                 chartHeight: height,
+                visibleTimeRange: visibleTimeRange,
+                publishesVisibleTimeRange: publishesVisibleTimeRange,
+                allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+                barDuration: barDuration,
                 onEvent: handle
             )
             .id(engineGeneration)

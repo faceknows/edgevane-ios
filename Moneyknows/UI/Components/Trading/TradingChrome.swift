@@ -37,35 +37,15 @@ struct DailyPnLBadge: View {
             Text(MarketFormat.signedPrice(portfolio.profitLoss))
                 .font(.caption.weight(.bold).monospacedDigit())
                 .foregroundColor(valueColor)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(backgroundColor)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule().strokeBorder(
-                        Color(uiColor: .separator),
-                        lineWidth: tone == .warning ? 0 : 1
-                    )
-                )
                 .accessibilityLabel("\(L10n.Detail.accountPnl) \(MarketFormat.signedPrice(portfolio.profitLoss))")
         }
     }
 
-    private var tone: DailyPnL.Tone {
-        DailyPnL.tone(percent: portfolio?.profitLossPercent)
-    }
-
     private var valueColor: Color {
-        switch tone {
+        switch DailyPnL.tone(percent: portfolio?.profitLossPercent) {
         case .profit: return .green
-        case .loss, .warning: return .red
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch tone {
-        case .warning: return Color.orange.opacity(0.85)
-        case .profit, .loss: return Color(uiColor: .secondarySystemBackground)
+        case .loss: return .red
+        case .warning: return .orange
         }
     }
 }

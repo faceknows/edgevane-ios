@@ -5,7 +5,7 @@ final class IndexChartSession: ObservableObject {
     static let symbol = BarSession.indexSymbol
 
     @Published private(set) var bars: [Bar] = []
-    @Published private(set) var isLoading = false
+    @Published private(set) var isLoading = true
     @Published private(set) var errorText: String?
 
     private var date = ""
@@ -37,7 +37,7 @@ final class IndexChartSession: ObservableObject {
         loadID += 1
         bars = []
         errorText = nil
-        isLoading = false
+        isLoading = true
         date = ""
         store = nil
     }

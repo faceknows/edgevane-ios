@@ -3,6 +3,10 @@ import XCTest
 
 @MainActor
 final class SymbolChartSessionTests: XCTestCase {
+    func testEmptySessionStartsInLoadingState() {
+        XCTAssertTrue(SymbolChartSession().isLoadingRegular)
+    }
+
     func testDateRolloverClearsStaleSessionBars() async throws {
         let http = ScriptedHTTP()
         http.rawResults = [
@@ -170,6 +174,13 @@ final class SymbolChartSessionTests: XCTestCase {
 
 @MainActor
 final class IndexChartSessionTests: XCTestCase {
+    func testEmptySessionAndResetRemainLoadingUntilRequested() {
+        let session = IndexChartSession()
+        XCTAssertTrue(session.isLoading)
+        session.reset()
+        XCTAssertTrue(session.isLoading)
+    }
+
     func testSupersededLoadDoesNotClearNewerLoadingState() async throws {
         let http = ScriptedHTTP()
         http.pauseSends = true
