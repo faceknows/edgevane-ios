@@ -34,7 +34,6 @@ struct DashboardView: View {
             .background(ios15PullToRefresh)
         }
         .background(Color(uiColor: .systemBackground).ignoresSafeArea())
-        .navigationTitle(L10n.Dashboard.title)
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await trading.refresh() }
         .dismissKeyboardOnScroll()
