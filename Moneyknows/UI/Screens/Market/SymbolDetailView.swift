@@ -136,7 +136,6 @@ struct SymbolDetailView: View {
                             .font(.title.bold())
                             .monospacedDigit()
                     }
-                    subscriptionIconButton
                     if isSubscribed {
                         if hasSecondBars {
                             secondChart
@@ -157,6 +156,7 @@ struct SymbolDetailView: View {
                     if let errorText {
                         EmptyStateView(title: errorText)
                     }
+                    subscriptionIconButton
                 }
                 .padding()
             }
