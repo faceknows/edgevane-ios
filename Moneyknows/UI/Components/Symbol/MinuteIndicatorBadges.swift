@@ -19,6 +19,14 @@ struct MinuteIndicatorBadges: View {
                 MarketFormat.fixed(snapshot.adx, digits: 2)
             )
             pill(
+                L10n.Detail.atrPeriod(period),
+                MarketFormat.fixed(snapshot.atr, digits: 3)
+            )
+            pill(
+                L10n.Detail.atrPct,
+                MarketFormat.percentUnsigned(snapshot.atrPct, digits: 3)
+            )
+            pill(
                 L10n.Detail.plusDI,
                 MarketFormat.fixed(snapshot.plusDI, digits: 2),
                 valueColor: .green
@@ -27,14 +35,6 @@ struct MinuteIndicatorBadges: View {
                 L10n.Detail.minusDI,
                 MarketFormat.fixed(snapshot.minusDI, digits: 2),
                 valueColor: .red
-            )
-            pill(
-                L10n.Detail.atrPeriod(period),
-                MarketFormat.fixed(snapshot.atr, digits: 3)
-            )
-            pill(
-                L10n.Detail.atrPct,
-                MarketFormat.fixed(snapshot.atrPct, digits: 3)
             )
         }
         .padding(12)
