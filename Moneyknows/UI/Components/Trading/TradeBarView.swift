@@ -496,7 +496,11 @@ struct TradeTicketView: View {
     private var actionLabel: String {
         guard action != .slider else { return action.title }
         let side = resolvedSide == .buy ? L10n.Trading.buy : L10n.Trading.sell
-        return "(\(side.uppercased())) \(action.title)"
+        let wrapped = "(\(side.uppercased()))"
+        if action == .buy || action == .sell {
+            return wrapped
+        }
+        return "\(wrapped) \(action.title)"
     }
 
     private var actionTint: Color {
@@ -505,46 +509,20 @@ struct TradeTicketView: View {
 
     @ViewBuilder
     private var actionButtons: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                EnvironmentBanner(environment: environment)
-                Text(ticketConfirmCopy)
-                    .font(.footnote)
-                    .foregroundColor(environment == .live ? .red : .orange)
-                    .lineLimit(2)
+        HStack(spacing: 12) {
+            EnvironmentBanner(environment: environment)
+            if action == .slider {
+                submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
+                submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
+            } else {
+                submitButton(title: L10n.Common.confirm, side: resolvedSide, tint: actionTint)
             }
-            .accessibilityElement(children: .combine)
-            HStack(spacing: 12) {
-                if action == .slider {
-                    submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
-                    submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
-                } else {
-                    submitButton(title: L10n.Common.confirm, side: resolvedSide, tint: actionTint)
-                }
-                Button(L10n.Common.cancel, action: dismiss)
-                    .buttonStyle(.plain)
-                    .foregroundColor(.accentColor)
-                    .padding(.horizontal, 8)
-                    .disabled(busy)
-            }
+            Button(L10n.Common.cancel, action: dismiss)
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
+                .padding(.horizontal, 8)
+                .disabled(busy)
         }
-    }
-
-    private var ticketConfirmCopy: String {
-        let quantity = TradeInput.parse(quantityInput)
-            ?? (action == .marketClose ? position?.quantity : nil)
-            ?? 0
-        let price = action == .marketClose ? nil : TradeInput.parse(priceInput)
-        let sideTitle = action == .slider
-            ? "\(L10n.Trading.buy)/\(L10n.Trading.sell)"
-            : (resolvedSide == .sell ? L10n.Trading.sell : L10n.Trading.buy)
-        return TradeConfirmCopy.message(
-            symbol: SymbolCode.normalize(symbol),
-            sideTitle: sideTitle,
-            price: price,
-            quantity: quantity,
-            environment: environment
-        )
     }
 
     private func submitButton(title: String, side: OrderSide, tint: Color) -> some View {
