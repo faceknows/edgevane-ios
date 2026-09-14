@@ -460,6 +460,7 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         let minuteLine = SubscriptionSparklineAssembler.minuteLine(bars1m: bars, interval: .one)
         XCTAssertEqual(minuteLine.values, [1, 2.5])
         XCTAssertEqual(minuteLine.times, [now, now.addingTimeInterval(120)])
+        XCTAssertTrue(minuteLine.vwap.isEmpty)
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1s: bars, interval: .one, now: now.addingTimeInterval(120)), [1, 2.5])
         let secondLine = SubscriptionSparklineAssembler.secondLine(bars1s: bars, interval: .one, now: now.addingTimeInterval(120))
         XCTAssertEqual(secondLine.values, [1, 2.5])
@@ -478,6 +479,11 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         XCTAssertEqual(five.closes, [20])
         XCTAssertEqual(five.vwap, [15])
         XCTAssertTrue(SubscriptionSparklineAssembler.minutePlot(bars1m: bars).vwap.isEmpty)
+        XCTAssertEqual(SubscriptionSparklineAssembler.minuteInterval, .one)
+        let oneWithVWAP = SubscriptionSparklineAssembler.minuteLine(bars1m: bars, includeVWAP: true)
+        XCTAssertEqual(oneWithVWAP.values, [10, 20])
+        XCTAssertEqual(oneWithVWAP.vwap, [10, 15])
+        XCTAssertEqual(oneWithVWAP.times, [t0, t0.addingTimeInterval(60)])
         let dense = (0..<8).map { offset in
             Bar(
                 time: t0.addingTimeInterval(TimeInterval(offset * 60)),
@@ -516,6 +522,30 @@ final class SubscriptionWatchSessionTests: XCTestCase {
         ]
         XCTAssertEqual(SubscriptionSparklineAssembler.recentSeconds(bars, now: now).map(\.close), [2])
         XCTAssertEqual(SubscriptionSparklineAssembler.closes(bars1s: bars, interval: .one, now: now), [2])
+    }
+
+    func testTradeTabSecondsStayAtOneSecond() {
+        let t0 = Date(timeIntervalSince1970: 1_200)
+        var bars: [Bar] = []
+        for offset in 0..<5 {
+            let price = Double(offset + 1)
+            bars.append(
+                Bar(
+                    time: t0.addingTimeInterval(TimeInterval(offset)),
+                    open: price,
+                    high: price,
+                    low: price,
+                    close: price,
+                    volume: 1
+                )
+            )
+        }
+        let line = SubscriptionSparklineAssembler.secondLine(
+            bars1s: bars,
+            now: t0.addingTimeInterval(5)
+        )
+        XCTAssertEqual(line.values, [1, 2, 3, 4, 5])
+        XCTAssertEqual(SubscriptionSparklineAssembler.secondInterval, .one)
     }
 
     func testRefreshStaysWithinLimitUntilSlotsFree() async throws {

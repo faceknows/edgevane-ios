@@ -226,7 +226,7 @@ protocol BrokerageServing {
 - `Charting/Lightweight/` 是唯一碰 `LightweightCharts` 的地方。
 - `Charting/Indicators/`：`vwap(bars:)`、`rsi`、`adx`、`atr`，纯函数，单元测试。
 - 仪表盘数字卡用 Swift Charts，放 `UI/Components/Stats/`，不要进 `Charting/`。
-- 交易 Tab 订阅监视迷你折线、扫描器结果分钟图都放 `UI/Components/Stats/`（`SparklineView` 吃 `SparklinePlot`：`.line(values:times:overlay:timeKind:)` 或 `.candles(bars:vwap:timeKind:)`；折线与蜡烛都走 Canvas，时间轴 / 价格轴 / 高低现价与序列对齐；单点画点，X 轴范围不能是 0...0）。扫描器只画 1 分钟蜡烛 + 蓝色 VWAP，不画秒图；成功空数组由 `SparklinePane` 展示空态，交易 Tab 不传空态文案、空数据留空。交易 Tab 一行两张图 × 多标的，不嵌 `ChartSurface`。进入监视页时摘要预取与分钟监视并行，不等摘要。离开本页即取消分钟拉取（含点重试的未完成 HTTP，不写入 `BarStore` 缓存）。秒图按墙钟裁剪到约 10 分钟，按下一次过期时间调度，无棒时长时间休眠，插入要唤醒当前休眠；秒图变更不要带动整表分钟图重建。分钟失败有提示和重试，有旧图时也要提示。
+- 交易 Tab 订阅监视迷你折线、扫描器结果分钟图都放 `UI/Components/Stats/`（`SparklineView` 吃 `SparklinePlot`：`.line(values:times:overlay:timeKind:)` 或 `.candles(bars:vwap:timeKind:)`；折线与蜡烛都走 Canvas，时间轴 / 价格轴 / 高低现价与序列对齐；单点画点，X 轴范围不能是 0...0）。扫描器只画 1 分钟蜡烛 + 蓝色 VWAP，不画秒图；交易 Tab 分钟画 1 分钟收盘折线 + 蓝色 VWAP（不聚合）。成功空数组由 `SparklinePane` 展示空态，交易 Tab 不传空态文案、空数据留空。交易 Tab 一行两张图 × 多标的，不嵌 `ChartSurface`。进入监视页时摘要预取与分钟监视并行，不等摘要。离开本页即取消分钟拉取（含点重试的未完成 HTTP，不写入 `BarStore` 缓存）。秒图按墙钟裁剪到约 10 分钟，按下一次过期时间调度，无棒时长时间休眠，插入要唤醒当前休眠；秒图变更不要带动整表分钟图重建。分钟失败有提示和重试，有旧图时也要提示。
 - `Support/MarketClock`：美东、盘前/盘中/盘后、假期、开盘保护是否生效。Trading 和 Market 都用它，不要各写一份 `dateHelper`。
 
 ---

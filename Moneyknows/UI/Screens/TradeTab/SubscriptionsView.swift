@@ -44,7 +44,6 @@ struct SubscriptionsView: View {
                         SubscriptionWatchRow(
                             symbol: symbol,
                             summary: rowSummary(symbol),
-                            quote: quotes.quote(for: symbol),
                             minutePlot: minutePlot(symbol),
                             isMinuteLoading: watch.isLoading(symbol),
                             minuteError: watch.failureText(for: symbol),
@@ -136,8 +135,16 @@ struct SubscriptionsView: View {
     }
 
     private func minutePlot(_ symbol: String) -> SparklinePlot {
-        let line = SubscriptionSparklineAssembler.minuteLine(bars1m: watch.bars(for: symbol))
-        return .line(values: line.values, times: line.times, timeKind: .minute)
+        let line = SubscriptionSparklineAssembler.minuteLine(
+            bars1m: watch.bars(for: symbol),
+            includeVWAP: true
+        )
+        return .line(
+            values: line.values,
+            times: line.times,
+            overlay: line.vwap,
+            timeKind: .minute
+        )
     }
 
     private func addSymbols() async {
@@ -178,7 +185,6 @@ struct SubscriptionsView: View {
 struct SubscriptionWatchRow: View {
     var symbol: String
     var summary: SymbolSummary
-    var quote: SymbolQuote?
     var minutePlot: SparklinePlot
     var isMinuteLoading: Bool
     var minuteError: String? = nil
@@ -194,7 +200,7 @@ struct SubscriptionWatchRow: View {
             .contentShape(Rectangle())
             HStack(spacing: 8) {
                 SparklinePane(
-                    title: L10n.Chart.fiveMinutes,
+                    title: "",
                     plot: minutePlot,
                     baseline: summary.previousClose,
                     isLoading: isMinuteLoading,
@@ -212,12 +218,7 @@ struct SubscriptionWatchRow: View {
     }
 
     private var header: some View {
-        SymbolRow(summary: summary, accessory: quoteAccessory)
-    }
-
-    private var quoteAccessory: String? {
-        guard let bid = quote?.liveBid, let ask = quote?.liveAsk else { return nil }
-        return "\(MarketFormat.price(bid))  |  \(MarketFormat.price(ask))"
+        SymbolRow(summary: summary)
     }
 }
 
@@ -231,7 +232,7 @@ private struct SubscriptionSecondPane: View {
             now: Date()
         )
         return SparklinePane(
-            title: L10n.Chart.fiveSeconds,
+            title: "",
             plot: .line(values: line.values, times: line.times, timeKind: .second),
             baseline: line.values.first,
             isLoading: false

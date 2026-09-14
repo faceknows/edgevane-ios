@@ -1,8 +1,8 @@
 import Foundation
 
 enum SubscriptionSparklineAssembler {
-    static let minuteInterval: MinuteInterval = .five
-    static let secondInterval: SecondInterval = .five
+    static let minuteInterval: MinuteInterval = .one
+    static let secondInterval: SecondInterval = .one
     static let secondWindow: TimeInterval = TimeInterval(SecondBarStore.capacity)
 
     static func closes(bars1m: [Bar], interval: MinuteInterval = minuteInterval) -> [Double] {
@@ -11,10 +11,11 @@ enum SubscriptionSparklineAssembler {
 
     static func minuteLine(
         bars1m: [Bar],
-        interval: MinuteInterval = minuteInterval
-    ) -> (values: [Double], times: [Date]) {
-        let plot = aligned(bars1m: bars1m, interval: interval)
-        return (plot.closes, plot.times)
+        interval: MinuteInterval = minuteInterval,
+        includeVWAP: Bool = false
+    ) -> (values: [Double], times: [Date], vwap: [Double]) {
+        let plot = aligned(bars1m: bars1m, interval: interval, includeVWAP: includeVWAP)
+        return (plot.closes, plot.times, plot.vwap)
     }
 
     static func vwap(bars1m: [Bar], interval: MinuteInterval = minuteInterval) -> [Double] {

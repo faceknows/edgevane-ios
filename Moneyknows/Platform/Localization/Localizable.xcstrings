@@ -2239,13 +2239,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chart"
+            "value" : "Minute Chart"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "图表"
+            "value" : "分钟线"
           }
         }
       }
