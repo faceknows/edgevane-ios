@@ -218,7 +218,7 @@ struct SubscriptionWatchRow: View {
     }
 
     private var header: some View {
-        SymbolRow(summary: summary)
+        SymbolRow(summary: summary, arrangement: .distributed)
     }
 }
 
