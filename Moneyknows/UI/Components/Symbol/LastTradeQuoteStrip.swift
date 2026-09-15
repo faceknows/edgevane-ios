@@ -4,11 +4,12 @@ import SwiftUI
 struct LastTradeQuoteStrip: View {
     var lastPrice: Double?
     var quote: SymbolQuote?
+    var compact: Bool = false
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(MarketFormat.price(lastPrice))
-                .font(.title.bold())
+                .font(compact ? .title3.bold() : .title.bold())
                 .monospacedDigit()
             Spacer(minLength: 8)
             HStack(alignment: .firstTextBaseline, spacing: 6) {

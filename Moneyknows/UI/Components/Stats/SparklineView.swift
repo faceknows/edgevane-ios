@@ -521,3 +521,74 @@ struct SparklineFailure: View {
         .padding(.horizontal, 4)
     }
 }
+
+extension SparklinePlot {
+    static func watchMinutes(bars1m: [Bar]) -> SparklinePlot {
+        let line = SubscriptionSparklineAssembler.minuteLine(bars1m: bars1m, includeVWAP: true)
+        return .line(values: line.values, times: line.times, overlay: line.vwap, timeKind: .minute)
+    }
+}
+
+struct WatchSparklinePair: View {
+    var symbol: String
+    var minutePlot: SparklinePlot
+    var previousClose: Double?
+    var isMinuteLoading: Bool
+    var minuteError: String? = nil
+    var retryMinutes: (() -> Void)? = nil
+    var onOpen: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SparklinePane(
+                title: "",
+                plot: minutePlot,
+                baseline: previousClose,
+                isLoading: isMinuteLoading,
+                errorText: minuteError,
+                retry: retryMinutes,
+                onOpen: onOpen
+            )
+            if let onOpen {
+                Button(action: onOpen) {
+                    WatchSecondPane(symbol: symbol)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHidden(true)
+            } else {
+                WatchSecondPane(symbol: symbol)
+            }
+        }
+    }
+}
+
+struct WatchSecondPane: View {
+    @EnvironmentObject private var seconds: SecondBarStore
+    var symbol: String
+
+    var body: some View {
+        let line = SubscriptionSparklineAssembler.secondLine(
+            bars1s: seconds.bars(for: symbol),
+            now: Date()
+        )
+        return SparklinePane(
+            title: "",
+            plot: .line(values: line.values, times: line.times, timeKind: .second),
+            baseline: line.values.first,
+            isLoading: false
+        )
+    }
+}
+
+struct SecondBarExpiryPump: View {
+    @EnvironmentObject private var seconds: SecondBarStore
+
+    var body: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .accessibilityHidden(true)
+            .task {
+                await seconds.startExpiring()
+            }
+    }
+}

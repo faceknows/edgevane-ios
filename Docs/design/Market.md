@@ -10,7 +10,7 @@
 | Store | 职责 |
 | --- | --- |
 | `SymbolSummaryStore` | `GET /stocks/summaries`，按 symbol 缓存 |
-| `BarStore` | 分钟（分会话）与日线仓库；key 含 market/symbol/date/session/timeframe。扫描器、详情、交易 Tab **共用同一份** 1 分钟棒。记下每次成功拉取的美东时刻（**空结果也算一次成功**）；同一美东分钟、同一 key 不重复请求。已有棒则带 `startTime`（最后一根 HH:mm）只拉增量并按时刻合并。后端不补无成交分钟，首根晚于开盘仍走增量，不要因此整段重拉 |
+| `BarStore` | 分钟（分会话）与日线仓库；key 含 market/symbol/date/session/timeframe。扫描器、详情、交易 Tab、持仓列表 **共用同一份** 1 分钟棒。记下每次成功拉取的美东时刻（**空结果也算一次成功**）；同一美东分钟、同一 key 不重复请求。已有棒则带 `startTime`（最后一根 HH:mm）只拉增量并按时刻合并。后端不补无成交分钟，首根晚于开盘仍走增量，不要因此整段重拉 |
 | `SecondBarStore` | 已订阅 symbol 的秒线环缓（约 10 分钟） |
 | `QuoteStore` | 已订阅最新成交价和盘口 bid/ask：`trade` + **`quote` 为主**，`latest-snapshot`（`bp` / `ap`）兜底 |
 | `SubscriptionStore` | 网关 `{ me, all }`；添加/退订 |

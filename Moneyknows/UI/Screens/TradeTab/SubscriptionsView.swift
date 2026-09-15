@@ -44,7 +44,7 @@ struct SubscriptionsView: View {
                         SubscriptionWatchRow(
                             symbol: symbol,
                             summary: rowSummary(symbol),
-                            minutePlot: minutePlot(symbol),
+                            bars1m: watch.bars(for: symbol),
                             isMinuteLoading: watch.isLoading(symbol),
                             minuteError: watch.failureText(for: symbol),
                             retryMinutes: { watch.requestRetry(symbol) },
@@ -76,17 +76,13 @@ struct SubscriptionsView: View {
             await realtime.refreshSubscriptions()
         }
         .task(id: subscriptions.me.joined(separator: ",")) {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask {
-                    await summaries.prefetch(subscriptions.me)
-                }
-                group.addTask {
-                    await watch.start(symbols: subscriptions.me, store: bars)
-                }
-                await group.waitForAll()
-            }
+            await watch.start(symbols: subscriptions.me, store: bars)
         }
-        .background(SubscriptionSecondExpiryPump())
+        .task(id: "\(subscriptions.me.joined(separator: ","))|\(watch.date)") {
+            guard !watch.date.isEmpty else { return }
+            await summaries.prefetch(subscriptions.me)
+        }
+        .background(SecondBarExpiryPump())
     }
 
     private var bannerError: String? {
@@ -134,19 +130,6 @@ struct SubscriptionsView: View {
         return summary
     }
 
-    private func minutePlot(_ symbol: String) -> SparklinePlot {
-        let line = SubscriptionSparklineAssembler.minuteLine(
-            bars1m: watch.bars(for: symbol),
-            includeVWAP: true
-        )
-        return .line(
-            values: line.values,
-            times: line.times,
-            overlay: line.vwap,
-            timeKind: .minute
-        )
-    }
-
     private func addSymbols() async {
         let symbols = addText
             .split { $0 == "," || $0.isWhitespace }
@@ -185,7 +168,7 @@ struct SubscriptionsView: View {
 struct SubscriptionWatchRow: View {
     var symbol: String
     var summary: SymbolSummary
-    var minutePlot: SparklinePlot
+    var bars1m: [Bar]
     var isMinuteLoading: Bool
     var minuteError: String? = nil
     var retryMinutes: (() -> Void)? = nil
@@ -198,57 +181,19 @@ struct SubscriptionWatchRow: View {
             }
             .buttonStyle(.plain)
             .contentShape(Rectangle())
-            HStack(spacing: 8) {
-                SparklinePane(
-                    title: "",
-                    plot: minutePlot,
-                    baseline: summary.previousClose,
-                    isLoading: isMinuteLoading,
-                    errorText: minuteError,
-                    retry: retryMinutes,
-                    onOpen: onOpen
-                )
-                Button(action: onOpen) {
-                    SubscriptionSecondPane(symbol: symbol)
-                }
-                .buttonStyle(.plain)
-                .accessibilityHidden(true)
-            }
+            WatchSparklinePair(
+                symbol: symbol,
+                minutePlot: .watchMinutes(bars1m: bars1m),
+                previousClose: summary.previousClose,
+                isMinuteLoading: isMinuteLoading,
+                minuteError: minuteError,
+                retryMinutes: retryMinutes,
+                onOpen: onOpen
+            )
         }
     }
 
     private var header: some View {
         SymbolRow(summary: summary, arrangement: .distributed)
-    }
-}
-
-private struct SubscriptionSecondPane: View {
-    @EnvironmentObject private var seconds: SecondBarStore
-    var symbol: String
-
-    var body: some View {
-        let line = SubscriptionSparklineAssembler.secondLine(
-            bars1s: seconds.bars(for: symbol),
-            now: Date()
-        )
-        return SparklinePane(
-            title: "",
-            plot: .line(values: line.values, times: line.times, timeKind: .second),
-            baseline: line.values.first,
-            isLoading: false
-        )
-    }
-}
-
-private struct SubscriptionSecondExpiryPump: View {
-    @EnvironmentObject private var seconds: SecondBarStore
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .accessibilityHidden(true)
-            .task {
-                await seconds.startExpiring()
-            }
     }
 }

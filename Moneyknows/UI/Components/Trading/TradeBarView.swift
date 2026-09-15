@@ -71,6 +71,26 @@ private enum TradeBarPalette {
     static let sell = Color(red: 233 / 255, green: 78 / 255, blue: 142 / 255)
 }
 
+private struct TradeFilledLabel: View {
+    var title: String
+    var tint: Color
+    var dimmed: Bool = false
+
+    var body: some View {
+        Text(title)
+            .font(.subheadline.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .minimumScaleFactor(0.75)
+            .lineLimit(2)
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+            .background(tint)
+            .cornerRadius(10)
+            .opacity(dimmed ? 0.45 : 1)
+    }
+}
+
 struct TradeBarView: View {
     let symbol: String
     @Binding var action: TradeActionKind?
@@ -204,7 +224,7 @@ struct TradeBarView: View {
             }
             if hasActionableOrders {
                 NavigationLink(destination: OrdersView(initialSymbol: symbol)) {
-                    filledLabel(L10n.Orders.title, tint: TradeBarPalette.sell)
+                    TradeFilledLabel(title: L10n.Orders.title, tint: TradeBarPalette.sell)
                 }
             }
             HStack(spacing: 8) {
@@ -223,8 +243,8 @@ struct TradeBarView: View {
             presetPrice = nil
             action = kind
         } label: {
-            filledLabel(
-                kind.barTitle,
+            TradeFilledLabel(
+                title: kind.barTitle,
                 tint: kind.isBuyTint(positionSide: openPosition?.side)
                     ? TradeBarPalette.buy
                     : TradeBarPalette.sell,
@@ -233,20 +253,6 @@ struct TradeBarView: View {
         }
         .buttonStyle(.plain)
         .disabled(tradingBlocked)
-    }
-
-    private func filledLabel(_ title: String, tint: Color, dimmed: Bool = false) -> some View {
-        Text(title)
-            .font(.subheadline.weight(.semibold))
-            .multilineTextAlignment(.center)
-            .minimumScaleFactor(0.75)
-            .lineLimit(2)
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(tint)
-            .cornerRadius(10)
-            .opacity(dimmed ? 0.45 : 1)
     }
 
     private func vsLiveText(for position: Position) -> String {
