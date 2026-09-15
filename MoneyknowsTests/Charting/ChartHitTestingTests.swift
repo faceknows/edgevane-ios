@@ -80,6 +80,35 @@ final class ChartTimeScalePagingTests: XCTestCase {
         XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
     }
 
+    func testRightEdgeLockIsOnlyForInteractiveSourceCharts() {
+        XCTAssertTrue(ChartTimeScalePaging.fixesRightEdge(allowsTimeScaleInteraction: true))
+        XCTAssertFalse(ChartTimeScalePaging.fixesRightEdge(allowsTimeScaleInteraction: false))
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: true,
+                restoringSyncedRange: true
+            )
+        )
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: true,
+                hasCustomRightBound: true
+            )
+        )
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: false,
+                restoringSyncedRange: true
+            )
+        )
+    }
+
+    func testLibraryFixRightEdgeZeroesAPositiveRightOffset() {
+        XCTAssertEqual(ChartTimeScalePaging.libraryRightOffset(fixRightEdge: true, rightOffset: 13), 0)
+        XCTAssertEqual(ChartTimeScalePaging.libraryRightOffset(fixRightEdge: false, rightOffset: 13), 13)
+        XCTAssertEqual(ChartTimeScalePaging.libraryRightOffset(fixRightEdge: true, rightOffset: 0), 0)
+    }
+
     func testLocksLeftEdgeOnlyAfterReachedOldest() {
         var state = ChartTimeScalePaging.State()
         XCTAssertFalse(ChartTimeScalePaging.locksLeftEdge(state))
@@ -336,6 +365,180 @@ final class ChartVisibleTimeRangeSyncTests: XCTestCase {
         XCTAssertEqual(logical?.from ?? -1, 0, accuracy: 0.01)
         XCTAssertGreaterThan(logical?.to ?? 0, 59)
         XCTAssertEqual(logical?.to ?? 0, 72, accuracy: 0.01)
+        XCTAssertGreaterThan(logical?.to ?? 0, Double(nasdaq.count - 1))
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.rightOffset(
+                to: logical?.to ?? 0,
+                lastIndex: ChartVisibleTimeRangeSync.lastIndex(barCount: nasdaq.count)
+            ),
+            13,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: logical?.to ?? 0, barCount: nasdaq.count) ?? 0,
+            72,
+            accuracy: 0.01
+        )
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: logical?.to ?? 0, barCount: nasdaq.count)
+        )
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(allowsTimeScaleInteraction: false)
+        )
+    }
+
+    func testRestoredWindowKeepsItsRightBoundButBlocksFurtherFuturePan() {
+        let open = t(0)
+        let close = t(6 * 3600)
+        let window = ChartVisibleTimeRange(from: open, to: close)
+        let fiveMinute = bars(from: open, count: 60, stride: 300)
+        let logical = ChartVisibleTimeRangeSync.logicalRange(for: window, in: fiveMinute, barDuration: 300)
+        XCTAssertEqual(logical?.to ?? 0, 72, accuracy: 0.01)
+        let lastIndex = ChartVisibleTimeRangeSync.lastIndex(barCount: fiveMinute.count)
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.rightOffset(to: logical?.to ?? 0, lastIndex: lastIndex),
+            13,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            ChartTimeScalePaging.libraryRightOffset(fixRightEdge: true, rightOffset: 13),
+            0
+        )
+        let maxTo = ChartVisibleTimeRangeSync.customMaxLogicalTo(
+            to: logical?.to ?? 0,
+            barCount: fiveMinute.count
+        )
+        XCTAssertEqual(maxTo ?? 0, 72, accuracy: 0.01)
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: true,
+                hasCustomRightBound: maxTo != nil,
+                restoringSyncedRange: true
+            )
+        )
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: true,
+                hasCustomRightBound: maxTo != nil
+            )
+        )
+        let overshoot = ChartVisibleTimeRangeSync.clampedLogicalRange(
+            from: 20,
+            to: 80,
+            maxTo: maxTo ?? 0
+        )
+        XCTAssertEqual(overshoot?.to ?? 0, 72, accuracy: 0.01)
+        XCTAssertEqual(overshoot?.from ?? 0, 12, accuracy: 0.01)
+        XCTAssertNil(
+            ChartVisibleTimeRangeSync.clampedLogicalRange(from: 0, to: 50, maxTo: maxTo ?? 0)
+        )
+        XCTAssertNil(
+            ChartVisibleTimeRangeSync.clampedLogicalRange(from: 12, to: 72, maxTo: maxTo ?? 0)
+        )
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: 77.8, barCount: 78)
+        )
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: 77.8, barCount: 78) ?? 0,
+            77.8,
+            accuracy: 0.01
+        )
+        XCTAssertFalse(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: 77, barCount: 78)
+        )
+        XCTAssertNil(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: 77, barCount: 78)
+        )
+        XCTAssertNil(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: 72, barCount: 80)
+        )
+    }
+
+    func testVisibleTimeOvershootIsNotPublishedBeforeLogicalClamp() {
+        XCTAssertTrue(ChartVisibleTimeRangeSync.visibleTimeNotifiesBeforeLogicalRange)
+        XCTAssertFalse(ChartVisibleTimeRangeSync.shouldPublishLibraryVisibleTime)
+        let open = t(0)
+        let fiveMinute = bars(from: open, count: 60, stride: 300)
+        let last = fiveMinute[fiveMinute.count - 1].time
+        let restored = ChartVisibleTimeRange(
+            from: open,
+            to: last.addingTimeInterval(13 * 300)
+        )
+        // Library visible-time never includes empty future; `to` is the last bar.
+        let clippedByLibrary = ChartVisibleTimeRange(from: open, to: last)
+        XCTAssertEqual(clippedByLibrary.to, last)
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.shouldPublish(applied: restored, observed: clippedByLibrary),
+            "Clipped library visible-time looks like a new window; do not publish it."
+        )
+        let published = ChartVisibleTimeRangeSync.visibleTimeRange(
+            from: 0,
+            to: 72,
+            in: fiveMinute,
+            duration: 300
+        )
+        XCTAssertEqual(
+            published?.to.timeIntervalSince(last) ?? 0,
+            13 * 300,
+            accuracy: 0.01
+        )
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.time(atLogical: 77.8, in: bars(from: open, count: 78, stride: 300), duration: 300)?
+                .timeIntervalSince(open) ?? 0,
+            77.8 * 300,
+            accuracy: 0.01
+        )
+        let overshoot = ChartVisibleTimeRangeSync.clampedLogicalRange(from: 20, to: 80, maxTo: 72)
+        let afterClamp = ChartVisibleTimeRangeSync.visibleTimeRange(
+            from: overshoot?.from ?? 0,
+            to: overshoot?.to ?? 0,
+            in: fiveMinute,
+            duration: 300
+        )
+        XCTAssertEqual(afterClamp?.to.timeIntervalSince(open) ?? 0, 72 * 300, accuracy: 0.01)
+        XCTAssertGreaterThan(afterClamp?.to.timeIntervalSince(last) ?? 0, 0)
+    }
+
+    func testZeroOffsetRightBoundIsLastIndex() {
+        XCTAssertEqual(ChartVisibleTimeRangeSync.lastIndex(barCount: 78), 77)
+        XCTAssertFalse(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: 77, barCount: 78)
+        )
+        XCTAssertNil(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: 77, barCount: 78)
+        )
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: 77.8, barCount: 78)
+        )
+        let open = t(0)
+        let close = t(6 * 3600)
+        let window = ChartVisibleTimeRange(from: open, to: close)
+        let fiveMinute = bars(from: open, count: 72, stride: 300)
+        let logical = ChartVisibleTimeRangeSync.logicalRange(for: window, in: fiveMinute, barDuration: 300)
+        XCTAssertEqual(logical?.to ?? 0, 72, accuracy: 0.01)
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.extendsPastLastBar(to: logical?.to ?? 0, barCount: fiveMinute.count)
+        )
+        XCTAssertEqual(
+            ChartVisibleTimeRangeSync.rightOffset(
+                to: logical?.to ?? 0,
+                lastIndex: ChartVisibleTimeRangeSync.lastIndex(barCount: fiveMinute.count)
+            ),
+            1,
+            accuracy: 0.01
+        )
+        XCTAssertNotNil(
+            ChartVisibleTimeRangeSync.customMaxLogicalTo(to: logical?.to ?? 0, barCount: fiveMinute.count)
+        )
+        XCTAssertTrue(
+            ChartTimeScalePaging.fixesRightEdge(allowsTimeScaleInteraction: true)
+        )
+        XCTAssertFalse(
+            ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: true,
+                hasCustomRightBound: true
+            )
+        )
     }
 
     func testBarTimeMapsToItsIndex() {

@@ -211,6 +211,46 @@ enum ChartVisibleTimeRangeSync {
         return true
     }
 
+    /// Visible-time notifies first but clips empty future to the last bar. Publish
+    /// from logical-range after clamp, mapped back through bar times.
+    static let visibleTimeNotifiesBeforeLogicalRange = true
+
+    static let shouldPublishLibraryVisibleTime = false
+
+    /// Inverse of `logicalIndex`: indices past `lastIndex` keep `duration` so empty
+    /// future survives, unlike the library visible-time callback.
+    static func time(
+        atLogical index: Double,
+        in bars: [Bar],
+        duration: TimeInterval
+    ) -> Date? {
+        guard duration > 0, let first = bars.first?.time else { return nil }
+        if index <= 0 {
+            return first.addingTimeInterval(index * duration)
+        }
+        let lastIdx = bars.count - 1
+        if index >= Double(lastIdx) {
+            return bars[lastIdx].time.addingTimeInterval((index - Double(lastIdx)) * duration)
+        }
+        let lo = Int(floor(index))
+        let hi = lo + 1
+        let span = bars[hi].time.timeIntervalSince(bars[lo].time)
+        return bars[lo].time.addingTimeInterval(span * (index - Double(lo)))
+    }
+
+    static func visibleTimeRange(
+        from: Double,
+        to: Double,
+        in bars: [Bar],
+        duration: TimeInterval
+    ) -> ChartVisibleTimeRange? {
+        guard let fromTime = time(atLogical: from, in: bars, duration: duration),
+              let toTime = time(atLogical: to, in: bars, duration: duration),
+              fromTime <= toTime
+        else { return nil }
+        return ChartVisibleTimeRange(from: fromTime, to: toTime)
+    }
+
     /// Logical from/to on `bars` for the same wall-clock window. `barDuration` is
     /// the current 1/3/5 period, not inferred from bar gaps. `to` may extend past
     /// the last bar so a shorter series keeps the same end as the source.
@@ -224,6 +264,35 @@ enum ChartVisibleTimeRangeSync {
         let to = logicalIndex(of: range.to, in: bars, duration: barDuration)
         guard from <= to else { return nil }
         return (from, to)
+    }
+
+    /// Exclusive `to` past `lastIndex` is empty future. The library's zero-offset
+    /// right edge is `barCount - 1`, not `barCount`.
+    static func extendsPastLastBar(to: Double, barCount: Int) -> Bool {
+        barCount > 0 && to > lastIndex(barCount: barCount) + 0.01
+    }
+
+    static func lastIndex(barCount: Int) -> Double {
+        Double(max(barCount - 1, 0))
+    }
+
+    /// Library offset is `to - lastIndex`, not `to - barCount`.
+    static func rightOffset(to: Double, lastIndex: Double) -> Double {
+        max(0, to - lastIndex)
+    }
+
+    static func customMaxLogicalTo(to: Double, barCount: Int) -> Double? {
+        extendsPastLastBar(to: to, barCount: barCount) ? to : nil
+    }
+
+    /// Slide the window back so `to` does not pass the restored bound. `nil` if already inside.
+    static func clampedLogicalRange(
+        from: Double,
+        to: Double,
+        maxTo: Double
+    ) -> (from: Double, to: Double)? {
+        guard to > maxTo + 0.01 else { return nil }
+        return (from - (to - maxTo), maxTo)
     }
 
     static func logicalIndex(of time: Date, in bars: [Bar], duration: TimeInterval) -> Double {
@@ -250,6 +319,22 @@ enum ChartTimeScalePaging {
         var reachedOldest = false
         var ignoringFitContent = false
         var fitContentFrom: Double?
+    }
+
+    /// User-driven source charts pin the right edge with the library lock. Followers
+    /// stay unlocked. A restored window past the last bar cannot use `fixRightEdge`
+    /// (v4 clamps `rightOffset` to 0); keep the lock off and clamp `to` ourselves.
+    static func fixesRightEdge(
+        allowsTimeScaleInteraction: Bool,
+        hasCustomRightBound: Bool = false,
+        restoringSyncedRange: Bool = false
+    ) -> Bool {
+        allowsTimeScaleInteraction && !hasCustomRightBound && !restoringSyncedRange
+    }
+
+    /// Lightweight Charts 4.0: `fixRightEdge` forces `rightOffset` to 0.
+    static func libraryRightOffset(fixRightEdge: Bool, rightOffset: Double) -> Double {
+        fixRightEdge ? min(rightOffset, 0) : rightOffset
     }
 
     static func beginIgnoringFitContent(_ state: inout State) {

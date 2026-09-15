@@ -44,6 +44,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var didInstallFormatters = false
     private var appliedTimeRange: ChartVisibleTimeRange?
     private var suppressTimeRangeUntil: Date?
+    private var customMaxLogicalTo: Double?
+    private var isClampingLogicalRange = false
 
     init(onEvent: @escaping (ChartEvent) -> Void) {
         self.onEvent = onEvent
@@ -127,27 +129,24 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
-    func didVisibleTimeRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: TimeRange?) {
-        guard let range = visibleTimeRange(from: parameters) else { return }
-        if let until = suppressTimeRangeUntil, Date() < until {
-            return
-        }
-        suppressTimeRangeUntil = nil
-        guard applied?.publishesVisibleTimeRange == true else { return }
-        guard ChartVisibleTimeRangeSync.shouldPublish(applied: appliedTimeRange, observed: range) else { return }
-        appliedTimeRange = range
-        onEvent(.visibleTimeRange(range))
+    func didVisibleTimeRangeChange(onTimeScale _: TimeScaleApi, parameters _: TimeRange?) {
+        // Library visible-time clips empty future to the last bar. Publish after
+        // logical-range clamp via `publishVisibleTimeIfNeeded`.
     }
 
     func didVisibleLogicalRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: LogicalRange?) {
+        if clampLogicalRangeIfNeeded(on: timeScale, parameters: parameters) {
+            return
+        }
         applyVisibleExtremes(range: parameters)
+        publishVisibleTimeIfNeeded(from: parameters)
         if ChartTimeScalePaging.handleLogicalRange(
             from: parameters?.from,
             hasBars: !appliedBars.isEmpty,
             state: &paging
         ) {
             onEvent(.reachedOldest)
-            timeScale.applyOptions(options: TimeScaleOptions(fixLeftEdge: true))
+            applyTimeScaleEdges(on: timeScale)
         }
     }
 
@@ -161,6 +160,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         guard applied?.allowsTimeScaleInteraction != false else { return }
         guard let chart, !appliedBars.isEmpty else { return }
         appliedTimeRange = nil
+        customMaxLogicalTo = nil
+        applyTimeScaleEdges(on: chart.timeScale())
         fitAllContent(on: chart)
     }
 
@@ -190,6 +191,10 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             ),
             timeScale: TimeScaleOptions(
                 fixLeftEdge: lockLeftEdge,
+                fixRightEdge: ChartTimeScalePaging.fixesRightEdge(
+                    allowsTimeScaleInteraction: allowsTimeScaleInteraction,
+                    hasCustomRightBound: customMaxLogicalTo != nil
+                ),
                 borderColor: grid,
                 timeVisible: timeVisible,
                 secondsVisible: false,
@@ -252,6 +257,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             rememberBars([])
             didFitContent = false
             appliedTimeRange = nil
+            customMaxLogicalTo = nil
             ChartTimeScalePaging.reset(&paging)
             return
         }
@@ -306,6 +312,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
 
     private func applyViewport(dataChanged: Bool) {
         if restoreLinkedTimeRangeIfNeeded(force: dataChanged) { return }
+        customMaxLogicalTo = nil
         if dataChanged {
             didFitContent = false
             appliedTimeRange = nil
@@ -333,13 +340,80 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             dataChanged: force
         ) {
             suppressTimeRangeUntil = Date().addingTimeInterval(ChartVisibleTimeRangeSync.restoreSettleInterval)
-            chart.timeScale().setVisibleLogicalRange(
+            let scale = chart.timeScale()
+            customMaxLogicalTo = ChartVisibleTimeRangeSync.customMaxLogicalTo(
+                to: logical.to,
+                barCount: appliedBars.count
+            )
+            applyTimeScaleEdges(on: scale, restoringSyncedRange: true)
+            scale.setVisibleLogicalRange(
                 range: LogicalRange(from: logical.from, to: logical.to)
             )
+            applyTimeScaleEdges(on: scale)
             appliedTimeRange = range
         }
         didFitContent = true
         return true
+    }
+
+    private func applyTimeScaleEdges(
+        on timeScale: TimeScaleApi,
+        restoringSyncedRange: Bool = false
+    ) {
+        timeScale.applyOptions(options: TimeScaleOptions(
+            fixLeftEdge: ChartTimeScalePaging.locksLeftEdge(paging),
+            fixRightEdge: ChartTimeScalePaging.fixesRightEdge(
+                allowsTimeScaleInteraction: applied?.allowsTimeScaleInteraction ?? true,
+                hasCustomRightBound: customMaxLogicalTo != nil,
+                restoringSyncedRange: restoringSyncedRange
+            )
+        ))
+    }
+
+    private func clampLogicalRangeIfNeeded(
+        on timeScale: TimeScaleApi,
+        parameters: LogicalRange?
+    ) -> Bool {
+        guard !isClampingLogicalRange else { return false }
+        guard applied?.allowsTimeScaleInteraction == true else { return false }
+        guard let maxTo = customMaxLogicalTo,
+              let from = parameters?.from,
+              let to = parameters?.to,
+              let clamped = ChartVisibleTimeRangeSync.clampedLogicalRange(
+                from: from,
+                to: to,
+                maxTo: maxTo
+              )
+        else { return false }
+        isClampingLogicalRange = true
+        let clampedRange = LogicalRange(from: clamped.from, to: clamped.to)
+        timeScale.setVisibleLogicalRange(range: clampedRange)
+        isClampingLogicalRange = false
+        applyVisibleExtremes(range: clampedRange)
+        publishVisibleTimeIfNeeded(from: clampedRange)
+        return true
+    }
+
+    private func publishVisibleTimeIfNeeded(from parameters: LogicalRange?) {
+        if let until = suppressTimeRangeUntil, Date() < until {
+            return
+        }
+        suppressTimeRangeUntil = nil
+        guard applied?.publishesVisibleTimeRange == true else { return }
+        guard let from = parameters?.from, let to = parameters?.to,
+              let duration = applied?.barDuration,
+              let range = ChartVisibleTimeRangeSync.visibleTimeRange(
+                from: from,
+                to: to,
+                in: appliedBars,
+                duration: duration
+              )
+        else { return }
+        guard ChartVisibleTimeRangeSync.shouldPublish(applied: appliedTimeRange, observed: range) else {
+            return
+        }
+        appliedTimeRange = range
+        onEvent(.visibleTimeRange(range))
     }
 
     private func fitAllContentIfNeeded() {
@@ -350,28 +424,6 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             hasSize: hasTimeScaleSize
         ) else { return }
         fitAllContent(on: chart)
-    }
-
-    private func visibleTimeRange(from parameters: TimeRange?) -> ChartVisibleTimeRange? {
-        guard let parameters,
-              let from = date(from: parameters.from),
-              let to = date(from: parameters.to),
-              from <= to
-        else { return nil }
-        return ChartVisibleTimeRange(from: from, to: to)
-    }
-
-    private func date(from time: Time) -> Date? {
-        switch time {
-        case let .utc(timestamp):
-            return Date(timeIntervalSince1970: timestamp)
-        case let .businessDay(day):
-            return ChartEasternTime.date(
-                calendarDay: ChartEasternTime.CalendarDay(year: day.year, month: day.month, day: day.day)
-            )
-        case let .string(raw):
-            return ChartEasternTime.parse(raw).instant
-        }
     }
 
     private func fitAllContent(on chart: LightweightCharts) {
