@@ -90,7 +90,7 @@ ChartEvent
 | 盘中分钟 1/3/5 | 1 分钟仓库，3/5 现场聚合 | VWAP（开关开；按当前 1/3/5 周期的棒算） | 昨收、今开（有快照才有） | false | 股票 true；正在看 COMP / NASDAQ 则 false |
 | 盘前 / 盘后 | 对应会话棒，展示按 5 分钟聚合 | 无（第一期） | 可选 | false | true |
 | 日线 | 日线仓库 | 无 | 无 | false | 股票 true；COMP / NASDAQ false |
-| 秒 1/5/10/30 | 秒线环缓聚合 | 无 | 无 | true | true |
+| 秒 1/5/10/30（详情缺省 1 秒折线） | 秒线环缓聚合 | 无 | 无 | true | true |
 | 纳指对照 | **第二套** `ChartSurface`（矮图），只画 COMP。不要 VXX，也不要把纳指叠进主图价格轴。**1/3/5 与蜡烛/线跟盘中分钟同一套 `ChartChrome`**；**可见时间起止与盘中分钟相同**，切周期保持该窗口。没有自己的周期开关，也不画 VWAP | — | — | false | false |
 | 历史分钟 / 复盘 | 指定日期拉取，不进「今天」仓库 | VWAP | 可选昨收 | false；**markers = 当天该标的成交** | 与盘中分钟相同 |
 | 订阅监视迷你图 | 当日 regular 1 分钟收盘折线（不聚合）+ 秒线环缓 1 秒收盘 | 分钟叠蓝色 VWAP（1 分钟棒算出后对齐到各收盘点）；秒图无 | 无（现价虚线由 `SparklineView` 画，不是 priceLines） | — | false（不走 `ChartSurface`） |

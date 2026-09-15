@@ -21,8 +21,8 @@ struct SymbolDetailView: View {
     @State private var summary: SymbolSummary?
     @State private var errorText: String?
     @State private var summaryGeneration: UInt64 = 0
-    @State private var secondInterval: SecondInterval = .five
-    @State private var secondStyle: ChartStyle = .candle
+    @State private var secondInterval: SecondInterval = .one
+    @State private var secondStyle: ChartStyle = .line
     @State private var subscriptionBusy = false
     @State private var subscriptionError: String?
     @State private var tradeAction: TradeActionKind?
