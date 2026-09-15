@@ -497,7 +497,6 @@ struct TradeTicketView: View {
                 .foregroundColor(actionTint)
             Text(SymbolCode.normalize(symbol))
                 .foregroundColor(.primary)
-            EnvironmentBanner(environment: environment)
             Spacer(minLength: 8)
             Button(L10n.Common.close, action: dismiss)
                 .foregroundColor(.primary)
@@ -550,7 +549,6 @@ struct TradeTicketView: View {
     @ViewBuilder
     private var actionButtons: some View {
         HStack(spacing: 12) {
-            EnvironmentBanner(environment: environment)
             if action == .slider {
                 submitButton(title: L10n.Trading.buy, side: .buy, tint: TradeBarPalette.buy)
                 submitButton(title: L10n.Trading.sell, side: .sell, tint: TradeBarPalette.sell)
