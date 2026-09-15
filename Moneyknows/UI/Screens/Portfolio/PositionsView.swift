@@ -10,20 +10,41 @@ struct PositionsView: View {
     @EnvironmentObject private var summaries: SymbolSummaryStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var watch = SubscriptionWatchSession()
+    @State private var trade: PositionTrade?
+    @State private var tradeTicketBusy = false
 
     var body: some View {
-        Group {
-            if brokerage.current == nil {
-                NoBrokerageView()
-            } else if trading.needsCredentials, positions.positions.isEmpty {
-                TradingCredentialsPrompt(
-                    title: L10n.Trading.credentialsInvalid,
-                    message: L10n.Trading.credentialsInvalidBody
+        ZStack {
+            Group {
+                if brokerage.current == nil {
+                    NoBrokerageView()
+                } else if trading.needsCredentials, positions.positions.isEmpty {
+                    TradingCredentialsPrompt(
+                        title: L10n.Trading.credentialsInvalid,
+                        message: L10n.Trading.credentialsInvalidBody
+                    )
+                } else {
+                    list
+                }
+            }
+            if let trade {
+                Color.black.opacity(0.32)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        guard !tradeTicketBusy else { return }
+                        dismissTradeTicket()
+                    }
+                TradeTicketView(
+                    symbol: trade.symbol,
+                    action: trade.action,
+                    presetPrice: trade.fallbackPrice,
+                    onDismiss: dismissTradeTicket,
+                    onBusyChange: { tradeTicketBusy = $0 }
                 )
-            } else {
-                list
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
             }
         }
+        .animation(.easeOut(duration: 0.16), value: trade != nil)
         .navigationTitle(L10n.Positions.title)
         .task(id: watchKey) {
             await watch.start(symbols: watchSymbols, store: bars)
@@ -106,7 +127,16 @@ struct PositionsView: View {
                             isMinuteLoading: watch.isLoading(position.symbol),
                             minuteError: watch.failureText(for: position.symbol),
                             retryMinutes: { watch.requestRetry(position.symbol) },
-                            onOpen: { router.openSymbol(position.symbol) }
+                            onOpen: { router.openSymbol(position.symbol) },
+                            onTrade: { action in
+                                guard !tradesDisabled else { return }
+                                trade = PositionTrade(
+                                    symbol: position.symbol,
+                                    action: action,
+                                    fallbackPrice: Self.listFallbackPrice(position.currentPrice)
+                                )
+                            },
+                            tradesDisabled: tradesDisabled
                         )
                         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                     }
@@ -160,9 +190,31 @@ struct PositionsView: View {
         }
     }
 
+    private var tradesDisabled: Bool {
+        !trading.hasAccount
+            || brokerage.current == nil
+            || trading.needsCredentials
+            || portfolio.snapshot?.tradingBlocked == true
+    }
+
     private func rowSummary(_ symbol: String) -> SymbolSummary {
         summaries.cached(symbol) ?? SymbolSummary(symbol: symbol)
     }
+
+    private func dismissTradeTicket() {
+        trade = nil
+        tradeTicketBusy = false
+    }
+
+    private static func listFallbackPrice(_ price: Double) -> Double? {
+        price.isFinite && price > 0 ? price : nil
+    }
+}
+
+private struct PositionTrade: Equatable {
+    var symbol: String
+    var action: TradeActionKind
+    var fallbackPrice: Double?
 }
 
 private struct PositionWatchCard: View {
@@ -173,6 +225,8 @@ private struct PositionWatchCard: View {
     var minuteError: String? = nil
     var retryMinutes: (() -> Void)? = nil
     var onOpen: () -> Void
+    var onTrade: (TradeActionKind) -> Void
+    var tradesDisabled: Bool
 
     @EnvironmentObject private var quotes: QuoteStore
 
@@ -199,6 +253,11 @@ private struct PositionWatchCard: View {
                 )
             }
             .buttonStyle(.plain)
+            PromptTradeButtons(
+                disabled: tradesDisabled,
+                positionSide: position.side,
+                onSelect: onTrade
+            )
         }
     }
 
@@ -207,54 +266,46 @@ private struct PositionWatchCard: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                HStack(alignment: .center, spacing: 8) {
-                    Text(position.symbol)
-                        .font(.title2.weight(.bold))
-                    Text(L10n.Positions.sidePosition(position.side))
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(sideColor)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(sideColor.opacity(0.16))
-                        .cornerRadius(8)
-                }
-                Spacer(minLength: 8)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(L10n.Positions.unrealized)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(MarketFormat.signedPrice(position.unrealizedPL))
-                        .font(.title3.weight(.bold).monospacedDigit())
-                        .foregroundColor(MarketFormat.changeColor(position.unrealizedPL))
-                    ChangePercentText(
-                        percent: position.unrealizedPLPercent,
-                        font: .caption.weight(.semibold).monospacedDigit()
-                    )
-                }
-            }
-            HStack(alignment: .top, spacing: 8) {
-                metric(L10n.Positions.quantity, MarketFormat.quantity(position.quantity), alignment: .leading)
-                metric(L10n.Positions.cost, MarketFormat.price(position.costBasis))
-                metric(L10n.Positions.marketValue, MarketFormat.price(position.marketValue), alignment: .trailing)
-            }
+        HStack(alignment: .center, spacing: 6) {
+            Text(position.symbol)
+                .font(.headline.weight(.bold))
+            Text(L10n.Positions.sidePosition(position.side))
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(sideColor)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1)
+                .background(sideColor.opacity(0.16))
+                .cornerRadius(6)
+            Text(verbatim: qtyCostText)
+                .font(.subheadline.monospacedDigit())
+            Spacer(minLength: 6)
+            ChangePercentText(
+                percent: position.unrealizedPLPercent,
+                font: .subheadline.weight(.semibold).monospacedDigit()
+            )
+            Text(MarketFormat.signedPrice(position.unrealizedPL))
+                .font(.subheadline.weight(.semibold).monospacedDigit())
+                .foregroundColor(MarketFormat.changeColor(position.unrealizedPL))
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
         .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(headerAccessibilityLabel)
     }
 
-    private func metric(_ title: String, _ value: String, alignment: HorizontalAlignment = .center) -> some View {
-        VStack(alignment: alignment, spacing: 2) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text(value)
-                .font(.subheadline.weight(.semibold).monospacedDigit())
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-        }
-        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : (alignment == .trailing ? .trailing : .center))
+    private var qtyCostText: String {
+        "\(MarketFormat.quantity(position.absQuantity))|\(MarketFormat.price(position.averageEntry))"
+    }
+
+    private var headerAccessibilityLabel: String {
+        [
+            position.symbol,
+            L10n.Positions.sidePosition(position.side),
+            "\(L10n.Positions.quantity) \(MarketFormat.quantity(position.absQuantity))",
+            "\(L10n.Positions.averageEntry) \(MarketFormat.price(position.averageEntry))",
+            "\(L10n.Positions.unrealized) \(MarketFormat.percent(position.unrealizedPLPercent)) \(MarketFormat.signedPrice(position.unrealizedPL))"
+        ].joined(separator: ", ")
     }
 
     private var sideColor: Color {

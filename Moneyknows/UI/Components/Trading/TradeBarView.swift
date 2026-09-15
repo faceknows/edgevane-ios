@@ -91,6 +91,35 @@ private struct TradeFilledLabel: View {
     }
 }
 
+struct PromptTradeButtons: View {
+    var disabled: Bool
+    var positionSide: PositionSide? = nil
+    var onSelect: (TradeActionKind) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            promptButton(.buy)
+            promptButton(.sell)
+        }
+    }
+
+    private func promptButton(_ kind: TradeActionKind) -> some View {
+        Button {
+            onSelect(kind)
+        } label: {
+            TradeFilledLabel(
+                title: kind.barTitle,
+                tint: kind.isBuyTint(positionSide: positionSide)
+                    ? TradeBarPalette.buy
+                    : TradeBarPalette.sell,
+                dimmed: disabled
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+    }
+}
+
 struct TradeBarView: View {
     let symbol: String
     @Binding var action: TradeActionKind?
@@ -429,6 +458,11 @@ struct TradeTicketView: View {
                         .font(.footnote)
                         .foregroundColor(.red)
                 }
+                if let accountDisabledReason {
+                    Text(accountDisabledReason)
+                        .font(.footnote)
+                        .foregroundColor(.red)
+                }
                 if action == .marketClose {
                     Toggle(L10n.Trading.cancelOpenOrders, isOn: $cancelOpenOrders)
                 } else {
@@ -533,7 +567,7 @@ struct TradeTicketView: View {
 
     private func submitButton(title: String, side: OrderSide, tint: Color) -> some View {
         Button {
-            guard !busy else { return }
+            guard !busy, !isAccountDisabled else { return }
             setBusy(true)
             Task { await submit(side: side) }
         } label: {
@@ -550,9 +584,10 @@ struct TradeTicketView: View {
             .foregroundColor(.white)
             .background(tint)
             .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .opacity(isAccountDisabled ? 0.45 : 1)
         }
         .buttonStyle(.plain)
-        .disabled(busy)
+        .disabled(busy || isAccountDisabled)
         .accessibilityLabel("\(title) · \(environment.title)")
     }
 
@@ -678,6 +713,23 @@ struct TradeTicketView: View {
         )
     }
 
+    private var isAccountDisabled: Bool {
+        !trading.hasAccount || brokerage.current == nil || trading.needsCredentials || trading.tradingBlocked
+    }
+
+    private var accountDisabledReason: String? {
+        if !trading.hasAccount || brokerage.current == nil {
+            return L10n.Dashboard.noBrokerage
+        }
+        if trading.needsCredentials {
+            return L10n.Trading.credentialsInvalid
+        }
+        if trading.tradingBlocked {
+            return L10n.Trading.blocked
+        }
+        return nil
+    }
+
     private var maxOrderValue: Double? {
         profile.roleConfiguration?.maxOrderValue
     }
@@ -776,6 +828,10 @@ struct TradeTicketView: View {
     private func submit(side: OrderSide) async {
         errorText = nil
         defer { setBusy(false) }
+        if let accountDisabledReason {
+            errorText = accountDisabledReason
+            return
+        }
         do {
             let pending = try makePending(side: side)
             switch pending {

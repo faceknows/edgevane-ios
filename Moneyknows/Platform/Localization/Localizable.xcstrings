@@ -4958,6 +4958,24 @@
         }
       }
     },
+    "positions.averageEntry" : {
+      "comment" : "Per-share average entry on a position card, not total cost basis.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average entry"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "成本价"
+          }
+        }
+      }
+    },
     "positions.cost" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5078,7 +5096,7 @@
       }
     },
     "positions.sidePosition" : {
-      "comment" : "Badge on a position card, e.g. Long POSITION / 做多 持仓.",
+      "comment" : "Badge on a position card, e.g. Long POSITION / 做多",
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
@@ -5090,7 +5108,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 持仓"
+            "value" : "%@"
           }
         }
       }

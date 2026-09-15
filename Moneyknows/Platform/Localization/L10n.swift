@@ -468,6 +468,7 @@ enum L10n {
         static var empty: String { localized("positions.empty") }
         static var emptyBody: String { localized("positions.emptyBody") }
         static var quantity: String { localized("positions.quantity") }
+        static var averageEntry: String { localized("positions.averageEntry") }
         static var long: String { localized("positions.long") }
         static var short: String { localized("positions.short") }
         static func sidePosition(_ side: PositionSide) -> String {
