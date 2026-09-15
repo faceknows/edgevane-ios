@@ -12,7 +12,7 @@ Root
   MainTabs
     HomeStack        Dashboard, Notifications, Screeners, ScreenerResults,
                      Sentiment, Calendar, News, NewsDetail, HistoricalMinutes（复盘）,
-                     Positions, PositionDetail, Portfolio, Orders
+                     Positions, Portfolio, Orders
     TradeTab         Subscriptions
     SettingsStack    Settings, Credentials, Preferences, Profile, Other
   RootOverlay        SymbolDetail（从任意 Tab push）

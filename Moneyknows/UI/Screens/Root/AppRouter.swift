@@ -5,7 +5,6 @@ enum AppRoute: Hashable {
     case screenerResults(ScreenerKind)
     case portfolio
     case positions
-    case positionDetail(String)
     case orders
     case credentials
     case historicalMinutes
@@ -149,8 +148,6 @@ final class AppRouter: ObservableObject {
             PortfolioView()
         case .positions:
             PositionsView()
-        case .positionDetail(let symbol):
-            PositionDetailView(symbol: symbol)
         case .orders:
             OrdersView()
         case .credentials:

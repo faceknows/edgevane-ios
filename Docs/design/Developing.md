@@ -240,7 +240,7 @@ UI/Screens/
   Home/            仪表盘
   Market/          扫描器目录、各扫描结果、详情、历史分钟
   TradeTab/        实时订阅列表
-  Portfolio/       持仓、持仓详情、组合、订单
+  Portfolio/       持仓、组合、订单
   Insights/        情绪、日历、新闻
   Notifications/
   Settings/        凭证、偏好、资料、其它（无付费页）

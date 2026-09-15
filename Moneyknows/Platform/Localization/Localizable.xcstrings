@@ -4958,23 +4958,6 @@
         }
       }
     },
-    "positions.close" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Close"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "平仓"
-          }
-        }
-      }
-    },
     "positions.cost" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4988,23 +4971,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "成本"
-          }
-        }
-      }
-    },
-    "positions.current" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Current price"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "当前价格"
           }
         }
       }
@@ -5039,23 +5005,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你当前没有任何持仓。"
-          }
-        }
-      }
-    },
-    "positions.entry" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Entry price"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "入场价格"
           }
         }
       }
@@ -5124,23 +5073,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "做空"
-          }
-        }
-      }
-    },
-    "positions.side" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Side"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "方向"
           }
         }
       }

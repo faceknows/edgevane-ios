@@ -10,7 +10,6 @@ struct PositionsView: View {
     @EnvironmentObject private var summaries: SymbolSummaryStore
     @EnvironmentObject private var router: AppRouter
     @StateObject private var watch = SubscriptionWatchSession()
-    @State private var detailSymbol: String?
 
     var body: some View {
         Group {
@@ -25,7 +24,6 @@ struct PositionsView: View {
                 list
             }
         }
-        .background(detailLink)
         .navigationTitle(L10n.Positions.title)
         .task(id: watchKey) {
             await watch.start(symbols: watchSymbols, store: bars)
@@ -108,8 +106,7 @@ struct PositionsView: View {
                             isMinuteLoading: watch.isLoading(position.symbol),
                             minuteError: watch.failureText(for: position.symbol),
                             retryMinutes: { watch.requestRetry(position.symbol) },
-                            onOpenSymbol: { router.openSymbol(position.symbol) },
-                            onOpenDetail: { detailSymbol = position.symbol }
+                            onOpen: { router.openSymbol(position.symbol) }
                         )
                         .listRowInsets(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12))
                     }
@@ -118,19 +115,6 @@ struct PositionsView: View {
         }
         .listStyle(.insetGrouped)
         .refreshable { await trading.refresh() }
-    }
-
-    private var detailLink: some View {
-        NavigationLink(
-            destination: PositionDetailView(symbol: detailSymbol ?? ""),
-            isActive: Binding(
-                get: { detailSymbol != nil },
-                set: { if !$0 { detailSymbol = nil } }
-            )
-        ) {
-            EmptyView()
-        }
-        .hidden()
     }
 
     private var summaryRow: some View {
@@ -188,14 +172,13 @@ private struct PositionWatchCard: View {
     var isMinuteLoading: Bool
     var minuteError: String? = nil
     var retryMinutes: (() -> Void)? = nil
-    var onOpenSymbol: () -> Void
-    var onOpenDetail: () -> Void
+    var onOpen: () -> Void
 
     @EnvironmentObject private var quotes: QuoteStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Button(action: onOpenDetail) {
+            Button(action: onOpen) {
                 header
             }
             .buttonStyle(.plain)
@@ -206,13 +189,16 @@ private struct PositionWatchCard: View {
                 isMinuteLoading: isMinuteLoading,
                 minuteError: minuteError,
                 retryMinutes: retryMinutes,
-                onOpen: onOpenSymbol
+                onOpen: onOpen
             )
-            LastTradeQuoteStrip(
-                lastPrice: lastPrice,
-                quote: quotes.quote(for: position.symbol),
-                compact: true
-            )
+            Button(action: onOpen) {
+                LastTradeQuoteStrip(
+                    lastPrice: lastPrice,
+                    quote: quotes.quote(for: position.symbol),
+                    compact: true
+                )
+            }
+            .buttonStyle(.plain)
         }
     }
 

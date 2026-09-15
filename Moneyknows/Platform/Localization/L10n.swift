@@ -468,19 +468,15 @@ enum L10n {
         static var empty: String { localized("positions.empty") }
         static var emptyBody: String { localized("positions.emptyBody") }
         static var quantity: String { localized("positions.quantity") }
-        static var side: String { localized("positions.side") }
         static var long: String { localized("positions.long") }
         static var short: String { localized("positions.short") }
         static func sidePosition(_ side: PositionSide) -> String {
             String(format: localized("positions.sidePosition"), side == .short ? short : long)
         }
-        static var entry: String { localized("positions.entry") }
-        static var current: String { localized("positions.current") }
         static var marketValue: String { localized("positions.marketValue") }
         static var cost: String { localized("positions.cost") }
         static var unrealized: String { localized("positions.unrealized") }
         static var unrealizedTotal: String { localized("positions.unrealizedTotal") }
-        static var close: String { localized("positions.close") }
     }
 
     enum Orders {
