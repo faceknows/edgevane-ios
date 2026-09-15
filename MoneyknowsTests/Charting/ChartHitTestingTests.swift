@@ -271,6 +271,14 @@ final class ChartLibraryOptionsTests: XCTestCase {
         XCTAssertTrue(ChartTouchScrolling.hasLockedDirection(translationX: 0, translationY: -8))
     }
 
+    func testPageScrollCooperationIgnoresNestedWebScrollPans() {
+        let page = UIScrollView()
+        let web = UIScrollView()
+        XCTAssertTrue(ChartTouchScrolling.isPageScrollPan(page.panGestureRecognizer, enclosingScroll: page))
+        XCTAssertFalse(ChartTouchScrolling.isPageScrollPan(web.panGestureRecognizer, enclosingScroll: page))
+        XCTAssertFalse(ChartTouchScrolling.isPageScrollPan(page.panGestureRecognizer, enclosingScroll: nil))
+    }
+
     func testVolumeStripSitsBelowPriceAndLeavesAGap() {
         let total: CGFloat = 260
         let volumeHeight = ChartVolumeLayout.defaultVolumeHeight(in: total)

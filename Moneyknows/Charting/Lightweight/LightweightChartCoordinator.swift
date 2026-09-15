@@ -796,11 +796,22 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         ))
     }
 
-    /// Native WKWebView bounce / double-tap zoom would fight page scroll and our reset gesture.
+    /// Native WKWebView scrolling would nest inside the page `ScrollView` and swallow later vertical pans.
+    /// The plot still pans from JavaScript touch handlers, not the web view's `UIScrollView`.
+    func refreshWebViewScrollBridge(on chart: LightweightCharts) {
+        Self.installVerticalPageScrollBridge(on: chart)
+    }
+
     private static func installVerticalPageScrollBridge(on chart: LightweightCharts) {
         guard let webView = webView(in: chart) else { return }
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.panGestureRecognizer.isEnabled = false
         webView.scrollView.bounces = false
+        webView.scrollView.alwaysBounceVertical = false
+        webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.bouncesZoom = false
+        webView.scrollView.delaysContentTouches = false
+        webView.scrollView.canCancelContentTouches = false
         webView.scrollView.minimumZoomScale = 1
         webView.scrollView.maximumZoomScale = 1
         disableDoubleTapZoom(on: webView)

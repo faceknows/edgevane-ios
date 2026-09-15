@@ -39,6 +39,7 @@ struct LightweightChartView: UIViewRepresentable {
         )
         context.coordinator.pageScrollPassthrough.allowsTimeScaleInteraction = allowsTimeScaleInteraction
         context.coordinator.pageScrollPassthrough.install(on: chart)
+        context.coordinator.refreshWebViewScrollBridge(on: chart)
         return chart
     }
 
@@ -46,6 +47,7 @@ struct LightweightChartView: UIViewRepresentable {
         context.coordinator.onEvent = onEvent
         context.coordinator.pageScrollPassthrough.allowsTimeScaleInteraction = allowsTimeScaleInteraction
         context.coordinator.pageScrollPassthrough.install(on: uiView)
+        context.coordinator.refreshWebViewScrollBridge(on: uiView)
         context.coordinator.applyIfNeeded(
             model,
             colors: colors,
@@ -92,7 +94,9 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
         }
         chartPan.cancelsTouchesInView = false
         chartPan.delegate = self
+        chartPan.addTarget(self, action: #selector(handleChartPan))
         pagePan.cancelsTouchesInView = true
+        pagePan.delaysTouchesBegan = true
         pagePan.delegate = self
         resetTap.numberOfTapsRequired = 2
         resetTap.cancelsTouchesInView = true
@@ -104,6 +108,11 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
 
     @objc private func handleDoubleTap() {
         onDoubleTap?()
+    }
+
+    @objc private func handleChartPan(_ gesture: UIGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        cancelEnclosingPageScroll()
     }
 
     func install(on view: UIView) {
@@ -133,32 +142,28 @@ final class ChartPageScrollPassthrough: NSObject, UIGestureRecognizerDelegate {
         if gestureRecognizer === resetTap {
             return !(other is UIPanGestureRecognizer)
         }
-        return gestureRecognizer === pagePan
-            && other is UIPanGestureRecognizer
-            && other.view is UIScrollView
-    }
-
-    func gestureRecognizer(
-        _ gestureRecognizer: UIGestureRecognizer,
-        shouldBeRequiredToFailBy other: UIGestureRecognizer
-    ) -> Bool {
-        gestureRecognizer === chartPan
-            && other is UIPanGestureRecognizer
-            && other.view is UIScrollView
+        guard ChartTouchScrolling.isPageScrollPan(other, enclosingScroll: boundScroll) else {
+            return false
+        }
+        return gestureRecognizer === pagePan || gestureRecognizer === chartPan
     }
 
     private func bindEnclosingScrollView(from view: UIView) {
         var ancestor: UIView? = view.superview
         while let current = ancestor {
             if let scroll = current as? UIScrollView {
-                if boundScroll !== scroll {
-                    scroll.panGestureRecognizer.require(toFail: chartPan)
-                    boundScroll = scroll
-                }
+                boundScroll = scroll
                 return
             }
             ancestor = current.superview
         }
+    }
+
+    /// `require(toFail: chartPan)` sticks after a successful horizontal pan and kills later page scrolls.
+    private func cancelEnclosingPageScroll() {
+        guard let pan = boundScroll?.panGestureRecognizer, pan.isEnabled else { return }
+        pan.isEnabled = false
+        pan.isEnabled = true
     }
 }
 
@@ -181,6 +186,7 @@ private final class ChartDirectionLockGesture: UIGestureRecognizer {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesBegan(touches, with: event)
         if numberOfTouches > 1 {
             return
         }
@@ -192,6 +198,7 @@ private final class ChartDirectionLockGesture: UIGestureRecognizer {
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesMoved(touches, with: event)
         if numberOfTouches > 1 {
             return
         }
@@ -208,6 +215,7 @@ private final class ChartDirectionLockGesture: UIGestureRecognizer {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesEnded(touches, with: event)
         if numberOfTouches > 0 { return }
         if state == .began || state == .changed {
             state = .ended
@@ -217,10 +225,12 @@ private final class ChartDirectionLockGesture: UIGestureRecognizer {
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        super.touchesCancelled(touches, with: event)
         state = .cancelled
     }
 
     override func reset() {
+        super.reset()
         origin = .zero
     }
 }

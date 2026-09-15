@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 struct Bar: Equatable {
     var time: Date
@@ -423,6 +424,15 @@ enum ChartTouchScrolling {
         allowsTimeScaleInteraction: Bool = true
     ) -> Bool {
         allowsTimeScaleInteraction && abs(translationX) > abs(translationY)
+    }
+
+    /// Only the enclosing page scroll. WKWebView's own pan is also a `UIScrollView` pan and must not join.
+    static func isPageScrollPan(
+        _ other: UIGestureRecognizer,
+        enclosingScroll: UIScrollView?
+    ) -> Bool {
+        guard let enclosingScroll else { return false }
+        return other === enclosingScroll.panGestureRecognizer
     }
 }
 
