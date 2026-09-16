@@ -61,26 +61,53 @@ struct SymbolQuote: Equatable {
 @MainActor
 final class QuoteStore: ObservableObject {
     @Published private(set) var quotes: [String: SymbolQuote] = [:]
+    private var tradeGeneration: [String: UInt64] = [:]
+    private var snapshotGeneration: [String: UInt64] = [:]
 
     func reset() {
+        let symbols = Set(quotes.keys)
+            .union(tradeGeneration.keys)
+            .union(snapshotGeneration.keys)
         quotes = [:]
+        invalidateGenerations(symbols)
     }
 
     func remove(_ symbols: [String]) {
-        symbols.map(SymbolCode.normalize).forEach { quotes[$0] = nil }
+        let normalized = Set(symbols.map(SymbolCode.normalize).filter { !$0.isEmpty })
+        normalized.forEach { quotes[$0] = nil }
+        invalidateGenerations(normalized)
     }
 
     func quote(for raw: String) -> SymbolQuote? {
         quotes[SymbolCode.normalize(raw)]
     }
 
+    /// Socket `trade` count per symbol, captured before an in-flight snapshot request.
+    func tradeGenerations(for symbols: [String]) -> [String: UInt64] {
+        Dictionary(uniqueKeysWithValues: symbols.compactMap { raw in
+            let symbol = SymbolCode.normalize(raw)
+            guard !symbol.isEmpty else { return nil }
+            return (symbol, tradeGeneration[symbol] ?? 0)
+        })
+    }
+
+    /// Increments per-symbol snapshot request IDs. Capture the result before the REST call.
+    func beginSnapshot(for symbols: [String]) -> [String: UInt64] {
+        Dictionary(uniqueKeysWithValues: symbols.compactMap { raw in
+            let symbol = SymbolCode.normalize(raw)
+            guard !symbol.isEmpty else { return nil }
+            let next = (snapshotGeneration[symbol] ?? 0) + 1
+            snapshotGeneration[symbol] = next
+            return (symbol, next)
+        })
+    }
+
     func applyTrade(symbol: String, price: Double) {
         guard price.isFinite, price > 0 else { return }
         let symbol = SymbolCode.normalize(symbol)
-        var current = quotes[symbol] ?? SymbolQuote()
-        guard current.last != price else { return }
-        current.last = price
-        quotes[symbol] = current
+        guard !symbol.isEmpty else { return }
+        tradeGeneration[symbol, default: 0] += 1
+        setLast(symbol: symbol, price: price)
     }
 
     func applyQuote(_ quote: StreamQuote) {
@@ -106,10 +133,15 @@ final class QuoteStore: ObservableObject {
         quotes[symbol] = current
     }
 
-    func applySnapshot(quotes incoming: [StreamQuote], trades: [(symbol: String, price: Double)]) {
+    func applySnapshot(
+        quotes incoming: [StreamQuote],
+        trades: [(symbol: String, price: Double)],
+        observedTradeGenerations: [String: UInt64] = [:],
+        snapshotGenerations: [String: UInt64] = [:]
+    ) {
         for quote in incoming {
             let symbol = SymbolCode.normalize(quote.symbol)
-            guard !symbol.isEmpty else { continue }
+            guard !symbol.isEmpty, isCurrentSnapshot(symbol, snapshotGenerations) else { continue }
             var current = quotes[symbol] ?? SymbolQuote()
             if let bid = quote.bid {
                 current.snapshotBid = bid
@@ -126,9 +158,32 @@ final class QuoteStore: ObservableObject {
             quotes[symbol] = current
         }
         for trade in trades {
-            if quotes[trade.symbol]?.last == nil {
-                applyTrade(symbol: trade.symbol, price: trade.price)
-            }
+            let symbol = SymbolCode.normalize(trade.symbol)
+            guard !symbol.isEmpty, isCurrentSnapshot(symbol, snapshotGenerations) else { continue }
+            let current = tradeGeneration[symbol] ?? 0
+            let observed = observedTradeGenerations[symbol] ?? 0
+            // Socket trade after the request started is newer than this REST payload.
+            guard current == observed else { continue }
+            setLast(symbol: symbol, price: trade.price)
         }
+    }
+
+    private func isCurrentSnapshot(_ symbol: String, _ observed: [String: UInt64]) -> Bool {
+        (snapshotGeneration[symbol] ?? 0) == (observed[symbol] ?? 0)
+    }
+
+    private func invalidateGenerations(_ symbols: Set<String>) {
+        for symbol in symbols {
+            tradeGeneration[symbol, default: 0] += 1
+            snapshotGeneration[symbol, default: 0] += 1
+        }
+    }
+
+    private func setLast(symbol: String, price: Double) {
+        guard price.isFinite, price > 0 else { return }
+        var current = quotes[symbol] ?? SymbolQuote()
+        guard current.last != price else { return }
+        current.last = price
+        quotes[symbol] = current
     }
 }

@@ -153,11 +153,16 @@ final class MarketRealtimeSession: ObservableObject {
     private func refreshSnapshots() async {
         let symbols = subscriptions.me
         guard !symbols.isEmpty else { return }
+        let snapshotGenerations = quotes.beginSnapshot(for: symbols)
+        let observedTradeGenerations = quotes.tradeGenerations(for: symbols)
         do {
             let data = try await barsAPI.latestSnapshot(symbols: symbols)
+            guard !Task.isCancelled else { return }
             quotes.applySnapshot(
                 quotes: MarketStreamPayload.snapshotQuotes(from: data),
-                trades: MarketStreamPayload.snapshotTrades(from: data)
+                trades: MarketStreamPayload.snapshotTrades(from: data),
+                observedTradeGenerations: observedTradeGenerations,
+                snapshotGenerations: snapshotGenerations
             )
         } catch {
             if error.isCancellation { return }

@@ -96,6 +96,162 @@ final class QuoteStoreTests: XCTestCase {
         XCTAssertNil(store.quote(for: "MSFT"))
     }
 
+    func testSnapshotRefreshesLastWhenNoNewerSocketTrade() {
+        let store = QuoteStore()
+        store.applySnapshot(quotes: [], trades: [("AAPL", 10)])
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 10)
+        store.applySnapshot(quotes: [], trades: [("AAPL", 10.5)])
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 10.5)
+        let observed = store.tradeGenerations(for: ["AAPL"])
+        store.applySnapshot(quotes: [], trades: [("AAPL", 10.6)], observedTradeGenerations: observed)
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 10.6)
+    }
+
+    func testSnapshotDoesNotOverwriteSocketTradeFromDuringFetch() {
+        let store = QuoteStore()
+        let observed = store.tradeGenerations(for: ["AAPL"])
+        store.applyTrade(symbol: "AAPL", price: 11)
+        store.applySnapshot(quotes: [], trades: [("AAPL", 10.8)], observedTradeGenerations: observed)
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+    }
+
+    func testSamePriceSocketTradeStillBlocksStaleSnapshot() {
+        let store = QuoteStore()
+        store.applySnapshot(quotes: [], trades: [("AAPL", 10)])
+        let observed = store.tradeGenerations(for: ["AAPL"])
+        store.applyTrade(symbol: "AAPL", price: 10)
+        store.applySnapshot(quotes: [], trades: [("AAPL", 9.5)], observedTradeGenerations: observed)
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 10)
+    }
+
+    func testSnapshotTradeSkipIsPerSymbol() {
+        let store = QuoteStore()
+        let observed = store.tradeGenerations(for: ["AAPL", "MSFT"])
+        store.applyTrade(symbol: "AAPL", price: 11)
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10.8), ("MSFT", 20.5)],
+            observedTradeGenerations: observed
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+        XCTAssertEqual(store.quote(for: "MSFT")?.last, 20.5)
+    }
+
+    func testRemoveClearsQuoteAndAllowsFreshSnapshot() {
+        let store = QuoteStore()
+        store.applyTrade(symbol: "AAPL", price: 11)
+        store.remove(["AAPL"])
+        XCTAssertNil(store.quote(for: "AAPL"))
+        let snapshotGenerations = store.beginSnapshot(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10.8)],
+            observedTradeGenerations: store.tradeGenerations(for: ["AAPL"]),
+            snapshotGenerations: snapshotGenerations
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 10.8)
+    }
+
+    func testResubscribeDoesNotReuseRemovedSnapshotGeneration() {
+        let store = QuoteStore()
+        let first = store.beginSnapshot(for: ["AAPL"])
+        let firstTrades = store.tradeGenerations(for: ["AAPL"])
+        store.remove(["AAPL"])
+        let second = store.beginSnapshot(for: ["AAPL"])
+        let secondTrades = store.tradeGenerations(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 11)],
+            observedTradeGenerations: secondTrades,
+            snapshotGenerations: second
+        )
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10)],
+            observedTradeGenerations: firstTrades,
+            snapshotGenerations: first
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+    }
+
+    func testResetDoesNotReuseSnapshotGeneration() {
+        let store = QuoteStore()
+        let first = store.beginSnapshot(for: ["AAPL"])
+        let firstTrades = store.tradeGenerations(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10)],
+            observedTradeGenerations: firstTrades,
+            snapshotGenerations: first
+        )
+        store.reset()
+        XCTAssertNil(store.quote(for: "AAPL"))
+        let second = store.beginSnapshot(for: ["AAPL"])
+        let secondTrades = store.tradeGenerations(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 11)],
+            observedTradeGenerations: secondTrades,
+            snapshotGenerations: second
+        )
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 9)],
+            observedTradeGenerations: firstTrades,
+            snapshotGenerations: first
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+    }
+
+    func testOlderSnapshotResponseDoesNotOverwriteNewer() {
+        let store = QuoteStore()
+        let older = store.beginSnapshot(for: ["AAPL"])
+        let newer = store.beginSnapshot(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [StreamQuote(symbol: "AAPL", bid: 2, ask: 3, bidSize: 4, askSize: 5)],
+            trades: [("AAPL", 11)],
+            snapshotGenerations: newer
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+        XCTAssertEqual(store.quote(for: "AAPL")?.snapshotBid, 2)
+        store.applySnapshot(
+            quotes: [StreamQuote(symbol: "AAPL", bid: 1, ask: 1.5, bidSize: 1, askSize: 1)],
+            trades: [("AAPL", 10)],
+            snapshotGenerations: older
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+        XCTAssertEqual(store.quote(for: "AAPL")?.snapshotBid, 2)
+        XCTAssertEqual(store.quote(for: "AAPL")?.snapshotAsk, 3)
+    }
+
+    func testSnapshotRequestGenerationIsPerSymbol() {
+        let store = QuoteStore()
+        let first = store.beginSnapshot(for: ["AAPL", "MSFT"])
+        _ = store.beginSnapshot(for: ["AAPL"])
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10), ("MSFT", 20)],
+            snapshotGenerations: first
+        )
+        XCTAssertNil(store.quote(for: "AAPL")?.last)
+        XCTAssertEqual(store.quote(for: "MSFT")?.last, 20)
+    }
+
+    func testStaleSnapshotDoesNotResurrectRemovedSymbol() {
+        let store = QuoteStore()
+        let older = store.beginSnapshot(for: ["AAPL", "MSFT"])
+        store.remove(["MSFT"])
+        let newer = store.beginSnapshot(for: ["AAPL"])
+        store.applySnapshot(quotes: [], trades: [("AAPL", 11)], snapshotGenerations: newer)
+        store.applySnapshot(
+            quotes: [],
+            trades: [("AAPL", 10), ("MSFT", 20)],
+            snapshotGenerations: older
+        )
+        XCTAssertEqual(store.quote(for: "AAPL")?.last, 11)
+        XCTAssertNil(store.quote(for: "MSFT"))
+    }
+
     func testSnapshotKeepsSizesUntilSocketQuoteArrives() {
         let store = QuoteStore()
         store.applySnapshot(
