@@ -28,8 +28,12 @@ final class IndexChartSession: ObservableObject {
             showVWAP: false,
             previousClose: nil,
             sessionOpen: nil,
-            followLatest: false,
-            showVolume: false
+            showVolume: false,
+            seriesID: ChartSeriesIdentity.id(
+                symbol: Self.symbol,
+                session: BarSession.index.rawValue,
+                date: date
+            )
         )
     }
 

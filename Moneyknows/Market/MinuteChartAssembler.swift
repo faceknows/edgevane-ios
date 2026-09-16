@@ -9,8 +9,8 @@ enum MinuteChartAssembler {
         previousClose: Double?,
         sessionOpen: Double?,
         markers: [ChartMarker] = [],
-        followLatest: Bool = false,
-        showVolume: Bool = false
+        showVolume: Bool = false,
+        seriesID: String = ""
     ) -> ChartModel {
         let bars = BarAggregator.aggregate(bars1m, minutes: interval.minutes)
         var overlays: [OverlayLine] = []
@@ -47,13 +47,18 @@ enum MinuteChartAssembler {
             overlays: overlays,
             priceLines: priceLines,
             markers: aligned(markers, to: bars, duration: TimeInterval(interval.minutes * 60)),
-            followLatest: followLatest,
             showVolume: showVolume,
-            usesCalendarDays: false
+            usesCalendarDays: false,
+            seriesID: seriesID
         )
     }
 
-    static func extendedHours(bars1m: [Bar], markers: [ChartMarker] = [], showVolume: Bool = true) -> ChartModel {
+    static func extendedHours(
+        bars1m: [Bar],
+        markers: [ChartMarker] = [],
+        showVolume: Bool = true,
+        seriesID: String = ""
+    ) -> ChartModel {
         model(
             bars1m: bars1m,
             interval: .five,
@@ -62,8 +67,8 @@ enum MinuteChartAssembler {
             previousClose: nil,
             sessionOpen: nil,
             markers: markers,
-            followLatest: false,
-            showVolume: showVolume
+            showVolume: showVolume,
+            seriesID: seriesID
         )
     }
 
@@ -82,16 +87,16 @@ enum MinuteChartAssembler {
 }
 
 enum DailyChartAssembler {
-    static func model(bars: [Bar], style: ChartStyle, showVolume: Bool) -> ChartModel {
+    static func model(bars: [Bar], style: ChartStyle, showVolume: Bool, seriesID: String = "") -> ChartModel {
         ChartModel(
             bars: bars,
             style: style,
             overlays: [],
             priceLines: [],
             markers: [],
-            followLatest: false,
             showVolume: showVolume,
-            usesCalendarDays: true
+            usesCalendarDays: true,
+            seriesID: seriesID
         )
     }
 }

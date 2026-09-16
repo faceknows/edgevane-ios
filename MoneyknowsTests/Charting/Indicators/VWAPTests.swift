@@ -137,7 +137,6 @@ final class MinuteChartAssemblerTests: XCTestCase {
         XCTAssertTrue(model.priceLines.allSatisfy(\.dashed))
         XCTAssertEqual(model.markers.map(\.id), ["fill-1"])
         XCTAssertEqual(model.markers.first?.time, model.bars.first?.time)
-        XCTAssertFalse(model.followLatest)
 
         let hidden = MinuteChartAssembler.model(
             bars1m: bars1m,

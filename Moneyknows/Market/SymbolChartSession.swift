@@ -29,22 +29,32 @@ final class SymbolChartSession: ObservableObject {
             previousClose: summary?.previousClose,
             sessionOpen: summary?.sessionOpen,
             markers: DayFills.markers(fills, bars: regularBars, session: .regular),
-            followLatest: false,
-            showVolume: !BarSession.isIndexSymbol(symbol)
+            showVolume: !BarSession.isIndexSymbol(symbol),
+            seriesID: ChartSeriesIdentity.id(symbol: symbol, session: BarSession.regular.rawValue, date: regularDate)
         )
     }
 
     var preModel: ChartModel {
         MinuteChartAssembler.extendedHours(
             bars1m: preBars,
-            markers: DayFills.markers(fills, bars: preBars, session: .premarket)
+            markers: DayFills.markers(fills, bars: preBars, session: .premarket),
+            seriesID: ChartSeriesIdentity.id(
+                symbol: symbol,
+                session: BarSession.premarket.rawValue,
+                date: extendedDate
+            )
         )
     }
 
     var afterModel: ChartModel {
         MinuteChartAssembler.extendedHours(
             bars1m: afterBars,
-            markers: DayFills.markers(fills, bars: afterBars, session: .aftermarket)
+            markers: DayFills.markers(fills, bars: afterBars, session: .aftermarket),
+            seriesID: ChartSeriesIdentity.id(
+                symbol: symbol,
+                session: BarSession.aftermarket.rawValue,
+                date: extendedDate
+            )
         )
     }
 

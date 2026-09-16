@@ -5,7 +5,8 @@ enum SecondChartAssembler {
         bars1s: [Bar],
         interval: SecondInterval,
         style: ChartStyle,
-        showVolume: Bool = true
+        showVolume: Bool = true,
+        seriesID: String = ""
     ) -> ChartModel {
         ChartModel(
             bars: BarAggregator.aggregate(bars1s, seconds: interval.seconds),
@@ -13,9 +14,9 @@ enum SecondChartAssembler {
             overlays: [],
             priceLines: [],
             markers: [],
-            followLatest: true,
             showVolume: showVolume,
-            usesCalendarDays: false
+            usesCalendarDays: false,
+            seriesID: seriesID
         )
     }
 }

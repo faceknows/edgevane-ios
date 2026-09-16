@@ -386,7 +386,6 @@ final class SecondChartAssemblerTests: XCTestCase {
         }
         let model = SecondChartAssembler.model(bars1s: bars, interval: .five, style: .line)
         XCTAssertEqual(model.bars.count, 1)
-        XCTAssertTrue(model.followLatest)
         XCTAssertTrue(model.overlays.isEmpty)
         XCTAssertTrue(model.priceLines.isEmpty)
         XCTAssertTrue(model.showVolume)

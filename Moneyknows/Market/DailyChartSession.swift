@@ -22,7 +22,8 @@ final class DailyChartSession: ObservableObject {
         DailyChartAssembler.model(
             bars: bars,
             style: style,
-            showVolume: !BarSession.isIndexSymbol(symbol)
+            showVolume: !BarSession.isIndexSymbol(symbol),
+            seriesID: ChartSeriesIdentity.id(symbol: symbol, session: "daily")
         )
     }
 

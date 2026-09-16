@@ -15,6 +15,7 @@ struct ChartSurface: View {
     var barDuration: TimeInterval? = nil
 
     @State private var picked: Bar?
+    @State private var appliedSeriesID = ""
     @State private var engineGeneration = 0
     @State private var engineFailed = false
 
@@ -31,8 +32,22 @@ struct ChartSurface: View {
             chartBody
                 .frame(height: height)
         }
-        .onChange(of: model) { _ in
-            picked = nil
+        .onAppear {
+            if ChartViewportReset.seriesReplaced(
+                previousSeriesID: appliedSeriesID,
+                nextSeriesID: model.seriesID
+            ) {
+                picked = nil
+            }
+            appliedSeriesID = model.seriesID
+        }
+        .onChange(of: model) { newModel in
+            picked = ChartPickedSelection.updated(
+                picked: picked,
+                previousSeriesID: appliedSeriesID,
+                next: newModel
+            )
+            appliedSeriesID = newModel.seriesID
         }
     }
 

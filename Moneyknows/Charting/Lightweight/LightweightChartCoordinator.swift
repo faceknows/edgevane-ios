@@ -46,6 +46,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private var suppressTimeRangeUntil: Date?
     private var customMaxLogicalTo: Double?
     private var isClampingLogicalRange = false
+    private var lastLogicalFrom: Double?
+    private var lastLogicalTo: Double?
 
     init(onEvent: @escaping (ChartEvent) -> Void) {
         self.onEvent = onEvent
@@ -105,8 +107,19 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         guard applied != snapshot else { return }
         if let applied, applied.hasSameDrawnData(as: snapshot) {
             let durationChanged = applied.barDuration != snapshot.barDuration
+            let previousBars = appliedBars
+            let previousFrom = lastLogicalFrom
+            let previousTo = lastLogicalTo
+            let previousDuration = applied.barDuration
             self.applied = snapshot
-            applyViewport(dataChanged: durationChanged)
+            applyViewport(
+                seriesReplaced: false,
+                durationChanged: durationChanged,
+                previousBars: previousBars,
+                previousFrom: previousFrom,
+                previousTo: previousTo,
+                previousDuration: previousDuration
+            )
             requestVisibleExtremes()
             return
         }
@@ -135,6 +148,10 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     }
 
     func didVisibleLogicalRangeChange(onTimeScale timeScale: TimeScaleApi, parameters: LogicalRange?) {
+        if let from = parameters?.from, let to = parameters?.to {
+            lastLogicalFrom = from
+            lastLogicalTo = to
+        }
         if clampLogicalRangeIfNeeded(on: timeScale, parameters: parameters) {
             return
         }
@@ -198,6 +215,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 borderColor: grid,
                 timeVisible: timeVisible,
                 secondsVisible: false,
+                shiftVisibleRangeOnNewBar: true,
                 tickMarkFormatter: includeFormatters ? .closure(Self.easternTickMark) : nil
             ),
             grid: GridOptions(
@@ -233,6 +251,11 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
     private func apply(_ snapshot: LightweightChartSnapshot, on chart: LightweightCharts) {
         let model = snapshot.model
         let colors = snapshot.colors
+        let previousBars = appliedBars
+        let previousFrom = lastLogicalFrom
+        let previousTo = lastLogicalTo
+        let previousDuration = applied?.barDuration
+        let previousSeriesID = applied?.model.seriesID ?? ""
         applied = snapshot
         let oldest = model.bars.first?.time
         if oldest != oldestBarTime {
@@ -258,6 +281,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             didFitContent = false
             appliedTimeRange = nil
             customMaxLogicalTo = nil
+            lastLogicalFrom = nil
+            lastLogicalTo = nil
             ChartTimeScalePaging.reset(&paging)
             return
         }
@@ -284,10 +309,20 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         syncFillDots(markers, colors: colors, usesCalendarDays: model.usesCalendarDays, on: chart)
         applyVolumeLayout(volumeHeight: snapshot.volumeHeight, chartHeight: snapshot.chartHeight)
         capturePlotSizeIfNeeded(from: chart)
-        applyViewport(dataChanged: true)
-        if model.followLatest {
-            chart.timeScale().scrollToRealTime()
-        }
+        applyViewport(
+            seriesReplaced: ChartViewportReset.shouldRefitAfterDataChange(
+                didFit: didFitContent,
+                previous: previousBars,
+                next: model.bars,
+                previousSeriesID: previousSeriesID,
+                nextSeriesID: model.seriesID
+            ),
+            durationChanged: previousDuration != snapshot.barDuration,
+            previousBars: previousBars,
+            previousFrom: previousFrom,
+            previousTo: previousTo,
+            previousDuration: previousDuration
+        )
         requestVisibleExtremes()
     }
 
@@ -301,7 +336,14 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             guard let self else { return }
             guard ChartViewportReset.hasUsablePlotSize(width: width, height: height) else { return }
             self.hasTimeScaleSize = true
-            self.applyViewport(dataChanged: false)
+            self.applyViewport(
+                seriesReplaced: false,
+                durationChanged: false,
+                previousBars: self.appliedBars,
+                previousFrom: self.lastLogicalFrom,
+                previousTo: self.lastLogicalTo,
+                previousDuration: self.applied?.barDuration
+            )
         }
         if Thread.isMainThread {
             apply()
@@ -310,20 +352,82 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         }
     }
 
-    private func applyViewport(dataChanged: Bool) {
-        if restoreLinkedTimeRangeIfNeeded(force: dataChanged) { return }
-        customMaxLogicalTo = nil
-        if dataChanged {
+    private func applyViewport(
+        seriesReplaced: Bool,
+        durationChanged: Bool,
+        previousBars: [Bar],
+        previousFrom: Double?,
+        previousTo: Double?,
+        previousDuration: TimeInterval?
+    ) {
+        let isFollower = applied?.allowsTimeScaleInteraction == false
+        let timesChanged = ChartLiveViewport.timesChanged(previous: previousBars, next: appliedBars)
+        let forceLinked = ChartLiveViewport.shouldForceLinkedRestore(
+            isFollower: isFollower,
+            timesChanged: timesChanged,
+            durationChanged: durationChanged,
+            seriesReplaced: seriesReplaced
+        )
+        if isFollower || durationChanged || seriesReplaced {
+            if restoreLinkedTimeRangeIfNeeded(force: forceLinked) {
+                return
+            }
+        }
+        if seriesReplaced {
+            customMaxLogicalTo = nil
             didFitContent = false
             appliedTimeRange = nil
         } else if let range = applied?.visibleTimeRange,
                   !ChartVisibleTimeRangeSync.intersects(range, bars: appliedBars) {
+            customMaxLogicalTo = nil
             didFitContent = false
             appliedTimeRange = nil
         }
-        fitAllContentIfNeeded()
+        if ChartViewportReset.shouldFitOnFirstLayout(
+            didFit: didFitContent,
+            hasBars: !appliedBars.isEmpty,
+            hasSize: hasTimeScaleSize
+        ) {
+            fitAllContentIfNeeded()
+            return
+        }
+        restoreLiveLogicalRange(
+            previousBars: previousBars,
+            previousFrom: previousFrom,
+            previousTo: previousTo,
+            previousDuration: previousDuration
+        )
     }
 
+    private func restoreLiveLogicalRange(
+        previousBars: [Bar],
+        previousFrom: Double?,
+        previousTo: Double?,
+        previousDuration: TimeInterval?
+    ) {
+        guard let chart, let previousFrom, let previousTo else { return }
+        guard let logical = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: previousFrom,
+            to: previousTo,
+            previous: previousBars,
+            next: appliedBars,
+            previousDuration: previousDuration,
+            nextDuration: applied?.barDuration,
+            hasCustomRightBound: customMaxLogicalTo != nil
+        ) else { return }
+        if abs(logical.from - previousFrom) < 0.001, abs(logical.to - previousTo) < 0.001 {
+            return
+        }
+        lastLogicalFrom = logical.from
+        lastLogicalTo = logical.to
+        chart.timeScale().setVisibleLogicalRange(
+            range: LogicalRange(from: logical.from, to: logical.to)
+        )
+    }
+
+    /// When `force` is true (follower bars changed, 1/3/5, or a new series), remap the
+    /// linked wall-clock window. Returning true still means "this chart is linked; do
+    /// not fitContent," including the no-op case where the window is already applied.
     private func restoreLinkedTimeRangeIfNeeded(force: Bool) -> Bool {
         guard let chart, hasTimeScaleSize, !appliedBars.isEmpty else { return false }
         guard let range = applied?.visibleTimeRange,
@@ -366,7 +470,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 allowsTimeScaleInteraction: applied?.allowsTimeScaleInteraction ?? true,
                 hasCustomRightBound: customMaxLogicalTo != nil,
                 restoringSyncedRange: restoringSyncedRange
-            )
+            ),
+            shiftVisibleRangeOnNewBar: true
         ))
     }
 

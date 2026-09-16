@@ -241,7 +241,8 @@ struct SymbolDetailView: View {
             ChartSurface(
                 model: secondModel,
                 colors: ChartPalette.colors(scheme: colorScheme),
-                height: 180
+                height: 180,
+                barDuration: TimeInterval(secondInterval.seconds)
             )
         }
     }
@@ -256,7 +257,8 @@ struct SymbolDetailView: View {
         let bars = SecondChartAssembler.model(
             bars1s: seconds.bars(for: symbol),
             interval: secondInterval,
-            style: secondStyle
+            style: secondStyle,
+            seriesID: ChartSeriesIdentity.id(symbol: symbol, session: "seconds")
         ).bars
         let highs = bars.map(\.high)
         let lows = bars.map(\.low)
@@ -272,7 +274,8 @@ struct SymbolDetailView: View {
         return SecondChartAssembler.model(
             bars1s: seconds.bars(for: symbol),
             interval: secondInterval,
-            style: secondStyle
+            style: secondStyle,
+            seriesID: ChartSeriesIdentity.id(symbol: symbol, session: "seconds")
         )
     }
 

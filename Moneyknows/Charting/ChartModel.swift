@@ -145,9 +145,10 @@ struct ChartModel: Equatable {
     var overlays: [OverlayLine]
     var priceLines: [PriceLine]
     var markers: [ChartMarker]
-    var followLatest: Bool
     var showVolume: Bool
     var usesCalendarDays: Bool
+    /// Symbol + session + date. Empty only in tests that feed bars directly.
+    var seriesID: String = ""
 
     static let empty = ChartModel(
         bars: [],
@@ -155,10 +156,18 @@ struct ChartModel: Equatable {
         overlays: [],
         priceLines: [],
         markers: [],
-        followLatest: false,
         showVolume: false,
         usesCalendarDays: false
     )
+}
+
+enum ChartSeriesIdentity {
+    static func id(symbol: String, session: String, date: String = "") -> String {
+        let code = SymbolCode.normalize(symbol)
+        guard !code.isEmpty else { return "" }
+        if date.isEmpty { return "\(code)|\(session)" }
+        return "\(code)|\(session)|\(date)"
+    }
 }
 
 enum ChartEvent {
@@ -470,9 +479,197 @@ enum ChartViewportReset {
         !didFit && hasBars && hasSize
     }
 
+    /// Incremental bars keep the current window. Fit again on first paint, when
+    /// `seriesID` changes, or when `next` is not a continuation of `previous`.
+    static func shouldRefitAfterDataChange(
+        didFit: Bool,
+        previous: [Bar],
+        next: [Bar],
+        previousSeriesID: String = "",
+        nextSeriesID: String = ""
+    ) -> Bool {
+        guard !next.isEmpty else { return false }
+        if previous.isEmpty { return true }
+        guard didFit else { return true }
+        if seriesReplaced(previousSeriesID: previousSeriesID, nextSeriesID: nextSeriesID) {
+            return true
+        }
+        return !isIncrementalDataChange(previous: previous, next: next)
+    }
+
+    static func seriesReplaced(previousSeriesID: String, nextSeriesID: String) -> Bool {
+        !previousSeriesID.isEmpty && !nextSeriesID.isEmpty && previousSeriesID != nextSeriesID
+    }
+
+    /// Same timestamps with at most the last two bars edited still count as live updates.
+    /// A single forming bar is the live tail; symbol switches use `seriesID`.
+    private static let maxInPlaceBarEdits = 2
+
+    static func isIncrementalDataChange(previous: [Bar], next: [Bar]) -> Bool {
+        let previousTimes = previous.map(\.time)
+        let nextTimes = next.map(\.time)
+        if previousTimes == nextTimes {
+            return lockedPrefixMatches(previous, next)
+        }
+        if next.count > previous.count {
+            if Array(nextTimes.prefix(previous.count)) == previousTimes {
+                return lockedPrefixMatches(previous, Array(next.prefix(previous.count)))
+            }
+            if Array(nextTimes.suffix(previous.count)) == previousTimes {
+                return lockedPrefixMatches(previous, Array(next.suffix(previous.count)))
+            }
+        }
+        if next.count < previous.count {
+            if Array(previousTimes.prefix(next.count)) == nextTimes {
+                return lockedPrefixMatches(Array(previous.prefix(next.count)), next)
+            }
+            if Array(previousTimes.suffix(next.count)) == nextTimes {
+                return lockedPrefixMatches(Array(previous.suffix(next.count)), next)
+            }
+        }
+        guard let shift = ChartLiveViewport.indexShift(from: previous, to: next) else {
+            return false
+        }
+        return alignedOverlapMatches(previous: previous, next: next, shift: Int(shift.rounded()))
+    }
+
+    /// Shared bars must be the same series. Last two may change in place (live last bar).
+    /// One forming bar is the live tail; a one-bar symbol switch is `seriesID`.
+    private static func lockedCount(_ barCount: Int) -> Int {
+        guard barCount > 1 else { return 0 }
+        return max(1, barCount - maxInPlaceBarEdits)
+    }
+
+    private static func lockedPrefixMatches(_ previous: [Bar], _ next: [Bar]) -> Bool {
+        let locked = lockedCount(previous.count)
+        if locked == 0 { return true }
+        return zip(previous.prefix(locked), next.prefix(locked)).allSatisfy { $0 == $1 }
+    }
+
+    private static func alignedOverlapMatches(previous: [Bar], next: [Bar], shift: Int) -> Bool {
+        let previousStart = max(0, -shift)
+        let nextStart = max(0, shift)
+        let count = min(previous.count - previousStart, next.count - nextStart)
+        guard count > 0 else { return false }
+        let locked = lockedCount(count)
+        for index in 0..<count {
+            let previousBar = previous[previousStart + index]
+            let nextBar = next[nextStart + index]
+            if previousBar.time != nextBar.time { return false }
+            if index < locked, previousBar != nextBar { return false }
+        }
+        return true
+    }
+
     /// `subscribeSizeChange` only reports later resizes; seed from the view's current bounds.
     static func hasUsablePlotSize(width: CGFloat, height: CGFloat) -> Bool {
         width > 0 && height > 0
+    }
+}
+
+/// Crosshair readout follows the live bar; a new `seriesID` drops it even when times overlap.
+enum ChartPickedSelection {
+    static func updated(picked: Bar?, previousSeriesID: String, next: ChartModel) -> Bar? {
+        guard let picked else { return nil }
+        if ChartViewportReset.seriesReplaced(
+            previousSeriesID: previousSeriesID,
+            nextSeriesID: next.seriesID
+        ) {
+            return nil
+        }
+        return next.bars.first { $0.time == picked.time }
+    }
+}
+
+/// Keep the user's zoom/pan when bars append, update, or drop from a ring buffer.
+enum ChartLiveViewport {
+    /// Last bar is at least partly visible. A restored window that already extends
+    /// several bars into empty future is not "following live."
+    static func shouldFollowNewBar(
+        to: Double,
+        barCount: Int,
+        hasCustomRightBound: Bool
+    ) -> Bool {
+        guard !hasCustomRightBound, barCount > 0 else { return false }
+        let last = ChartVisibleTimeRangeSync.lastIndex(barCount: barCount)
+        return to >= last - 0.01 && to < last + 1
+    }
+
+    /// Followers must remap the source wall-clock window when their bars change.
+    /// `restoreLinkedTimeRangeIfNeeded` returns true even when it does not setRange.
+    static func shouldForceLinkedRestore(
+        isFollower: Bool,
+        timesChanged: Bool,
+        durationChanged: Bool,
+        seriesReplaced: Bool
+    ) -> Bool {
+        durationChanged || seriesReplaced || (isFollower && timesChanged)
+    }
+
+    static func timesChanged(previous: [Bar], next: [Bar]) -> Bool {
+        previous.map(\.time) != next.map(\.time)
+    }
+
+    /// How many indices `previous[0]` moved in `next`. Negative when the ring dropped oldest bars.
+    static func indexShift(from previous: [Bar], to next: [Bar]) -> Double? {
+        guard let previousFirst = previous.first?.time else { return nil }
+        if let index = next.firstIndex(where: { $0.time == previousFirst }) {
+            return Double(index)
+        }
+        guard let nextFirst = next.first?.time,
+              let index = previous.firstIndex(where: { $0.time == nextFirst })
+        else { return nil }
+        return Double(-index)
+    }
+
+    static func logicalRangeAfterDataChange(
+        from: Double,
+        to: Double,
+        previous: [Bar],
+        next: [Bar],
+        previousDuration: TimeInterval?,
+        nextDuration: TimeInterval?,
+        hasCustomRightBound: Bool
+    ) -> (from: Double, to: Double)? {
+        guard !previous.isEmpty, !next.isEmpty else { return nil }
+        let durationChanged = previousDuration != nextDuration
+            && (previousDuration ?? 0) > 0
+            && (nextDuration ?? 0) > 0
+        if durationChanged,
+           let previousDuration,
+           let nextDuration,
+           let window = ChartVisibleTimeRangeSync.visibleTimeRange(
+            from: from,
+            to: to,
+            in: previous,
+            duration: previousDuration
+           ),
+           var logical = ChartVisibleTimeRangeSync.logicalRange(
+            for: window,
+            in: next,
+            barDuration: nextDuration
+           ) {
+            if shouldFollowNewBar(to: to, barCount: previous.count, hasCustomRightBound: hasCustomRightBound) {
+                let last = ChartVisibleTimeRangeSync.lastIndex(barCount: next.count)
+                if logical.to < last - 0.01 {
+                    let width = logical.to - logical.from
+                    logical = (last - width, last)
+                }
+            }
+            return logical
+        }
+        if shouldFollowNewBar(to: to, barCount: previous.count, hasCustomRightBound: hasCustomRightBound) {
+            let width = to - from
+            guard width > 0 else { return nil }
+            let oldLast = ChartVisibleTimeRangeSync.lastIndex(barCount: previous.count)
+            let newLast = ChartVisibleTimeRangeSync.lastIndex(barCount: next.count)
+            let newTo = newLast + (to - oldLast)
+            return (newTo - width, newTo)
+        }
+        if let shift = indexShift(from: previous, to: next) {
+            return (from + shift, to + shift)
+        }
+        return nil
     }
 }
 

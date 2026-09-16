@@ -34,22 +34,36 @@ final class HistoricalMinutesSession: ObservableObject {
             previousClose: nil,
             sessionOpen: nil,
             markers: dayFills.markers(bars: regularBars, session: .regular),
-            followLatest: false,
-            showVolume: !BarSession.isIndexSymbol(symbol)
+            showVolume: !BarSession.isIndexSymbol(symbol),
+            seriesID: ChartSeriesIdentity.id(
+                symbol: symbol,
+                session: BarSession.regular.rawValue,
+                date: dateString
+            )
         )
     }
 
     var preModel: ChartModel {
         MinuteChartAssembler.extendedHours(
             bars1m: preBars,
-            markers: dayFills.markers(bars: preBars, session: .premarket)
+            markers: dayFills.markers(bars: preBars, session: .premarket),
+            seriesID: ChartSeriesIdentity.id(
+                symbol: symbol,
+                session: BarSession.premarket.rawValue,
+                date: dateString
+            )
         )
     }
 
     var afterModel: ChartModel {
         MinuteChartAssembler.extendedHours(
             bars1m: afterBars,
-            markers: dayFills.markers(bars: afterBars, session: .aftermarket)
+            markers: dayFills.markers(bars: afterBars, session: .aftermarket),
+            seriesID: ChartSeriesIdentity.id(
+                symbol: symbol,
+                session: BarSession.aftermarket.rawValue,
+                date: dateString
+            )
         )
     }
 

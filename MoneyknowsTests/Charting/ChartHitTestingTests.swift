@@ -249,6 +249,322 @@ final class ChartViewportResetTests: XCTestCase {
         XCTAssertFalse(ChartTimeScalePaging.handleLogicalRange(from: -0.5, hasBars: true, state: &state))
         XCTAssertFalse(state.reachedOldest)
     }
+
+    func testIncrementalBarsDoNotRefitAfterFirstPaint() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = strideBars(from: open, count: 60, stride: 1)
+        let next = strideBars(from: open, count: 61, stride: 1)
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: false, previous: [], next: previous)
+        )
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: previous, next: next)
+        )
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(
+                didFit: true,
+                previous: previous,
+                next: strideBars(from: open.addingTimeInterval(86_400), count: 10, stride: 1)
+            )
+        )
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(
+                didFit: true,
+                previous: previous,
+                next: Array(strideBars(from: open.addingTimeInterval(-100), count: 100, stride: 1)) + previous
+            )
+        )
+        let ring = strideBars(from: open.addingTimeInterval(1), count: 60, stride: 1)
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: previous, next: ring)
+        )
+    }
+
+    func testSameSessionTimesWithDifferentPricesAreANewSeries() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let apple = pricedBars(from: open, count: 60, stride: 60, close: 100)
+        let microsoft = pricedBars(from: open, count: 60, stride: 60, close: 400)
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: apple, next: microsoft)
+        )
+        var lastTick = apple
+        lastTick[lastTick.count - 1].close = 101
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: apple, next: lastTick)
+        )
+        let microsoftLonger = pricedBars(from: open, count: 61, stride: 60, close: 400)
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: apple, next: microsoftLonger)
+        )
+        let appleTwo = pricedBars(from: open, count: 2, stride: 60, close: 100)
+        let microsoftTwo = pricedBars(from: open, count: 2, stride: 60, close: 400)
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: appleTwo, next: microsoftTwo)
+        )
+        var twoLastTick = appleTwo
+        twoLastTick[1].close = 101
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: appleTwo, next: twoLastTick)
+        )
+        let appleOne = pricedBars(from: open, count: 1, stride: 60, close: 100)
+        let microsoftOne = pricedBars(from: open, count: 1, stride: 60, close: 400)
+        XCTAssertTrue(
+            ChartViewportReset.shouldRefitAfterDataChange(
+                didFit: true,
+                previous: appleOne,
+                next: microsoftOne,
+                previousSeriesID: "AAPL|regular",
+                nextSeriesID: "MSFT|regular"
+            )
+        )
+        var appleOneTick = appleOne
+        appleOneTick[0].close = 101
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: appleOne, next: appleOneTick)
+        )
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(
+                didFit: true,
+                previous: appleOne,
+                next: appleOneTick,
+                previousSeriesID: "AAPL|regular",
+                nextSeriesID: "AAPL|regular"
+            )
+        )
+        XCTAssertFalse(
+            ChartViewportReset.shouldRefitAfterDataChange(didFit: true, previous: appleOne, next: appleOne)
+        )
+        XCTAssertTrue(
+            ChartViewportReset.seriesReplaced(previousSeriesID: "AAPL|regular", nextSeriesID: "MSFT|regular")
+        )
+        XCTAssertFalse(
+            ChartViewportReset.seriesReplaced(previousSeriesID: "AAPL|regular", nextSeriesID: "AAPL|regular")
+        )
+    }
+
+    private func strideBars(from open: Date, count: Int, stride: TimeInterval) -> [Bar] {
+        pricedBars(from: open, count: count, stride: stride, close: 1)
+    }
+
+    private func pricedBars(from open: Date, count: Int, stride: TimeInterval, close: Double) -> [Bar] {
+        (0..<count).map { index in
+            Bar(
+                time: open.addingTimeInterval(TimeInterval(index) * stride),
+                open: close,
+                high: close,
+                low: close,
+                close: close,
+                volume: 1
+            )
+        }
+    }
+}
+
+final class ChartPickedSelectionTests: XCTestCase {
+    func testOverlappingTimesKeepTheBarOnlyWhenSeriesIdentityMatches() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let apple = Bar(time: open, open: 100, high: 100, low: 100, close: 100, volume: 1)
+        var appleTick = apple
+        appleTick.close = 101
+        let microsoft = Bar(time: open, open: 400, high: 400, low: 400, close: 400, volume: 1)
+        XCTAssertEqual(
+            ChartPickedSelection.updated(
+                picked: apple,
+                previousSeriesID: "AAPL|regular",
+                next: model([appleTick], id: "AAPL|regular")
+            )?.close,
+            101
+        )
+        XCTAssertNil(
+            ChartPickedSelection.updated(
+                picked: apple,
+                previousSeriesID: "AAPL|regular",
+                next: model([microsoft], id: "MSFT|regular")
+            )
+        )
+        XCTAssertNil(
+            ChartPickedSelection.updated(
+                picked: apple,
+                previousSeriesID: "AAPL|regular",
+                next: model([], id: "AAPL|regular")
+            )
+        )
+        XCTAssertNil(
+            ChartPickedSelection.updated(
+                picked: nil,
+                previousSeriesID: "AAPL|regular",
+                next: model([apple], id: "AAPL|regular")
+            )
+        )
+    }
+
+    private func model(_ bars: [Bar], id: String) -> ChartModel {
+        ChartModel(
+            bars: bars,
+            style: .candle,
+            overlays: [],
+            priceLines: [],
+            markers: [],
+            showVolume: false,
+            usesCalendarDays: false,
+            seriesID: id
+        )
+    }
+}
+
+final class ChartLiveViewportTests: XCTestCase {
+    func testZoomedWindowStaysWhenABarIsAppended() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = bars(from: open, count: 60, stride: 1)
+        let next = bars(from: open, count: 61, stride: 1)
+        let preserved = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: 20,
+            to: 40,
+            previous: previous,
+            next: next,
+            previousDuration: 1,
+            nextDuration: 1,
+            hasCustomRightBound: false
+        )
+        XCTAssertEqual(preserved?.from ?? 0, 20, accuracy: 0.01)
+        XCTAssertEqual(preserved?.to ?? 0, 40, accuracy: 0.01)
+        XCTAssertFalse(
+            ChartLiveViewport.shouldFollowNewBar(to: 40, barCount: 60, hasCustomRightBound: false)
+        )
+    }
+
+    func testShowingLastBarShiftsToIncludeTheNewBar() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = bars(from: open, count: 60, stride: 1)
+        let next = bars(from: open, count: 61, stride: 1)
+        XCTAssertTrue(
+            ChartLiveViewport.shouldFollowNewBar(to: 59.4, barCount: 60, hasCustomRightBound: false)
+        )
+        let followed = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: 20,
+            to: 59.4,
+            previous: previous,
+            next: next,
+            previousDuration: 1,
+            nextDuration: 1,
+            hasCustomRightBound: false
+        )
+        XCTAssertEqual(followed?.to ?? 0, 60.4, accuracy: 0.01)
+        XCTAssertEqual(followed?.from ?? 0, 21, accuracy: 0.01)
+    }
+
+    func testRingBufferDropKeepsTheSameBarsWhenZoomed() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = bars(from: open, count: 60, stride: 1)
+        let next = bars(from: open.addingTimeInterval(1), count: 60, stride: 1)
+        XCTAssertEqual(ChartLiveViewport.indexShift(from: previous, to: next) ?? 0, -1, accuracy: 0.01)
+        let preserved = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: 20,
+            to: 40,
+            previous: previous,
+            next: next,
+            previousDuration: 1,
+            nextDuration: 1,
+            hasCustomRightBound: false
+        )
+        XCTAssertEqual(preserved?.from ?? 0, 19, accuracy: 0.01)
+        XCTAssertEqual(preserved?.to ?? 0, 39, accuracy: 0.01)
+    }
+
+    func testCustomRightBoundDoesNotFollowShift() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = bars(from: open, count: 60, stride: 1)
+        let next = bars(from: open, count: 61, stride: 1)
+        XCTAssertFalse(
+            ChartLiveViewport.shouldFollowNewBar(to: 72, barCount: 60, hasCustomRightBound: true)
+        )
+        let preserved = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: 12,
+            to: 72,
+            previous: previous,
+            next: next,
+            previousDuration: 1,
+            nextDuration: 1,
+            hasCustomRightBound: true
+        )
+        XCTAssertEqual(preserved?.from ?? 0, 12, accuracy: 0.01)
+        XCTAssertEqual(preserved?.to ?? 0, 72, accuracy: 0.01)
+    }
+
+    func testDurationChangeKeepsTheWallClockWindow() {
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let oneSecond = bars(from: open, count: 60, stride: 1)
+        let fiveSecond = bars(from: open, count: 12, stride: 5)
+        let preserved = ChartLiveViewport.logicalRangeAfterDataChange(
+            from: 10,
+            to: 40,
+            previous: oneSecond,
+            next: fiveSecond,
+            previousDuration: 1,
+            nextDuration: 5,
+            hasCustomRightBound: false
+        )
+        XCTAssertEqual(preserved?.from ?? 0, 2, accuracy: 0.01)
+        XCTAssertEqual(preserved?.to ?? 0, 8, accuracy: 0.01)
+    }
+
+    func testFollowerForcesLinkedRestoreWhenBarTimesChange() {
+        XCTAssertTrue(
+            ChartLiveViewport.shouldForceLinkedRestore(
+                isFollower: true,
+                timesChanged: true,
+                durationChanged: false,
+                seriesReplaced: false
+            )
+        )
+        XCTAssertFalse(
+            ChartLiveViewport.shouldForceLinkedRestore(
+                isFollower: true,
+                timesChanged: false,
+                durationChanged: false,
+                seriesReplaced: false
+            )
+        )
+        XCTAssertFalse(
+            ChartLiveViewport.shouldForceLinkedRestore(
+                isFollower: false,
+                timesChanged: true,
+                durationChanged: false,
+                seriesReplaced: false
+            )
+        )
+        let open = Date(timeIntervalSince1970: 1_700_000_000)
+        let previous = bars(from: open, count: 60, stride: 300)
+        let next = bars(from: open, count: 61, stride: 300)
+        XCTAssertTrue(ChartLiveViewport.timesChanged(previous: previous, next: next))
+        let window = ChartVisibleTimeRange(
+            from: open,
+            to: open.addingTimeInterval(6 * 3600)
+        )
+        XCTAssertNotNil(
+            ChartVisibleTimeRangeSync.logicalRange(for: window, in: next, barDuration: 300)
+        )
+        XCTAssertTrue(
+            ChartVisibleTimeRangeSync.shouldRestore(current: window, target: window, dataChanged: true),
+            "Follower bar updates must remap the same wall-clock window, even if SwiftUI did not publish a new range."
+        )
+        XCTAssertFalse(
+            ChartVisibleTimeRangeSync.shouldRestore(current: window, target: window, dataChanged: false)
+        )
+    }
+
+    private func bars(from open: Date, count: Int, stride: TimeInterval) -> [Bar] {
+        (0..<count).map { index in
+            Bar(
+                time: open.addingTimeInterval(TimeInterval(index) * stride),
+                open: 1,
+                high: 1,
+                low: 1,
+                close: 1,
+                volume: 1
+            )
+        }
+    }
 }
 
 final class ChartLibraryOptionsTests: XCTestCase {
