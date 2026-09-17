@@ -833,7 +833,8 @@ struct TradeTicketView: View {
                 _ = try await trading.place(
                     order,
                     protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen,
-                    maxOrderValue: maxOrderValue
+                    maxOrderValue: maxOrderValue,
+                    cancelOpenOrders: action == .limitClose
                 )
             case let .close(command, _, _, _):
                 try await trading.closePosition(

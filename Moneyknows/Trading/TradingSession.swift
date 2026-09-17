@@ -198,7 +198,8 @@ final class TradingSession: ObservableObject {
         _ order: NewOrder,
         protectionMinutes: Int,
         maxOrderValue: Double?,
-        submitRetries: Int = 0
+        submitRetries: Int = 0,
+        cancelOpenOrders: Bool = false
     ) async throws -> Order {
         let epoch = self.epoch
         guard let serving else { throw TradingGuard.noAccount }
@@ -212,15 +213,8 @@ final class TradingSession: ObservableObject {
                 maxOrderValue: maxOrderValue
             )
             try throwIfStale(epoch)
-            let release = protectiveReleaseIfNeeded(order)
-            var didRelease = false
-            do {
-                try throwIfStale(epoch)
-                if !release.ids.isEmpty {
-                    try await cancelIds(release.ids, serving: serving, epoch: epoch) {
-                        didRelease = true
-                    }
-                }
+            if cancelOpenOrders {
+                try await cancelOpenOrdersBestEffort(symbol: order.symbol, serving: serving, epoch: epoch)
                 try throwIfStale(epoch)
                 rows = try await submitWithRetries(
                     order,
@@ -230,27 +224,15 @@ final class TradingSession: ObservableObject {
                     serving: serving,
                     epoch: epoch
                 )
-            } catch {
-                if didRelease, !release.snapshot.isEmpty {
-                    do {
-                        try await restoreProtectiveExits(
-                            release.snapshot,
-                            serving: serving,
-                            extraRetries: submitRetries
-                        )
-                    } catch {
-                        if error.isCancellation { throw error }
-                        try throwIfStale(epoch)
-                        postNotice(
-                            L10n.Trading.protectionRestoreFailed(
-                                order.symbol,
-                                UserFacingError.message(from: error) ?? L10n.Errors.generic
-                            )
-                        )
-                        throw TradingGuard.protectionRestoreFailed(symbol: order.symbol, error: error)
-                    }
-                }
-                throw error
+            } else {
+                rows = try await submitAfterProtectiveRelease(
+                    order,
+                    protectionMinutes: protectionMinutes,
+                    maxOrderValue: maxOrderValue,
+                    extraRetries: submitRetries,
+                    serving: serving,
+                    epoch: epoch
+                )
             }
         } catch {
             guard self.epoch == epoch else { throw AppError.cancelled }
@@ -337,6 +319,98 @@ final class TradingSession: ObservableObject {
     private struct ProtectiveRelease {
         var snapshot: [NewOrder]
         var ids: [String]
+    }
+
+    private func submitAfterProtectiveRelease(
+        _ order: NewOrder,
+        protectionMinutes: Int,
+        maxOrderValue: Double?,
+        extraRetries: Int,
+        serving: BrokerageServing,
+        epoch: UInt64
+    ) async throws -> [Order] {
+        let release = protectiveReleaseIfNeeded(order)
+        var didRelease = false
+        do {
+            try throwIfStale(epoch)
+            if !release.ids.isEmpty {
+                try await cancelIds(release.ids, serving: serving, epoch: epoch) {
+                    didRelease = true
+                }
+            }
+            try throwIfStale(epoch)
+            return try await submitWithRetries(
+                order,
+                protectionMinutes: protectionMinutes,
+                maxOrderValue: maxOrderValue,
+                extraRetries: extraRetries,
+                serving: serving,
+                epoch: epoch
+            )
+        } catch {
+            if didRelease, !release.snapshot.isEmpty {
+                do {
+                    try await restoreProtectiveExits(
+                        release.snapshot,
+                        serving: serving,
+                        extraRetries: extraRetries
+                    )
+                } catch {
+                    if error.isCancellation { throw error }
+                    try throwIfStale(epoch)
+                    postNotice(
+                        L10n.Trading.protectionRestoreFailed(
+                            order.symbol,
+                            UserFacingError.message(from: error) ?? L10n.Errors.generic
+                        )
+                    )
+                    throw TradingGuard.protectionRestoreFailed(symbol: order.symbol, error: error)
+                }
+            }
+            throw error
+        }
+    }
+
+    private func cancelOpenOrdersBestEffort(
+        symbol: String,
+        serving: BrokerageServing,
+        epoch: UInt64
+    ) async throws {
+        let code = SymbolCode.normalize(symbol)
+        let open: [Order]
+        do {
+            try throwIfStale(epoch)
+            open = try await serving.openOrders()
+        } catch {
+            try throwIfStale(epoch)
+            if error.isCancellation { throw error }
+            if error.isUnauthorized {
+                markUnauthorized()
+                throw error
+            }
+            AppLog.trading.error("open orders fetch before limit close failed")
+            return
+        }
+        let targets = open.filter { $0.symbol == code }
+        for order in targets {
+            try throwIfStale(epoch)
+            do {
+                try await serving.cancel(orderId: order.id)
+            } catch {
+                try throwIfStale(epoch)
+                if error.isCancellation { throw error }
+                if error.isUnauthorized {
+                    markUnauthorized()
+                    throw error
+                }
+                if error.isNotFound { continue }
+                AppLog.trading.error("cancel before limit close failed")
+            }
+        }
+        if !targets.isEmpty {
+            ordersEpoch += 1
+            await loadOrders(serving, epoch: epoch, includingClosed: false)
+        }
     }
 
     private func protectiveReleaseIfNeeded(_ order: NewOrder) -> ProtectiveRelease {

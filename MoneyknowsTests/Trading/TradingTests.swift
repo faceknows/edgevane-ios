@@ -2514,6 +2514,75 @@ final class OrderPlacementTests: XCTestCase {
         XCTAssertEqual(fake.placed.last?.quantity, 2)
     }
 
+    func testLimitCloseCancelsOpenBuyAndSellThenPlaces() async throws {
+        let session = TradingSession(enablesPolling: false)
+        session.placement.now = { Self.eastern(2026, 9, 4, 11, 0) }
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "buy-1", symbol: "AAPL", status: .accepted, side: .buy),
+            sampleOrder(id: "sell-1", symbol: "AAPL", status: .new, side: .sell),
+            sampleOrder(id: "msft", symbol: "MSFT", status: .new, side: .buy),
+            sampleOrder(id: "filled", symbol: "AAPL", status: .filled, side: .buy),
+        ]
+        session.use(fake)
+        await session.refresh()
+        _ = try await session.place(
+            NewOrder(symbol: "AAPL", side: .sell, kind: .limit, quantity: 2, limitPrice: 11),
+            protectionMinutes: 0,
+            maxOrderValue: 50,
+            cancelOpenOrders: true
+        )
+        XCTAssertTrue(fake.canceled.contains("buy-1"))
+        XCTAssertTrue(fake.canceled.contains("sell-1"))
+        XCTAssertFalse(fake.canceled.contains("msft"))
+        XCTAssertFalse(fake.canceled.contains("filled"))
+        XCTAssertEqual(fake.placed.last?.symbol, "AAPL")
+        XCTAssertEqual(fake.placed.last?.side, .sell)
+        XCTAssertEqual(fake.placed.last?.quantity, 2)
+    }
+
+    func testLimitCloseStillPlacesIfCancelFails() async throws {
+        let session = TradingSession(enablesPolling: false)
+        session.placement.now = { Self.eastern(2026, 9, 4, 11, 0) }
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "buy-1", symbol: "AAPL", status: .accepted, side: .buy),
+            sampleOrder(id: "sell-1", symbol: "AAPL", status: .new, side: .sell),
+        ]
+        fake.cancelError = AppError.network
+        session.use(fake)
+        await session.refresh()
+        _ = try await session.place(
+            NewOrder(symbol: "AAPL", side: .sell, kind: .limit, quantity: 2, limitPrice: 11),
+            protectionMinutes: 0,
+            maxOrderValue: 50,
+            cancelOpenOrders: true
+        )
+        XCTAssertTrue(fake.canceled.isEmpty)
+        XCTAssertEqual(fake.placed.last?.symbol, "AAPL")
+        XCTAssertEqual(fake.placed.last?.side, .sell)
+    }
+
+    func testRegularPlaceDoesNotCancelManualOpenOrders() async throws {
+        let session = TradingSession(enablesPolling: false)
+        session.placement.now = { Self.eastern(2026, 9, 4, 11, 0) }
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "buy-1", symbol: "AAPL", status: .accepted, side: .buy),
+            sampleOrder(id: "sell-1", symbol: "AAPL", status: .new, side: .sell),
+        ]
+        session.use(fake)
+        await session.refresh()
+        _ = try await session.place(
+            NewOrder(symbol: "AAPL", side: .sell, kind: .limit, quantity: 2, limitPrice: 11),
+            protectionMinutes: 0,
+            maxOrderValue: 50
+        )
+        XCTAssertFalse(fake.canceled.contains("buy-1"))
+        XCTAssertFalse(fake.canceled.contains("sell-1"))
+        XCTAssertEqual(fake.placed.last?.side, .sell)
+    }
+
     func testAutoExitDoesNotCancelManualExitOrders() async {
         let session = TradingSession(enablesPolling: false)
         session.placement.now = { Self.eastern(2026, 9, 4, 11, 0) }
