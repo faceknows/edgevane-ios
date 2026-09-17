@@ -246,7 +246,7 @@ UI/Screens/
   Settings/        凭证、偏好、资料、其它（无付费页）
 
 UI/Components/
-  Feedback/        空态、加载、可重试错误、前台 toast 卡片（浮层、自动消失、可划出关闭）
+  Feedback/        空态、加载、可重试错误、前台 toast 卡片（浮层、自动消失、可划出关闭；浅橙底 + 左侧色条，从页面里跳出来）
   Symbol/          股票行、搜索框
   Badges/          涨跌、今日盈亏、RSI/ADX/ATR；模拟/实盘给今日盈亏卡片与下单弹窗用
   Trading/         确认框、数量倍数、今日盈亏卡片与下单弹窗上的模拟/实盘徽标
@@ -272,7 +272,7 @@ UI/Components/
 | VWAP / 指标 | `Charting/Indicators` | 纯函数 | 写进 WebView |
 | 下单 / 自动 TP/SL | `Trading` + `BrokerageServing` | `MarketClock`、`OrderSizing` | 屏幕里拼 Alpaca JSON |
 | 新券商 | `Brokerage/<Name>/` 实现协议 | 同一 Trading Store | 复制持仓页 |
-| 前台 toast | `UI/Components/Feedback/` 卡片 + Root overlay | 订单/新闻/推送同一套浮层 | `safeAreaInset` 插入页面、各屏自绘一条横幅 |
+| 前台 toast | `UI/Components/Feedback/` 卡片 + Root overlay | 订单/新闻/推送同一套浮层；浅橙底提醒 | `safeAreaInset` 插入页面、各屏自绘一条横幅 |
 | 推送 | `Notifications/` | Mapping PushAPI | 在 AppDelegate 写业务跳转细节（可薄转发） |
 | 缓存一种列表 | 领域 Store + `MemoryCache`/`DiskCache` | 原语 | 各页 `UserDefaults` 私货 |
 | 日志 | `AppLog.<category>` | 已有 category | print |

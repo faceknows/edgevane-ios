@@ -187,41 +187,60 @@ struct OrdersView: View {
         orders.todayFilledSymbols()
     }
 
+    private static let historyFieldWidth: CGFloat = 76
+
     @ViewBuilder
     private var symbolBar: some View {
-        HStack(alignment: .center, spacing: 8) {
-            if !todaySymbols.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(todaySymbols, id: \.self) { symbol in
-                            Button {
-                                selectToday(symbol)
-                            } label: {
-                                Text(symbol)
-                                    .font(.caption.weight(.semibold))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 8)
-                                    .foregroundColor(isSelected(symbol) ? .white : .accentColor)
-                                    .background(isSelected(symbol) ? Color.accentColor : Color.accentColor.opacity(0.12))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.borderless)
-                            .accessibilityAddTraits(isSelected(symbol) ? .isSelected : [])
-                        }
-                    }
+        if #available(iOS 16.0, *) {
+            ChipWrap(spacing: 6, minSide: 0) {
+                ForEach(todaySymbols, id: \.self) { symbol in
+                    symbolChip(symbol)
                 }
+                historyField
             }
-            TextField(L10n.Orders.historySymbol, text: $historyInput)
-                .autocapitalization(.allCharacters)
-                .disableAutocorrection(true)
-                .keyboardType(.asciiCapable)
-                .submitLabel(.go)
-                .onSubmit { submitHistory() }
-                .font(.caption)
-                .multilineTextAlignment(.center)
-                .frame(width: 76)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: Self.historyFieldWidth), spacing: 6, alignment: .leading)],
+                alignment: .leading,
+                spacing: 6
+            ) {
+                ForEach(todaySymbols, id: \.self) { symbol in
+                    symbolChip(symbol)
+                }
+                historyField
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func symbolChip(_ symbol: String) -> some View {
+        Button {
+            selectToday(symbol)
+        } label: {
+            Text(symbol)
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .foregroundColor(isSelected(symbol) ? .white : .accentColor)
+                .background(isSelected(symbol) ? Color.accentColor : Color.accentColor.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityAddTraits(isSelected(symbol) ? .isSelected : [])
+    }
+
+    private var historyField: some View {
+        TextField(L10n.Orders.historySymbol, text: $historyInput)
+            .autocapitalization(.allCharacters)
+            .disableAutocorrection(true)
+            .keyboardType(.asciiCapable)
+            .submitLabel(.go)
+            .onSubmit { submitHistory() }
+            .font(.caption)
+            .multilineTextAlignment(.center)
+            .frame(width: Self.historyFieldWidth)
+            .textFieldStyle(RoundedBorderTextFieldStyle())
     }
 
     private var visibleOrders: [Order] {

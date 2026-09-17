@@ -54,7 +54,7 @@ struct TappableValue<Value: Hashable>: View {
             if singleRow {
                 chipRow
             } else if #available(iOS 16.0, *) {
-                ChipWrapLayout(spacing: TappableChipFlow.spacing) {
+                ChipWrap(spacing: TappableChipFlow.spacing) {
                     ForEach(options, id: \.value) { option in
                         chip(for: option)
                     }
@@ -123,8 +123,32 @@ struct TappableValue<Value: Hashable>: View {
 }
 
 @available(iOS 16.0, *)
+struct ChipWrap<Content: View>: View {
+    var spacing: CGFloat = TappableChipFlow.spacing
+    var minSide: CGFloat = TappableChipFlow.minTapLength
+    var content: Content
+
+    init(
+        spacing: CGFloat = TappableChipFlow.spacing,
+        minSide: CGFloat = TappableChipFlow.minTapLength,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.spacing = spacing
+        self.minSide = minSide
+        self.content = content()
+    }
+
+    var body: some View {
+        ChipWrapLayout(spacing: spacing, minSide: minSide) {
+            content
+        }
+    }
+}
+
+@available(iOS 16.0, *)
 private struct ChipWrapLayout: Layout {
     var spacing: CGFloat
+    var minSide: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let arranged = arrange(proposal: proposal, subviews: subviews)
@@ -154,15 +178,15 @@ private struct ChipWrapLayout: Layout {
             let ideal = subview.sizeThatFits(.unspecified)
             let proposedWidth: CGFloat
             if limit.isFinite {
-                proposedWidth = min(max(ideal.width, TappableChipFlow.minTapLength), max(0, limit))
+                proposedWidth = min(max(ideal.width, minSide), max(0, limit))
             } else {
-                proposedWidth = max(ideal.width, TappableChipFlow.minTapLength)
+                proposedWidth = max(ideal.width, minSide)
             }
             let fitted = subview.sizeThatFits(ProposedViewSize(width: proposedWidth, height: nil))
             sizes.append(
                 CGSize(
                     width: proposedWidth,
-                    height: max(fitted.height, TappableChipFlow.minTapLength)
+                    height: max(fitted.height, minSide)
                 )
             )
         }

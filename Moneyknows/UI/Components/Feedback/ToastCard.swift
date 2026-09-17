@@ -50,9 +50,14 @@ private struct ToastCardBody<Content: View>: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 18)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(uiColor: .secondarySystemBackground))
+                .background(ToastPalette.fill)
+                .overlay(alignment: .leading) {
+                    Rectangle()
+                        .fill(ToastPalette.accent)
+                        .frame(width: 4)
+                }
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.fieldCorner, style: .continuous))
-                .shadow(color: Color.black.opacity(0.18), radius: 8, y: 2)
+                .shadow(color: ToastPalette.accent.opacity(0.28), radius: 10, y: 3)
                 .contentShape(RoundedRectangle(cornerRadius: AppTheme.fieldCorner, style: .continuous))
         }
         .buttonStyle(.plain)

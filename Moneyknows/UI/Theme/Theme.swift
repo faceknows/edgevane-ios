@@ -16,6 +16,16 @@ enum DashboardPalette {
     static var pnlWarningFill: Color { Color.orange.opacity(0.18) }
 }
 
+enum ToastPalette {
+    static let fill = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark {
+            return UIColor(red: 0.42, green: 0.28, blue: 0.10, alpha: 1)
+        }
+        return UIColor(red: 1, green: 0.969, blue: 0.839, alpha: 1)
+    })
+    static let accent = Color.orange
+}
+
 enum ChartPalette {
     static func colors(scheme: ColorScheme) -> ChartColors {
         let dark = scheme == .dark
