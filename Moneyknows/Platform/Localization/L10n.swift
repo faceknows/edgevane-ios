@@ -490,9 +490,11 @@ enum L10n {
         static var filterNew: String { localized("orders.filterNew") }
         static var symbolFilter: String { localized("orders.symbolFilter") }
         static var loadMore: String { localized("orders.loadMore") }
-        static func partialFill(_ filled: String, _ ordered: String, _ remaining: String) -> String {
-            String(format: localized("orders.partialFill"), filled, ordered, remaining)
+        static func partialFill(_ ordered: String, _ filled: String, _ remaining: String) -> String {
+            String(format: localized("orders.partialFill"), ordered, filled, remaining)
         }
+        static var priceMarket: String { localized("orders.priceMarket") }
+        static var revoke: String { localized("orders.revoke") }
         static func priceAverage(_ price: String) -> String {
             String(format: localized("orders.priceAverage"), price)
         }

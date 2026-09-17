@@ -252,6 +252,18 @@ struct Order: Equatable, Identifiable {
         filledQuantity > 0 && filledQuantity < quantity
     }
 
+    /// Compact row `qty | price`: instruction while the order is still open; fill avg once it is done.
+    var rowPrice: Double? {
+        if status.isOpen {
+            return limitPrice ?? stopPrice
+        }
+        return filledAvgPrice ?? limitPrice ?? stopPrice
+    }
+
+    var rowShowsMarketPrice: Bool {
+        rowPrice == nil && type == .market
+    }
+
     func matches(_ filter: OrderListFilter) -> Bool {
         switch filter {
         case .all:

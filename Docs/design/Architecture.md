@@ -73,7 +73,7 @@ Moneyknows iOS 是一个 **已登录的交易辅助客户端**：自家后端提
 | --- | --- | --- |
 | Session | 登录、令牌、登出 | 应用账号 |
 | Market | 搜股票、扫描器、K 线、实时订阅、秒线 | 棒、快照、订阅列表 |
-| Trading | 下单、撤单、改单、自动止盈止损 | 当前券商账户上的单与仓 |
+| Trading | 下单、撤单、自动止盈止损（改单底层 `replace` 保留，第一期无 UI） | 当前券商账户上的单与仓 |
 | Insights | 情绪、日历、新闻 | 服务端 AI + 新闻流 |
 | Notifications | 推送历史与跳转 | FCM + 历史 API |
 | Preferences | 偏好、主题、语言 | 与 `/v1/users/preferences` 同步 |

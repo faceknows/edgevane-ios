@@ -8,7 +8,6 @@ struct OrdersView: View {
     @State private var filter: OrderListFilter = .all
     @State private var symbolFilter: String
     @State private var pendingCancel: Order?
-    @State private var pendingAmend: Order?
     @State private var cancelError: String?
 
     init(initialSymbol: String = "") {
@@ -80,8 +79,7 @@ struct OrdersView: View {
                                 ForEach(visibleOrders) { order in
                                     OrderRow(
                                         order: order,
-                                        onCancel: { pendingCancel = order },
-                                        onAmend: { pendingAmend = order }
+                                        onCancel: { pendingCancel = order }
                                     )
                                 }
                             }
@@ -115,12 +113,6 @@ struct OrdersView: View {
             }
         } message: { order in
             Text(cancelMessage(order))
-        }
-        .sheet(item: $pendingAmend) { order in
-            NavigationView {
-                AmendOrderView(order: order)
-            }
-            .navigationViewStyle(.stack)
         }
     }
 
@@ -161,180 +153,84 @@ struct OrdersView: View {
 private struct OrderRow: View {
     var order: Order
     var onCancel: () -> Void
-    var onAmend: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(order.symbol).font(.headline)
-                Text(order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy)
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(order.side == .sell ? .red : .green)
-                Spacer()
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 8) {
+                HStack(alignment: .center, spacing: 6) {
+                    Text(order.symbol)
+                        .font(.headline.weight(.bold))
+                    Text(order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(order.side == .sell ? .red : .green)
+                    Text(verbatim: quantityPriceText)
+                        .font(.subheadline.monospacedDigit())
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(summaryLabel)
+
+                Spacer(minLength: 6)
+
+                if order.isCancellable {
+                    Button(action: onCancel) {
+                        Text(L10n.Orders.revoke)
+                            .font(.body.weight(.semibold))
+                            .foregroundColor(.red)
+                    }
+                    .buttonStyle(.borderless)
+                    Spacer(minLength: 6)
+                }
+
                 Text(order.status.title)
                     .font(.caption)
                     .foregroundColor(.secondary)
+                    .accessibilityHidden(true)
             }
-            HStack(alignment: .firstTextBaseline) {
-                Text(quantityLine)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                priceColumn
-            }
-            if order.isCancellable {
-                HStack {
-                    if order.isAmendable {
-                        Button(L10n.Orders.amendOrder, action: onAmend)
-                    }
-                    Button(action: onCancel) {
-                        Text(L10n.Orders.cancelOrder)
-                            .foregroundColor(.red)
-                    }
-                }
-                .font(.caption)
-                .buttonStyle(.borderless)
-            }
-        }
-        .padding(.vertical, 4)
-    }
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
 
-    private var quantityLine: String {
-        if order.showsPartialFill {
-            let fill = L10n.Orders.partialFill(
-                MarketFormat.quantity(order.filledQuantity),
-                MarketFormat.quantity(order.quantity),
-                MarketFormat.quantity(order.remainingQuantity)
-            )
-            return "\(fill) · \(order.type.title)"
-        }
-        return "\(MarketFormat.quantity(order.listQuantity)) · \(order.type.title)"
-    }
-
-    @ViewBuilder
-    private var priceColumn: some View {
-        VStack(alignment: .trailing, spacing: 2) {
             if order.showsPartialFill {
-                if let avg = order.filledAvgPrice {
-                    Text(L10n.Orders.priceAverage(MarketFormat.price(avg)))
-                }
-                if let limit = order.limitPrice {
-                    Text(L10n.Orders.priceLimit(MarketFormat.price(limit)))
-                }
-                if let stop = order.stopPrice {
-                    Text(L10n.Orders.priceStop(MarketFormat.price(stop)))
-                }
-            } else if let price = order.listPrice {
-                Text(MarketFormat.price(price))
+                Text(L10n.Orders.partialFill(
+                    MarketFormat.quantity(order.quantity),
+                    MarketFormat.quantity(order.filledQuantity),
+                    MarketFormat.quantity(order.remainingQuantity)
+                ))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .accessibilityHidden(true)
             }
         }
-        .font(.caption.monospacedDigit())
-    }
-}
-
-struct AmendOrderView: View {
-    let order: Order
-    @EnvironmentObject private var trading: TradingSession
-    @EnvironmentObject private var brokerage: CurrentBrokerageStore
-    @EnvironmentObject private var preferences: PreferencesStore
-    @EnvironmentObject private var profile: ProfileStore
-    @Environment(\.presentationMode) private var presentationMode
-
-    @State private var quantityInput = ""
-    @State private var priceInput = ""
-    @State private var errorText: String?
-    @State private var busy = false
-    @State private var confirming = false
-
-    var body: some View {
-        Form {
-            Section {
-                TextField(L10n.Trading.quantity, text: $quantityInput)
-                    .keyboardType(.decimalPad)
-                TextField(L10n.Trading.price, text: $priceInput)
-                    .keyboardType(.decimalPad)
-            }
-            if let errorText {
-                Section {
-                    FormMessage(text: errorText)
-                }
-            }
-            Section {
-                PrimaryButton(title: L10n.Orders.amendOrder, busy: busy) {
-                    confirming = true
-                }
-            }
-        }
-        .navigationTitle(L10n.Orders.amendOrder)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(L10n.Common.cancel) {
-                    presentationMode.wrappedValue.dismiss()
-                }
-            }
-        }
-        .onAppear {
-            if order.quantity == order.quantity.rounded() {
-                quantityInput = String(Int(order.quantity))
-            } else {
-                quantityInput = String(format: "%.4f", order.quantity)
-            }
-            if let price = order.limitPrice ?? order.stopPrice {
-                priceInput = String(format: "%.2f", price)
-            }
-        }
-        .alert(L10n.Orders.amendConfirmTitle, isPresented: $confirming) {
-            Button(L10n.Common.cancel, role: .cancel) {}
-            Button(L10n.Common.confirm) {
-                Task { await submit() }
-            }
-        } message: {
-            Text(confirmMessage)
-        }
+        .padding(.vertical, 2)
     }
 
-    private var environment: BrokerageEnvironment {
-        trading.environment ?? brokerage.current?.environment ?? .paper
+    private var quantityPriceText: String {
+        "\(MarketFormat.quantity(order.quantity)) | \(priceText)"
     }
 
-    private var confirmMessage: String {
-        L10n.Orders.amendConfirmMessage(
+    private var priceText: String {
+        if let price = order.rowPrice {
+            return MarketFormat.price(price)
+        }
+        if order.rowShowsMarketPrice {
+            return L10n.Orders.priceMarket
+        }
+        return order.type.title
+    }
+
+    private var summaryLabel: String {
+        var parts = [
             order.symbol,
             order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy,
-            quantityInput,
-            priceInput,
-            environment.title
-        )
-    }
-
-    private func submit() async {
-        errorText = nil
-        guard let quantity = TradeInput.parse(quantityInput), let price = TradeInput.parse(priceInput) else {
-            errorText = L10n.Trading.invalidPrice
-            return
+            quantityPriceText,
+            order.status.title
+        ]
+        if order.showsPartialFill {
+            parts.append(L10n.Orders.partialFill(
+                MarketFormat.quantity(order.quantity),
+                MarketFormat.quantity(order.filledQuantity),
+                MarketFormat.quantity(order.remainingQuantity)
+            ))
         }
-        var amendment = OrderAmendment()
-        amendment.quantity = quantity
-        if order.type == .stop {
-            amendment.stopPrice = price
-        } else {
-            amendment.limitPrice = price
-        }
-        busy = true
-        defer { busy = false }
-        do {
-            _ = try await trading.replace(
-                orderId: order.id,
-                amendment: amendment,
-                original: order,
-                protectionMinutes: preferences.values.allowTradeInMinutesAfterOpen,
-                maxOrderValue: profile.roleConfiguration?.maxOrderValue
-            )
-            presentationMode.wrappedValue.dismiss()
-        } catch {
-            if error.isCancellation { return }
-            errorText = UserFacingError.message(from: error) ?? L10n.Orders.amendFailed
-        }
+        return parts.joined(separator: ", ")
     }
 }

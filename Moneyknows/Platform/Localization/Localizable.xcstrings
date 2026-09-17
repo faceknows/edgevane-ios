@@ -4165,13 +4165,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Filled %@ / ordered %@ (%@ remaining)"
+            "value" : "Ordered %@, filled %@, remaining %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "成交 %@ / 委托 %@（剩余 %@）"
+            "value" : "委托 %@, 成交 %@, 剩余 %@"
           }
         }
       }
@@ -4210,6 +4210,23 @@
         }
       }
     },
+    "orders.priceMarket" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "market"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "market"
+          }
+        }
+      }
+    },
     "orders.priceStop" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4223,6 +4240,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "止损 %@"
+          }
+        }
+      }
+    },
+    "orders.revoke" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销"
           }
         }
       }

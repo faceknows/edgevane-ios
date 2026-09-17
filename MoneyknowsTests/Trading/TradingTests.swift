@@ -150,10 +150,10 @@ final class OrderFilterTests: XCTestCase {
         XCTAssertFalse(open.showsPartialFill)
         XCTAssertEqual(open.remainingQuantity, 10)
 
-        let copy = L10n.Orders.partialFill("4", "10", "6")
-        XCTAssertTrue(copy.contains("4"))
-        XCTAssertTrue(copy.contains("10"))
-        XCTAssertTrue(copy.contains("6"))
+        let copy = L10n.Orders.partialFill("300", "100", "200")
+        XCTAssertTrue(copy.contains("300"))
+        XCTAssertTrue(copy.contains("100"))
+        XCTAssertTrue(copy.contains("200"))
 
         var stop = sampleOrder(status: .partiallyFilled)
         stop.type = .stop
@@ -170,6 +170,53 @@ final class OrderFilterTests: XCTestCase {
         stopLimit.stopPrice = 9
         XCTAssertEqual(stopLimit.limitPrice, 11)
         XCTAssertEqual(stopLimit.stopPrice, 9)
+    }
+
+    func testOrderRowPriceUsesInstructionWhileOpenAndFillWhenDone() {
+        let open = sampleOrder(status: .new)
+        XCTAssertEqual(open.rowPrice, 11)
+        XCTAssertFalse(open.rowShowsMarketPrice)
+
+        var market = sampleOrder(status: .new, type: .market)
+        market.limitPrice = nil
+        XCTAssertNil(market.rowPrice)
+        XCTAssertTrue(market.rowShowsMarketPrice)
+
+        var filled = sampleOrder(status: .filled)
+        filled.limitPrice = 13.5
+        filled.filledAvgPrice = 13.48
+        XCTAssertEqual(filled.rowPrice, 13.48)
+        XCTAssertFalse(filled.rowShowsMarketPrice)
+
+        var partial = sampleOrder(status: .partiallyFilled)
+        partial.quantity = 300
+        partial.filledQuantity = 100
+        partial.limitPrice = 13.5
+        partial.filledAvgPrice = 13.48
+        XCTAssertTrue(partial.showsPartialFill)
+        XCTAssertEqual(partial.rowPrice, 13.5)
+        XCTAssertEqual(partial.remainingQuantity, 200)
+
+        var canceledPartial = sampleOrder(status: .canceled)
+        canceledPartial.quantity = 300
+        canceledPartial.filledQuantity = 100
+        canceledPartial.limitPrice = 13.5
+        canceledPartial.filledAvgPrice = 13.48
+        XCTAssertTrue(canceledPartial.showsPartialFill)
+        XCTAssertFalse(canceledPartial.isCancellable)
+        XCTAssertFalse(canceledPartial.status.isOpen)
+        XCTAssertEqual(canceledPartial.rowPrice, 13.48)
+
+        for status in [OrderStatus.pendingCancel, .pendingReplace, .held] {
+            var pending = sampleOrder(status: status)
+            pending.quantity = 300
+            pending.filledQuantity = 100
+            pending.limitPrice = 13.5
+            pending.filledAvgPrice = 13.48
+            XCTAssertTrue(pending.status.isOpen, "\(status)")
+            XCTAssertFalse(pending.isCancellable, "\(status)")
+            XCTAssertEqual(pending.rowPrice, 13.5, "\(status)")
+        }
     }
 }
 
