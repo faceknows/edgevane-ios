@@ -762,7 +762,7 @@ struct TradeTicketView: View {
         if action == .stopLoss {
             applyStopQuantity()
         } else if action.usesPosition, let position {
-            quantityInput = format(position.quantity)
+            quantityInput = format(position.absQuantity)
         } else if let reference {
             quantityInput = String(OrderSizing.shares(
                 valuePerTrade: preferences.values.valuePerTrade,
@@ -811,10 +811,10 @@ struct TradeTicketView: View {
         case .available:
             quantityInput = format(OrderSizing.availableExitQuantity(position: position, openOrders: orders.orders))
         case .total:
-            quantityInput = format(position.quantity)
+            quantityInput = format(position.absQuantity)
         case .custom:
             if TradeInput.parse(quantityInput) == nil {
-                quantityInput = format(position.quantity)
+                quantityInput = format(position.absQuantity)
             }
         }
     }
@@ -855,7 +855,7 @@ struct TradeTicketView: View {
             return .close(
                 ClosePositionCommand(symbol: symbol, cancelOpenOrders: cancelOpenOrders),
                 side: side,
-                quantity: position?.quantity ?? 0,
+                quantity: position?.absQuantity ?? 0,
                 price: nil
             )
         }

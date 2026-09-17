@@ -414,7 +414,7 @@ final class TradingSession: ObservableObject {
     }
 
     private func protectiveReleaseIfNeeded(_ order: NewOrder) -> ProtectiveRelease {
-        guard let position = positions.position(for: order.symbol), position.quantity > 0 else {
+        guard let position = positions.position(for: order.symbol), position.absQuantity > 0 else {
             return ProtectiveRelease(snapshot: [], ids: [])
         }
         let exitSide: OrderSide = position.side == .short ? .buy : .sell

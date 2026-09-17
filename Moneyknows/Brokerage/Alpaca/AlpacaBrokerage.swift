@@ -87,7 +87,7 @@ final class AlpacaBrokerage: BrokerageServing {
             }
             return Position(
                 symbol: dto.symbol,
-                quantity: dto.qty,
+                quantity: abs(dto.qty),
                 side: side,
                 averageEntry: dto.avgEntryPrice,
                 currentPrice: dto.currentPrice,

@@ -6,6 +6,8 @@ final class PositionTapeTests: XCTestCase {
         XCTAssertEqual(tapePosition(side: .long, quantity: 6703).signedQuantity, 6703)
         XCTAssertEqual(tapePosition(side: .short, quantity: 6703).signedQuantity, -6703)
         XCTAssertEqual(tapePosition(side: .short, quantity: -6703).signedQuantity, -6703)
+        XCTAssertEqual(tapePosition(side: .short, quantity: -6703).quantity, 6703)
+        XCTAssertEqual(tapePosition(side: .long, quantity: -2).quantity, 2)
     }
 
     func testUnrealizedPercentUsesLiveMidForLongAndShort() {

@@ -489,7 +489,7 @@ final class AlpacaBrokerageTests: XCTestCase {
             {"id":"acct-1","equity":"98.5","last_equity":"100","cash":"1","buying_power":"2","portfolio_value":"98.5","trading_blocked":false}
             """#.utf8)),
             .success(Data(#"""
-            [{"symbol":"AAPL","qty":"4","side":"short","avg_entry_price":"20","current_price":"18","market_value":"-72","cost_basis":"-80","unrealized_pl":"8","unrealized_plpc":"0.1"}]
+            [{"symbol":"AAPL","qty":"-4","side":"short","avg_entry_price":"20","current_price":"18","market_value":"-72","cost_basis":"-80","unrealized_pl":"8","unrealized_plpc":"0.1"}]
             """#.utf8)),
             .success(Data(#"""
             [
@@ -512,6 +512,7 @@ final class AlpacaBrokerageTests: XCTestCase {
         let positions = try await serving.positions()
         XCTAssertEqual(positions[0].symbol, "AAPL")
         XCTAssertEqual(positions[0].side, .short)
+        XCTAssertEqual(positions[0].quantity, 4)
         XCTAssertEqual(positions[0].unrealizedPLPercent, 10, accuracy: 0.0001)
 
         let open = try await serving.openOrders()
@@ -1683,6 +1684,12 @@ final class OrderSizingTests: XCTestCase {
         let tp = sampleOrder(id: "tp", symbol: "AAPL", status: .held, side: .sell, quantity: 2, clientOrderId: "cli-tp", orderClass: "oco", parentOrderId: "p")
         let sl = sampleOrder(id: "sl", symbol: "AAPL", status: .held, side: .sell, type: .stop, quantity: 2, clientOrderId: "cli-sl", orderClass: "oco", stopPrice: 9.98, parentOrderId: "p")
         XCTAssertEqual(OrderSizing.protectedExitQuantity(symbol: "AAPL", positionSide: .long, orders: [parent, tp, sl]), 2)
+    }
+
+    func testAvailableExitQuantityUsesAbsoluteSharesForShort() {
+        let position = samplePosition(symbol: "AAPL", quantity: -4, side: .short)
+        XCTAssertEqual(position.quantity, 4)
+        XCTAssertEqual(OrderSizing.availableExitQuantity(position: position, openOrders: []), 4)
     }
 
     func testSliderBoundsAlwaysLeaveRoomForAPositiveStep() {

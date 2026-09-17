@@ -40,6 +40,28 @@ struct Position: Equatable, Identifiable {
         side == .short ? -absQuantity : absQuantity
     }
 
+    init(
+        symbol: String,
+        quantity: Double,
+        side: PositionSide,
+        averageEntry: Double,
+        currentPrice: Double,
+        marketValue: Double,
+        costBasis: Double,
+        unrealizedPL: Double,
+        unrealizedPLPercent: Double
+    ) {
+        self.symbol = symbol
+        self.quantity = abs(quantity)
+        self.side = side
+        self.averageEntry = averageEntry
+        self.currentPrice = currentPrice
+        self.marketValue = marketValue
+        self.costBasis = costBasis
+        self.unrealizedPL = unrealizedPL
+        self.unrealizedPLPercent = unrealizedPLPercent
+    }
+
     func unrealizedPercent(versus livePrice: Double) -> Double? {
         guard averageEntry.isFinite, averageEntry != 0, livePrice.isFinite else { return nil }
         let raw = side == .long ? livePrice - averageEntry : averageEntry - livePrice

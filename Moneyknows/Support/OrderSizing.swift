@@ -82,7 +82,7 @@ enum OrderSizing {
                 }
                 return total + order.remainingQuantity
             }
-        return max(0, position.quantity - reserved)
+        return max(0, position.absQuantity - reserved)
     }
 
     static func protectedExitQuantity(symbol: String, positionSide: PositionSide, orders: [Order]) -> Double {
