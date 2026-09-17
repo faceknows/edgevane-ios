@@ -189,6 +189,32 @@ final class TradingSession: ObservableObject {
         try await cancelIds([orderId], serving: serving, epoch: epoch)
     }
 
+    func cancelCancellable(symbol: String? = nil) async throws {
+        guard let serving else { return }
+        let epoch = self.epoch
+        let ids = orders.cancellable(symbol: symbol).map(\.id)
+        guard !ids.isEmpty else { return }
+        var lastError: Error?
+        for id in ids {
+            try throwIfStale(epoch)
+            do {
+                try await serving.cancel(orderId: id)
+            } catch {
+                try throwIfStale(epoch)
+                if error.isCancellation { throw error }
+                if error.isNotFound { continue }
+                if error.isUnauthorized {
+                    markUnauthorized()
+                    throw error
+                }
+                lastError = error
+            }
+        }
+        ordersEpoch += 1
+        await loadOrders(serving, epoch: epoch, includingClosed: false)
+        if let lastError { throw lastError }
+    }
+
     func cancelProtectiveExits(symbol: String, positionSide: PositionSide) async throws {
         guard let serving else { return }
         let ids = OrderSizing.openExitOrders(symbol: symbol, positionSide: positionSide, orders: orders.orders)

@@ -3955,6 +3955,74 @@
         }
       }
     },
+    "orders.cancelAll" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel All"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部撤销"
+          }
+        }
+      }
+    },
+    "orders.cancelAllConfirmMessage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel %d open orders on %@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销 %d 笔未完成订单（%@）？"
+          }
+        }
+      }
+    },
+    "orders.cancelAllConfirmMessageSymbol" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel %2$d open %1$@ orders on %3$@?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撤销 %1$@ 的 %2$d 笔未完成订单（%3$@）？"
+          }
+        }
+      }
+    },
+    "orders.cancelAllConfirmTitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel all orders?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部撤销？"
+          }
+        }
+      }
+    },
     "orders.cancelConfirmMessage" : {
       "extractionState" : "manual",
       "localizations" : {

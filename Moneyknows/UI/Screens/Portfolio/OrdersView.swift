@@ -9,7 +9,8 @@ struct OrdersView: View {
     @State private var selectedTodaySymbol: String
     @State private var historyInput = ""
     @State private var historyTask: Task<Void, Never>?
-    @State private var pendingCancel: Order?
+    @State private var cancelPrompt: CancelPrompt?
+    @State private var isCancelingAll = false
     @State private var cancelError: String?
 
     init(initialSymbol: String = "") {
@@ -43,6 +44,24 @@ struct OrdersView: View {
                         }
                         .pickerStyle(.segmented)
                         symbolBar
+                        if showsCancelAll {
+                            HStack {
+                                Spacer()
+                                Button {
+                                    cancelPrompt = .all
+                                } label: {
+                                    if isCancelingAll {
+                                        ProgressView()
+                                    } else {
+                                        Text(L10n.Orders.cancelAll)
+                                            .font(.body.weight(.semibold))
+                                            .foregroundColor(.red)
+                                    }
+                                }
+                                .buttonStyle(.borderless)
+                                .disabled(isCancelAllDisabled)
+                            }
+                        }
                     }
                     if let cancelError {
                         Section {
@@ -125,16 +144,28 @@ struct OrdersView: View {
         }
         .navigationTitle(L10n.Orders.title)
         .alert(
-            L10n.Orders.cancelConfirmTitle,
+            cancelPromptTitle,
             isPresented: cancelAlertBinding,
-            presenting: pendingCancel
-        ) { order in
+            presenting: cancelPrompt
+        ) { prompt in
             Button(L10n.Orders.keep, role: .cancel) {}
             Button(L10n.Orders.revoke, role: .destructive) {
-                Task { await confirmCancel(order) }
+                Task { await confirmCancel(prompt) }
             }
-        } message: { order in
-            Text(cancelMessage(order))
+        } message: { prompt in
+            Text(cancelMessage(prompt))
+        }
+    }
+
+    private enum CancelPrompt: Identifiable {
+        case one(Order)
+        case all
+
+        var id: String {
+            switch self {
+            case .one(let order): return "one-\(order.id)"
+            case .all: return "all"
+            }
         }
     }
 
@@ -143,7 +174,7 @@ struct OrdersView: View {
         ForEach(visibleOrders) { order in
             OrderRow(
                 order: order,
-                onCancel: { pendingCancel = order }
+                onCancel: { cancelPrompt = .one(order) }
             )
             .onAppear {
                 guard order.id == visibleOrders.last?.id else { return }
@@ -234,32 +265,73 @@ struct OrdersView: View {
         await trading.loadMoreClosed()
     }
 
+    private var showsCancelAll: Bool {
+        orders.historySymbol == nil && visibleOrders.contains(where: \.isCancellable)
+    }
+
+    private var isCancelAllDisabled: Bool {
+        isCancelingAll || trading.needsCredentials
+    }
+
+    private var cancelScopeSymbol: String? {
+        selectedTodaySymbol.isEmpty ? nil : selectedTodaySymbol
+    }
+
+    private var cancelPromptTitle: String {
+        switch cancelPrompt {
+        case .all: return L10n.Orders.cancelAllConfirmTitle
+        default: return L10n.Orders.cancelConfirmTitle
+        }
+    }
+
     private var cancelAlertBinding: Binding<Bool> {
         Binding(
-            get: { pendingCancel != nil },
-            set: { if !$0 { pendingCancel = nil } }
+            get: { cancelPrompt != nil },
+            set: { if !$0 { cancelPrompt = nil } }
         )
     }
 
-    private func cancelMessage(_ order: Order) -> String {
+    private func cancelMessage(_ prompt: CancelPrompt) -> String {
         let environment = trading.environment == .live ? L10n.Credentials.live : L10n.Credentials.paper
-        let side = order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy
-        return L10n.Orders.cancelConfirmMessage(
-            order.symbol,
-            side,
-            MarketFormat.quantity(order.quantity),
-            environment
-        )
+        switch prompt {
+        case .one(let order):
+            let side = order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy
+            return L10n.Orders.cancelConfirmMessage(
+                order.symbol,
+                side,
+                MarketFormat.quantity(order.quantity),
+                environment
+            )
+        case .all:
+            let count = orders.cancellable(symbol: cancelScopeSymbol).count
+            if let symbol = cancelScopeSymbol {
+                return L10n.Orders.cancelAllConfirmMessageSymbol(symbol, count, environment)
+            }
+            return L10n.Orders.cancelAllConfirmMessage(count, environment)
+        }
     }
 
-    private func confirmCancel(_ order: Order) async {
-        pendingCancel = nil
-        do {
-            try await trading.cancel(orderId: order.id)
-            cancelError = nil
-        } catch {
-            if error.isCancellation { return }
-            cancelError = UserFacingError.message(from: error) ?? L10n.Orders.cancelFailed
+    private func confirmCancel(_ prompt: CancelPrompt) async {
+        cancelPrompt = nil
+        switch prompt {
+        case .one(let order):
+            do {
+                try await trading.cancel(orderId: order.id)
+                cancelError = nil
+            } catch {
+                if error.isCancellation { return }
+                cancelError = UserFacingError.message(from: error) ?? L10n.Orders.cancelFailed
+            }
+        case .all:
+            isCancelingAll = true
+            defer { isCancelingAll = false }
+            do {
+                try await trading.cancelCancellable(symbol: cancelScopeSymbol)
+                cancelError = nil
+            } catch {
+                if error.isCancellation { return }
+                cancelError = UserFacingError.message(from: error) ?? L10n.Orders.cancelFailed
+            }
         }
     }
 }

@@ -200,6 +200,15 @@ final class OrderStore: ObservableObject {
         }
     }
 
+    func cancellable(symbol: String? = nil) -> [Order] {
+        let wanted = symbol
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        return orders.filter { order in
+            order.isCancellable && (wanted == nil || order.symbol == wanted)
+        }
+    }
+
     func todayFilledSymbols(on day: String = MarketClock.usDateString()) -> [String] {
         var seen = Set<String>()
         return orders.compactMap { order -> String? in

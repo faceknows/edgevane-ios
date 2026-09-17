@@ -490,6 +490,14 @@ enum L10n {
         static var filterNew: String { localized("orders.filterNew") }
         static var symbolFilter: String { localized("orders.symbolFilter") }
         static var historySymbol: String { localized("orders.historySymbol") }
+        static var cancelAll: String { localized("orders.cancelAll") }
+        static var cancelAllConfirmTitle: String { localized("orders.cancelAllConfirmTitle") }
+        static func cancelAllConfirmMessage(_ count: Int, _ environment: String) -> String {
+            String(format: localized("orders.cancelAllConfirmMessage"), count, environment)
+        }
+        static func cancelAllConfirmMessageSymbol(_ symbol: String, _ count: Int, _ environment: String) -> String {
+            String(format: localized("orders.cancelAllConfirmMessageSymbol"), symbol, count, environment)
+        }
         static func partialFill(_ ordered: String, _ filled: String, _ remaining: String) -> String {
             String(format: localized("orders.partialFill"), ordered, filled, remaining)
         }

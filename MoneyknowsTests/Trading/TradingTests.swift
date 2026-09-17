@@ -1383,6 +1383,73 @@ final class TradingSessionTests: XCTestCase {
         XCTAssertFalse(session.orders.orders.contains { $0.id == "open" && $0.status.isOpen })
     }
 
+    func testCancelCancellableCancelsAllSymbolsAndSkipsFilled() async throws {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "aapl-open", symbol: "AAPL", status: .new),
+            sampleOrder(id: "msft-open", symbol: "MSFT", status: .accepted),
+            sampleOrder(id: "aapl-filled", symbol: "AAPL", status: .filled),
+            sampleOrder(id: "pending", symbol: "AAPL", status: .pendingCancel),
+        ]
+        session.use(fake)
+        await session.refresh()
+        try await session.cancelCancellable()
+        XCTAssertEqual(Set(fake.canceled), ["aapl-open", "msft-open"])
+        XCTAssertFalse(fake.canceled.contains("aapl-filled"))
+        XCTAssertFalse(fake.canceled.contains("pending"))
+        XCTAssertFalse(session.orders.orders.contains { $0.id == "aapl-open" && $0.status.isOpen })
+        XCTAssertFalse(session.orders.orders.contains { $0.id == "msft-open" && $0.status.isOpen })
+        XCTAssertEqual(session.orders.orders.first { $0.id == "aapl-filled" }?.status, .filled)
+    }
+
+    func testCancelCancellableRespectsSymbol() async throws {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "aapl-open", symbol: "AAPL", status: .new),
+            sampleOrder(id: "msft-open", symbol: "MSFT", status: .new),
+        ]
+        session.use(fake)
+        await session.refresh()
+        try await session.cancelCancellable(symbol: "aapl")
+        XCTAssertEqual(fake.canceled, ["aapl-open"])
+        XCTAssertTrue(session.orders.orders.contains { $0.id == "msft-open" && $0.status.isOpen })
+    }
+
+    func testCancelCancellableContinuesAfterOneFailure() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "aapl-open", symbol: "AAPL", status: .new),
+            sampleOrder(id: "msft-open", symbol: "MSFT", status: .new),
+        ]
+        fake.cancelErrors = ["aapl-open": AppError.network]
+        session.use(fake)
+        await session.refresh()
+        do {
+            try await session.cancelCancellable()
+            XCTFail("expected cancel error")
+        } catch {
+            XCTAssertEqual(error as? AppError, .network)
+        }
+        XCTAssertEqual(fake.canceled, ["msft-open"])
+        XCTAssertTrue(session.orders.orders.contains { $0.id == "aapl-open" && $0.status.isOpen })
+        XCTAssertFalse(session.orders.orders.contains { $0.id == "msft-open" && $0.status.isOpen })
+    }
+
+    func testCancelCancellableDoesNothingWhenEmpty() async throws {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        fake.orderRows = [
+            sampleOrder(id: "filled", symbol: "AAPL", status: .filled),
+        ]
+        session.use(fake)
+        await session.refresh()
+        try await session.cancelCancellable()
+        XCTAssertTrue(fake.canceled.isEmpty)
+    }
+
     func testOrderStoreFiltersByStatusAndSymbol() {
         let store = OrderStore()
         store.apply([
@@ -1394,6 +1461,9 @@ final class TradingSessionTests: XCTestCase {
         XCTAssertEqual(store.filtered(.filled).map(\.id), ["2", "3"])
         XCTAssertEqual(store.filtered(.new).map(\.id), ["1"])
         XCTAssertEqual(store.filtered(.all, symbol: "aapl").map(\.id), ["1", "3"])
+        XCTAssertEqual(store.cancellable().map(\.id), ["1", "3"])
+        XCTAssertEqual(store.cancellable(symbol: "msft").map(\.id), [])
+        XCTAssertEqual(store.cancellable(symbol: "").map(\.id), ["1", "3"])
     }
 
     func testTodayFilledSymbolsIgnoreUnfilledAndOtherDays() {
@@ -3675,6 +3745,7 @@ final class FakeBrokerage: BrokerageServing {
     private var _replacements: [(String, OrderAmendment)] = []
     private var _closedPositions: [(String, Double, Bool)] = []
     private var _cancelError: Error?
+    private var _cancelErrors: [String: Error] = [:]
     private var _placeError: Error?
     private var _placeErrorOnce: Error?
     private var _replaceError: Error?
@@ -3809,6 +3880,11 @@ final class FakeBrokerage: BrokerageServing {
     var orderErrors: [String: Error] {
         get { withLock { _orderErrors } }
         set { withLock { _orderErrors = newValue } }
+    }
+
+    var cancelErrors: [String: Error] {
+        get { withLock { _cancelErrors } }
+        set { withLock { _cancelErrors = newValue } }
     }
 
     var pauseWhenBeforeOrderId: Bool {
@@ -4009,7 +4085,7 @@ final class FakeBrokerage: BrokerageServing {
     }
 
     func cancel(orderId: String) async throws {
-        if let error = withLock({ _cancelError }) { throw error }
+        if let error = withLock({ _cancelErrors[orderId] ?? _cancelError }) { throw error }
         withLock {
             _canceled.append(orderId)
             _orderRows = _orderRows.map { order in
