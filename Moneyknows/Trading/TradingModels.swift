@@ -338,6 +338,8 @@ enum NewOrderKind: Equatable {
     case stop
     case oto
     case oco
+
+    var isExtendedHoursEligible: Bool { self == .limit }
 }
 
 struct NewOrder: Equatable {
@@ -361,7 +363,6 @@ struct NewOrder: Equatable {
         stopPrice: Double? = nil,
         takeProfitLimitPrice: Double? = nil,
         timeInForce: String = "day",
-        extendedHours: Bool = false,
         clientOrderId: String? = nil
     ) {
         self.symbol = SymbolCode.normalize(symbol)
@@ -372,7 +373,7 @@ struct NewOrder: Equatable {
         self.stopPrice = stopPrice
         self.takeProfitLimitPrice = takeProfitLimitPrice
         self.timeInForce = timeInForce
-        self.extendedHours = extendedHours
+        self.extendedHours = kind.isExtendedHoursEligible
         self.clientOrderId = clientOrderId
     }
 
@@ -477,7 +478,6 @@ enum ProtectiveExit {
                     limitPrice: limitPrice,
                     stopPrice: stopPrice,
                     timeInForce: "day",
-                    extendedHours: false,
                     clientOrderId: AutoExitOrder.ocoClientId()
                 )
             )
@@ -505,7 +505,6 @@ enum ProtectiveExit {
                         kind: .limit,
                         quantity: order.remainingQuantity,
                         limitPrice: order.limitPrice,
-                        extendedHours: false,
                         clientOrderId: clientId
                     )
                 )

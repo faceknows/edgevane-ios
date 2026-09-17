@@ -437,7 +437,6 @@ struct TradeTicketView: View {
     @State private var priceInput = ""
     @State private var takeProfitInput = ""
     @State private var multiplier = 1.0
-    @State private var extendedHours = false
     @State private var cancelOpenOrders = true
     @State private var stopMode: StopQuantityMode = .available
     @State private var errorText: String?
@@ -642,9 +641,6 @@ struct TradeTicketView: View {
                     increment: { adjustTakeProfit(by: OrderSizing.minimumPriceDelta) }
                 )
             }
-            if showsExtendedHours {
-                Toggle(L10n.Trading.extendedHours, isOn: $extendedHours)
-            }
         }
     }
 
@@ -683,10 +679,6 @@ struct TradeTicketView: View {
         }
         .buttonStyle(.plain)
         .foregroundColor(.primary)
-    }
-
-    private var showsExtendedHours: Bool {
-        action != .stopLoss && action != .marketClose
     }
 
     private var position: Position? {
@@ -737,7 +729,6 @@ struct TradeTicketView: View {
     }
 
     private func populate() {
-        extendedHours = MarketClock.isExtendedHoursSession()
         if action.usesPosition, position == nil {
             errorText = L10n.Trading.noPosition
         }
@@ -869,8 +860,7 @@ struct TradeTicketView: View {
                 side: side,
                 kind: .limit,
                 quantity: quantity,
-                limitPrice: price,
-                extendedHours: extendedHours
+                limitPrice: price
             )
         case .otoBuy, .otoSell:
             guard let takeProfit = TradeInput.parse(takeProfitInput) else { throw TradingGuard.invalidPrice }
@@ -880,8 +870,7 @@ struct TradeTicketView: View {
                 kind: .oto,
                 quantity: quantity,
                 limitPrice: price,
-                takeProfitLimitPrice: takeProfit,
-                extendedHours: extendedHours
+                takeProfitLimitPrice: takeProfit
             )
         case .stopLoss:
             order = NewOrder(
@@ -889,8 +878,7 @@ struct TradeTicketView: View {
                 side: side,
                 kind: .stop,
                 quantity: quantity,
-                stopPrice: price,
-                extendedHours: false
+                stopPrice: price
             )
         case .marketClose:
             throw TradingGuard.invalidPrice

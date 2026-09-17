@@ -1184,7 +1184,6 @@ final class AlpacaBrokerageTests: XCTestCase {
                 quantity: 1,
                 limitPrice: 10,
                 takeProfitLimitPrice: 10.5,
-                extendedHours: true,
                 clientOrderId: "cid-1"
             )
         )
@@ -1198,7 +1197,7 @@ final class AlpacaBrokerageTests: XCTestCase {
         XCTAssertEqual(body["type"] as? String, "limit")
         XCTAssertEqual(body["time_in_force"] as? String, "day")
         XCTAssertEqual(body["limit_price"] as? String, "10.00")
-        XCTAssertEqual(body["extended_hours"] as? Bool, true)
+        XCTAssertNil(body["extended_hours"])
         XCTAssertEqual(body["order_class"] as? String, "oto")
         XCTAssertEqual(body["client_order_id"] as? String, "cid-1")
         XCTAssertEqual((body["take_profit"] as? [String: Any])?["limit_price"] as? String, "10.50")
@@ -1254,6 +1253,51 @@ final class AlpacaBrokerageTests: XCTestCase {
         XCTAssertNil(body["extended_hours"])
         XCTAssertEqual((body["take_profit"] as? [String: Any])?["limit_price"] as? String, "10.02")
         XCTAssertEqual((body["stop_loss"] as? [String: Any])?["stop_price"] as? String, "9.98")
+    }
+
+    func testNewOrderExtendedHoursFollowsAlpacaKinds() {
+        XCTAssertTrue(NewOrder(symbol: "AAPL", side: .buy, kind: .limit, quantity: 1, limitPrice: 10).extendedHours)
+        XCTAssertFalse(NewOrder(symbol: "AAPL", side: .sell, kind: .stop, quantity: 1, stopPrice: 9).extendedHours)
+        XCTAssertFalse(
+            NewOrder(
+                symbol: "AAPL",
+                side: .buy,
+                kind: .oto,
+                quantity: 1,
+                limitPrice: 10,
+                takeProfitLimitPrice: 10.5
+            ).extendedHours
+        )
+        XCTAssertFalse(
+            NewOrder(
+                symbol: "AAPL",
+                side: .sell,
+                kind: .oco,
+                quantity: 1,
+                limitPrice: 11,
+                stopPrice: 9
+            ).extendedHours
+        )
+    }
+
+    func testPlacesLimitWithExtendedHours() async throws {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"""
+            {"id":"n1","symbol":"AAPL","side":"buy","type":"limit","status":"new","qty":"1","filled_qty":"0","limit_price":"10"}
+            """#.utf8)),
+        ]
+        let serving = AlpacaBrokerage(
+            account: BrokerageAccount(id: "acct-1", provider: "alpaca", environment: .paper),
+            api: AlpacaTradingAPI(client: http)
+        )
+        _ = try await serving.place(
+            NewOrder(symbol: "AAPL", side: .buy, kind: .limit, quantity: 1, limitPrice: 10)
+        )
+        let body = try jsonObject(from: http.requests[0])
+        XCTAssertEqual(body["type"] as? String, "limit")
+        XCTAssertEqual(body["time_in_force"] as? String, "day")
+        XCTAssertEqual(body["extended_hours"] as? Bool, true)
     }
 
     private static func fillID(_ orderId: String, _ day: String = "2026-09-04") -> String {
@@ -2625,6 +2669,7 @@ final class OrderPlacementTests: XCTestCase {
         await waitUntil { fake.placed.count == 1 }
         XCTAssertEqual(fake.placed[0].kind, .limit)
         XCTAssertTrue(AutoExitOrder.isTakeProfit(fake.placed[0].clientOrderId))
+        XCTAssertTrue(fake.placed[0].extendedHours)
 
         autoExit.reset()
         autoExit.takeProfitPercent = { 0 }

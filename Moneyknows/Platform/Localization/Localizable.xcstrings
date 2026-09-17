@@ -7341,23 +7341,6 @@
         }
       }
     },
-    "trading.extendedHours" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Include extended hours"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "盘前盘后有效"
-          }
-        }
-      }
-    },
     "trading.filledAvg" : {
       "extractionState" : "manual",
       "localizations" : {

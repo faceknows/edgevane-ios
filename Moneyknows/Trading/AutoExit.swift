@@ -380,7 +380,6 @@ final class AutoExit {
                 limitPrice: takeProfitPrice,
                 stopPrice: stopPrice,
                 timeInForce: "day",
-                extendedHours: false,
                 clientOrderId: AutoExitOrder.ocoClientId()
             )
             await submit(order, kind: L10n.Trading.autoExitKind, symbol: symbol, trading: trading)
@@ -394,7 +393,6 @@ final class AutoExit {
                 quantity: quantity,
                 limitPrice: takeProfitPrice,
                 timeInForce: "day",
-                extendedHours: MarketClock.isExtendedHoursSession(at: now()),
                 clientOrderId: AutoExitOrder.takeProfitClientId()
             )
             await submit(order, kind: L10n.Trading.takeProfitKind, symbol: symbol, trading: trading)
@@ -408,7 +406,6 @@ final class AutoExit {
                 quantity: quantity,
                 stopPrice: stopPrice,
                 timeInForce: "day",
-                extendedHours: false,
                 clientOrderId: AutoExitOrder.stopLossClientId()
             )
             await submit(order, kind: L10n.Trading.stopLossKind, symbol: symbol, trading: trading)

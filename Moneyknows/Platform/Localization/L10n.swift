@@ -398,7 +398,6 @@ enum L10n {
         static func vsPrice(_ percent: String, _ price: String) -> String {
             String(format: localized("trading.vsPrice"), percent, price)
         }
-        static var extendedHours: String { localized("trading.extendedHours") }
         static var quantity: String { localized("trading.quantity") }
         static var price: String { localized("trading.price") }
         static var takeProfitPrice: String { localized("trading.takeProfitPrice") }
