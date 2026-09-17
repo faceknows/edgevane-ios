@@ -37,6 +37,7 @@ final class TradingSession: ObservableObject {
     private let lookupRetryNanoseconds: UInt64
     private let lookupConcurrency: Int
     private let lookupMaxAttempts: Int
+    private let lookupClosedMaxPages: Int
 
     var hasAccount: Bool { serving != nil }
     var environment: BrokerageEnvironment? { serving?.account.environment }
@@ -64,7 +65,8 @@ final class TradingSession: ObservableObject {
         recentClosedLimit: Int = 50,
         lookupRetryNanoseconds: UInt64 = 200_000_000,
         lookupConcurrency: Int = 4,
-        lookupMaxAttempts: Int = 3
+        lookupMaxAttempts: Int = 3,
+        lookupClosedMaxPages: Int = 20
     ) {
         self.enablesPolling = enablesPolling
         self.closedPageSize = closedPageSize
@@ -72,6 +74,7 @@ final class TradingSession: ObservableObject {
         self.lookupRetryNanoseconds = lookupRetryNanoseconds
         self.lookupConcurrency = max(1, lookupConcurrency)
         self.lookupMaxAttempts = max(1, lookupMaxAttempts)
+        self.lookupClosedMaxPages = max(1, lookupClosedMaxPages)
     }
 
     func use(_ serving: BrokerageServing?) {
@@ -626,6 +629,106 @@ final class TradingSession: ObservableObject {
         case .rejected:
             return L10n.Trading.orderRejected(order.symbol)
         default:
+            return nil
+        }
+    }
+
+    func lookupClosedOrders(symbol: String) async {
+        let epoch = self.epoch
+        guard let serving else { return }
+        let code = SymbolCode.normalize(symbol)
+        guard SymbolCode.isValid(code) else {
+            orders.clearHistory()
+            return
+        }
+        let token = orders.beginHistory(symbol: code)
+        let today = MarketClock.usDateString()
+        let until = MarketClock.easternDayBounds(today)?.start
+        do {
+            var todayFillOrderIDs: Set<String>?
+            var fillActivityFailed = false
+            var collected: [Order] = []
+            var beforeOrderId: String?
+            var seenCursors = Set<String>()
+            var pages = 0
+            let pageCap = lookupClosedMaxPages
+            while true {
+                try throwIfStale(epoch)
+                if Task.isCancelled { throw AppError.cancelled }
+                let cursor = beforeOrderId ?? ""
+                if !seenCursors.insert(cursor).inserted {
+                    throw AppError.orderHistoryIncomplete
+                }
+                if pages >= pageCap {
+                    throw AppError.orderHistoryIncomplete
+                }
+                pages += 1
+                let page = try await serving.closedOrders(
+                    limit: closedPageSize,
+                    beforeOrderId: beforeOrderId,
+                    symbols: code,
+                    until: until
+                )
+                try throwIfStale(epoch)
+                if Task.isCancelled { throw AppError.cancelled }
+                if page.orders.contains(where: \.needsFillActivity), todayFillOrderIDs == nil, !fillActivityFailed {
+                    if let loaded = try await loadTodayFillOrderIDs(
+                        serving: serving,
+                        symbol: code,
+                        day: today,
+                        epoch: epoch
+                    ) {
+                        todayFillOrderIDs = loaded
+                    } else {
+                        fillActivityFailed = true
+                    }
+                }
+                collected.append(contentsOf: page.orders.filter { order in
+                    if order.belongsToEasternDay(today) { return false }
+                    guard order.needsFillActivity else { return true }
+                    if fillActivityFailed { return false }
+                    guard let fillIDs = todayFillOrderIDs else { return false }
+                    return !fillIDs.contains(order.id)
+                })
+                if !collected.isEmpty { break }
+                guard page.hasMore, let next = page.nextBeforeOrderId, !next.isEmpty else { break }
+                beforeOrderId = next
+            }
+            if fillActivityFailed, collected.isEmpty {
+                orders.failHistory(L10n.Trading.orderHistoryIncomplete, token: token)
+            } else {
+                orders.finishHistory(
+                    collected,
+                    token: token,
+                    error: fillActivityFailed ? L10n.Trading.orderHistoryIncomplete : nil
+                )
+            }
+        } catch {
+            if error.isCancellation {
+                orders.abandonHistory(token: token)
+                return
+            }
+            orders.failHistory(
+                UserFacingError.message(from: error) ?? L10n.Orders.empty,
+                token: token
+            )
+        }
+    }
+
+    private func loadTodayFillOrderIDs(
+        serving: BrokerageServing,
+        symbol: String,
+        day: String,
+        epoch: UInt64
+    ) async throws -> Set<String>? {
+        guard let todayDate = MarketClock.date(fromUSDate: day) else { return [] }
+        do {
+            let fills = try await serving.fills(symbol: symbol, day: todayDate)
+            try throwIfStale(epoch)
+            if Task.isCancelled { throw AppError.cancelled }
+            return Set(fills.map(\.orderId))
+        } catch {
+            if error.isCancellation { throw error }
             return nil
         }
     }

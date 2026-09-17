@@ -90,8 +90,19 @@ struct AlpacaTradingAPI {
         try await fetchAllPaged(status: "open", pageSize: max(1, openPageSize))
     }
 
-    func closedOrders(limit: Int, beforeOrderId: String? = nil) async throws -> AlpacaOrderPage {
-        try await fetchOrderPage(status: "closed", limit: limit, beforeOrderId: beforeOrderId)
+    func closedOrders(
+        limit: Int,
+        beforeOrderId: String? = nil,
+        symbols: String? = nil,
+        until: Date? = nil
+    ) async throws -> AlpacaOrderPage {
+        try await fetchOrderPage(
+            status: "closed",
+            limit: limit,
+            beforeOrderId: beforeOrderId,
+            symbols: symbols,
+            until: until
+        )
     }
 
     func fillActivities(after: Date, until: Date) async throws -> [AlpacaFillActivityDTO] {

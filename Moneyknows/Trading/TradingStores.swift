@@ -56,6 +56,11 @@ final class OrderStore: ObservableObject {
     @Published private(set) var hasMoreClosed = false
     @Published private(set) var isLoadingMore = false
     @Published var errorText: String?
+    @Published private(set) var historySymbol: String?
+    @Published private(set) var historyOrders: [Order] = []
+    @Published var historyError: String?
+    @Published private(set) var historyLoading = false
+    private var historyToken: UInt64 = 0
 
     func reset() {
         orders = []
@@ -63,10 +68,48 @@ final class OrderStore: ObservableObject {
         hasMoreClosed = false
         isLoadingMore = false
         errorText = nil
+        clearHistory()
+    }
+
+    func clearHistory() {
+        historyToken += 1
+        historySymbol = nil
+        historyOrders = []
+        historyError = nil
+        historyLoading = false
+    }
+
+    func beginHistory(symbol: String) -> UInt64 {
+        historyToken += 1
+        historySymbol = symbol
+        historyOrders = []
+        historyError = nil
+        historyLoading = true
+        return historyToken
+    }
+
+    func finishHistory(_ orders: [Order], token: UInt64, error: String? = nil) {
+        guard token == historyToken else { return }
+        historyOrders = sorted(orders)
+        historyLoading = false
+        historyError = error
+    }
+
+    func failHistory(_ message: String, token: UInt64) {
+        guard token == historyToken else { return }
+        historyOrders = []
+        historyLoading = false
+        historyError = message
+    }
+
+    func abandonHistory(token: UInt64) {
+        guard token == historyToken else { return }
+        historyLoading = false
     }
 
     func apply(_ orders: [Order]) {
-        self.orders = sorted(orders)
+        let previous = Dictionary(uniqueKeysWithValues: self.orders.map { ($0.id, $0) })
+        self.orders = sorted(orders.map { $0.retainingFillTimestamp(from: previous[$0.id]) })
         errorText = nil
     }
 
@@ -75,11 +118,12 @@ final class OrderStore: ObservableObject {
         let openIds = Set(open.map(\.id))
         let disappeared = previousOpen.subtracting(openIds)
         var byId = Dictionary(uniqueKeysWithValues: orders.map { ($0.id, $0) })
+        let previous = byId
         byId = byId.filter { item in
             !item.value.status.isOpen || disappeared.contains(item.key)
         }
         for order in open {
-            byId[order.id] = order
+            byId[order.id] = order.retainingFillTimestamp(from: previous[order.id])
         }
         self.orders = sorted(Array(byId.values))
         errorText = nil
@@ -88,11 +132,12 @@ final class OrderStore: ObservableObject {
 
     func applyClosed(_ closed: [Order], replacingClosed: Bool = true, hasMore: Bool? = nil) {
         var byId = Dictionary(uniqueKeysWithValues: orders.map { ($0.id, $0) })
+        let previous = byId
         if replacingClosed {
             byId = byId.filter { $0.value.status.isOpen }
         }
         for order in closed {
-            byId[order.id] = order
+            byId[order.id] = order.retainingFillTimestamp(from: previous[order.id])
         }
         self.orders = sorted(Array(byId.values))
         if let hasMore {
@@ -124,23 +169,25 @@ final class OrderStore: ObservableObject {
             if let incoming = order.updatedAt, let current = existing.updatedAt, incoming < current {
                 return OrderApplyResult(accepted: false, statusChanged: false, isNewFill: false)
             }
-            if existing == order {
+            let incoming = order.retainingFillTimestamp(from: existing)
+            if existing == incoming {
                 return OrderApplyResult(accepted: false, statusChanged: false, isNewFill: false)
             }
-            let statusChanged = existing.status != order.status
-            let isNewFill = order.status == .filled && existing.status != .filled && !order.isAutoExit
-            byId[order.id] = order
+            let statusChanged = existing.status != incoming.status
+            let isNewFill = incoming.status == .filled && existing.status != .filled && !incoming.isAutoExit
+            byId[order.id] = incoming
             self.orders = sorted(Array(byId.values))
             errorText = nil
             return OrderApplyResult(accepted: true, statusChanged: statusChanged, isNewFill: isNewFill)
         }
-        byId[order.id] = order
+        let incoming = order.retainingFillTimestamp(from: nil)
+        byId[order.id] = incoming
         self.orders = sorted(Array(byId.values))
         errorText = nil
         return OrderApplyResult(
             accepted: true,
             statusChanged: true,
-            isNewFill: order.status == .filled && !order.isAutoExit
+            isNewFill: incoming.status == .filled && !incoming.isAutoExit
         )
     }
 
@@ -151,5 +198,14 @@ final class OrderStore: ObservableObject {
         return orders.filter { order in
             order.matches(filter) && (wanted == nil || order.symbol == wanted)
         }
+    }
+
+    func todayFilledSymbols(on day: String = MarketClock.usDateString()) -> [String] {
+        var seen = Set<String>()
+        return orders.compactMap { order -> String? in
+            guard order.easternFillDay == day, seen.insert(order.symbol).inserted else { return nil }
+            return order.symbol
+        }
+        .sorted()
     }
 }

@@ -6,12 +6,14 @@ struct OrdersView: View {
     @EnvironmentObject private var portfolio: PortfolioStore
     @EnvironmentObject private var brokerage: CurrentBrokerageStore
     @State private var filter: OrderListFilter = .all
-    @State private var symbolFilter: String
+    @State private var selectedTodaySymbol: String
+    @State private var historyInput = ""
+    @State private var historyTask: Task<Void, Never>?
     @State private var pendingCancel: Order?
     @State private var cancelError: String?
 
     init(initialSymbol: String = "") {
-        _symbolFilter = State(initialValue: initialSymbol)
+        _selectedTodaySymbol = State(initialValue: SymbolCode.normalize(initialSymbol))
     }
 
     var body: some View {
@@ -40,16 +42,36 @@ struct OrdersView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        TextField(L10n.Orders.symbolFilter, text: $symbolFilter)
-                            .autocapitalization(.allCharacters)
-                            .disableAutocorrection(true)
+                        symbolBar
                     }
                     if let cancelError {
                         Section {
                             FormMessage(text: cancelError)
                         }
                     }
-                    if orders.isLoading && orders.orders.isEmpty {
+                    if let historyError = orders.historyError {
+                        Section {
+                            FormMessage(text: historyError)
+                        }
+                    }
+                    if orders.historyLoading {
+                        Section {
+                            ProgressView().frame(maxWidth: .infinity)
+                        }
+                    } else if orders.historySymbol != nil {
+                        if visibleOrders.isEmpty, orders.historyError == nil {
+                            Section {
+                                EmptyStateView(
+                                    title: L10n.Orders.empty,
+                                    message: L10n.Orders.emptyBody
+                                )
+                            }
+                        } else if !visibleOrders.isEmpty {
+                            Section {
+                                orderRows
+                            }
+                        }
+                    } else if orders.isLoading && orders.orders.isEmpty {
                         Section {
                             ProgressView().frame(maxWidth: .infinity)
                         }
@@ -76,12 +98,7 @@ struct OrdersView: View {
                                     message: L10n.Orders.emptyBody
                                 )
                             } else {
-                                ForEach(visibleOrders) { order in
-                                    OrderRow(
-                                        order: order,
-                                        onCancel: { pendingCancel = order }
-                                    )
-                                }
+                                orderRows
                             }
                             if orders.hasMoreClosed {
                                 Text(L10n.Orders.historyIncomplete)
@@ -101,14 +118,21 @@ struct OrdersView: View {
                 .refreshable { await trading.refresh() }
             }
         }
+        .onChange(of: trading.sessionEpoch) { _ in
+            historyTask?.cancel()
+            historyTask = nil
+            historyInput = ""
+            selectedTodaySymbol = ""
+            cancelError = nil
+        }
         .navigationTitle(L10n.Orders.title)
         .alert(
             L10n.Orders.cancelConfirmTitle,
             isPresented: cancelAlertBinding,
             presenting: pendingCancel
         ) { order in
-            Button(L10n.Common.cancel, role: .cancel) {}
-            Button(L10n.Orders.cancelOrder, role: .destructive) {
+            Button(L10n.Orders.keep, role: .cancel) {}
+            Button(L10n.Orders.revoke, role: .destructive) {
                 Task { await confirmCancel(order) }
             }
         } message: { order in
@@ -116,8 +140,91 @@ struct OrdersView: View {
         }
     }
 
+    @ViewBuilder
+    private var orderRows: some View {
+        ForEach(visibleOrders) { order in
+            OrderRow(
+                order: order,
+                onCancel: { pendingCancel = order }
+            )
+        }
+    }
+
+    private var todaySymbols: [String] {
+        orders.todayFilledSymbols()
+    }
+
+    @ViewBuilder
+    private var symbolBar: some View {
+        HStack(alignment: .center, spacing: 8) {
+            if !todaySymbols.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(todaySymbols, id: \.self) { symbol in
+                            Button {
+                                selectToday(symbol)
+                            } label: {
+                                Text(symbol)
+                                    .font(.caption.weight(.semibold))
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .foregroundColor(isSelected(symbol) ? .white : .accentColor)
+                                    .background(isSelected(symbol) ? Color.accentColor : Color.accentColor.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityAddTraits(isSelected(symbol) ? .isSelected : [])
+                        }
+                    }
+                }
+            }
+            TextField(L10n.Orders.historySymbol, text: $historyInput)
+                .autocapitalization(.allCharacters)
+                .disableAutocorrection(true)
+                .keyboardType(.asciiCapable)
+                .submitLabel(.go)
+                .onSubmit { submitHistory() }
+                .font(.caption)
+                .multilineTextAlignment(.center)
+                .frame(width: 76)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+        }
+    }
+
     private var visibleOrders: [Order] {
-        orders.filtered(filter, symbol: symbolFilter)
+        if orders.historySymbol != nil {
+            return orders.historyOrders.filter { $0.matches(filter) }
+        }
+        return orders.filtered(filter, symbol: selectedTodaySymbol)
+    }
+
+    private func isSelected(_ symbol: String) -> Bool {
+        orders.historySymbol == nil && selectedTodaySymbol == symbol
+    }
+
+    private func selectToday(_ symbol: String) {
+        historyTask?.cancel()
+        historyTask = nil
+        orders.clearHistory()
+        if selectedTodaySymbol == symbol {
+            selectedTodaySymbol = ""
+        } else {
+            selectedTodaySymbol = symbol
+            historyInput = ""
+        }
+    }
+
+    private func submitHistory() {
+        let code = SymbolCode.normalize(historyInput)
+        historyInput = code
+        historyTask?.cancel()
+        guard !code.isEmpty else {
+            historyTask = nil
+            orders.clearHistory()
+            return
+        }
+        selectedTodaySymbol = ""
+        historyTask = Task { await trading.lookupClosedOrders(symbol: code) }
     }
 
     private var cancelAlertBinding: Binding<Bool> {

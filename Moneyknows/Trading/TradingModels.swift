@@ -252,6 +252,51 @@ struct Order: Equatable, Identifiable {
         filledQuantity > 0 && filledQuantity < quantity
     }
 
+    var needsFillActivity: Bool {
+        filledQuantity > 0 && filledAt == nil
+    }
+
+    /// Alpaca leaves `filledAt` empty on canceled partials; `updatedAt` is then the cancel time.
+    var fillEventAt: Date? {
+        if let filledAt { return filledAt }
+        guard filledQuantity > 0 else { return nil }
+        if status.isOpen {
+            return updatedAt ?? submittedAt
+        }
+        guard let submittedAt, let updatedAt else {
+            return submittedAt ?? updatedAt
+        }
+        if MarketClock.usDateString(from: submittedAt) == MarketClock.usDateString(from: updatedAt) {
+            return updatedAt
+        }
+        return nil
+    }
+
+    var easternFillDay: String? {
+        guard filledQuantity > 0, let date = fillEventAt else { return nil }
+        return MarketClock.usDateString(from: date)
+    }
+
+    func belongsToEasternDay(_ day: String) -> Bool {
+        easternFillDay == day
+    }
+
+    func retainingFillTimestamp(from existing: Order?) -> Order {
+        var order = self
+        guard order.filledQuantity > 0 else { return order }
+        let previousQty = existing?.filledQuantity ?? 0
+        if order.filledQuantity > previousQty, existing != nil || order.status.isOpen {
+            if order.filledAt == nil {
+                order.filledAt = order.updatedAt ?? existing?.filledAt
+            }
+            return order
+        }
+        if order.filledAt == nil, let kept = existing?.filledAt {
+            order.filledAt = kept
+        }
+        return order
+    }
+
     /// Compact row `qty | price`: instruction while the order is still open; fill avg once it is done.
     var rowPrice: Double? {
         if status.isOpen {

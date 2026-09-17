@@ -1396,6 +1396,543 @@ final class TradingSessionTests: XCTestCase {
         XCTAssertEqual(store.filtered(.all, symbol: "aapl").map(\.id), ["1", "3"])
     }
 
+    func testTodayFilledSymbolsIgnoreUnfilledAndOtherDays() {
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let todayFill = todayStart.addingTimeInterval(12 * 3600)
+        let yesterdayFill = todayStart.addingTimeInterval(-3600)
+        let store = OrderStore()
+        var tsla = sampleOrder(id: "1", symbol: "TSLA", status: .filled, filledAt: todayFill)
+        tsla.filledQuantity = 2
+        var apple = sampleOrder(id: "2", symbol: "AAPL", status: .filled, filledAt: todayFill)
+        apple.filledQuantity = 1
+        var appleAgain = sampleOrder(id: "3", symbol: "AAPL", status: .partiallyFilled, filledAt: todayFill)
+        appleAgain.filledQuantity = 1
+        var old = sampleOrder(id: "4", symbol: "MSFT", status: .filled, filledAt: yesterdayFill)
+        old.filledQuantity = 4
+        store.apply([
+            tsla,
+            apple,
+            appleAgain,
+            old,
+            sampleOrder(id: "5", symbol: "NVDA", status: .new),
+        ])
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), ["AAPL", "TSLA"])
+        XCTAssertTrue(tsla.belongsToEasternDay(MarketClock.usDateString()))
+        XCTAssertFalse(old.belongsToEasternDay(MarketClock.usDateString()))
+    }
+
+    func testLookupClosedOrdersDropsTodayAndUsesSymbol() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let today = filledHistoryOrder(
+            id: "today",
+            symbol: "AAPL",
+            submittedAt: todayStart.addingTimeInterval(10 * 3600),
+            filledAt: todayStart.addingTimeInterval(10 * 3600)
+        )
+        let older = filledHistoryOrder(
+            id: "older",
+            symbol: "AAPL",
+            submittedAt: todayStart.addingTimeInterval(-86400),
+            filledAt: todayStart.addingTimeInterval(-86400)
+        )
+        let other = filledHistoryOrder(
+            id: "msft",
+            symbol: "MSFT",
+            submittedAt: todayStart.addingTimeInterval(-86400),
+            filledAt: todayStart.addingTimeInterval(-86400)
+        )
+        fake.orderRows = [today, older, other]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "aapl")
+        XCTAssertEqual(session.orders.historySymbol, "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertEqual(fake.closedSymbols, ["AAPL"])
+        XCTAssertEqual(fake.closedUntil, [todayStart])
+        XCTAssertEqual(fake.fillsCalls, 0)
+    }
+
+    func testLookupClosedOrdersDroppedAfterAccountSwitch() async {
+        let session = TradingSession(enablesPolling: false)
+        let paper = FakeBrokerage(environment: .paper)
+        let live = FakeBrokerage(environment: .live)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        paper.orderRows = [
+            filledHistoryOrder(
+                id: "paper-old",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-86400),
+                filledAt: todayStart.addingTimeInterval(-86400)
+            )
+        ]
+        session.use(paper)
+        paper.pauseSends = true
+        let stale = Task { await session.lookupClosedOrders(symbol: "AAPL") }
+        await waitUntil { paper.closedCalls == 1 }
+        XCTAssertEqual(session.orders.historySymbol, "AAPL")
+        XCTAssertTrue(session.orders.historyLoading)
+
+        session.use(live)
+        XCTAssertNil(session.orders.historySymbol)
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertFalse(session.orders.historyLoading)
+        XCTAssertNil(session.orders.historyError)
+
+        paper.releasePaused()
+        await stale.value
+        XCTAssertNil(session.orders.historySymbol)
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertFalse(session.orders.historyLoading)
+        XCTAssertNil(session.orders.historyError)
+    }
+
+    func testLookupClosedOrdersIgnoresOutOfOrderResponse() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "msft-old",
+                symbol: "MSFT",
+                submittedAt: todayStart.addingTimeInterval(-86400),
+                filledAt: todayStart.addingTimeInterval(-86400)
+            ),
+            filledHistoryOrder(
+                id: "aapl-old",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-86_400),
+                filledAt: todayStart.addingTimeInterval(-86_400)
+            )
+        ]
+        session.use(fake)
+        fake.pauseSends = true
+        let stale = Task { await session.lookupClosedOrders(symbol: "MSFT") }
+        await waitUntil { fake.closedCalls == 1 }
+
+        fake.stopPausingNewRequests()
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historySymbol, "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["aapl-old"])
+
+        fake.releasePaused()
+        await stale.value
+        XCTAssertEqual(session.orders.historySymbol, "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["aapl-old"])
+        XCTAssertFalse(session.orders.historyLoading)
+    }
+
+    func testLookupClosedOrdersUntilSkipsTodaySubmittedPage() async {
+        let session = TradingSession(enablesPolling: false, closedPageSize: 2)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "today-1",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(3600),
+                filledAt: todayStart.addingTimeInterval(3600)
+            ),
+            filledHistoryOrder(
+                id: "today-2",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(7200),
+                filledAt: todayStart.addingTimeInterval(7200)
+            ),
+            filledHistoryOrder(
+                id: "older",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-86400),
+                filledAt: todayStart.addingTimeInterval(-86400)
+            )
+        ]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertEqual(fake.closedUntil, [todayStart])
+        XCTAssertEqual(fake.closedCalls, 1)
+        XCTAssertEqual(fake.closedBeforeIds, [nil])
+    }
+
+    func testLookupClosedOrdersPagesPastTodayFills() async {
+        let session = TradingSession(enablesPolling: false, closedPageSize: 2)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "gtc-1",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-3600),
+                filledAt: todayStart.addingTimeInterval(3600)
+            ),
+            filledHistoryOrder(
+                id: "gtc-2",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-7200),
+                filledAt: todayStart.addingTimeInterval(7200)
+            ),
+            filledHistoryOrder(
+                id: "older",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-172_800),
+                filledAt: todayStart.addingTimeInterval(-172_800)
+            )
+        ]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertEqual(fake.closedCalls, 2)
+        XCTAssertEqual(fake.closedUntil, [todayStart, todayStart])
+        XCTAssertEqual(fake.closedBeforeIds, [nil, "gtc-2"])
+    }
+
+    func testLookupClosedOrdersStopsOnCursorCycle() async {
+        let session = TradingSession(enablesPolling: false, closedPageSize: 1)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let todayFill = todayStart.addingTimeInterval(3600)
+        let submitted = todayStart.addingTimeInterval(-3600)
+        func todayPage(id: String, next: String) -> OrderPage {
+            OrderPage(
+                orders: [
+                    filledHistoryOrder(id: id, symbol: "AAPL", submittedAt: submitted, filledAt: todayFill)
+                ],
+                nextBeforeOrderId: next,
+                hasMore: true
+            )
+        }
+        fake.closedPagesQueue = [
+            todayPage(id: "p1", next: "A"),
+            todayPage(id: "p2", next: "B"),
+            todayPage(id: "p3", next: "A"),
+            todayPage(id: "p4", next: "B"),
+        ]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(fake.closedCalls, 3)
+        XCTAssertEqual(fake.closedBeforeIds, [nil, "A", "B"])
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertEqual(session.orders.historyError, L10n.Trading.orderHistoryIncomplete)
+        XCTAssertFalse(session.orders.historyLoading)
+    }
+
+    func testLookupClosedOrdersStopsAtPageCap() async {
+        let session = TradingSession(
+            enablesPolling: false,
+            closedPageSize: 1,
+            lookupClosedMaxPages: 3
+        )
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "gtc-1",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-1000),
+                filledAt: todayStart.addingTimeInterval(1000)
+            ),
+            filledHistoryOrder(
+                id: "gtc-2",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-2000),
+                filledAt: todayStart.addingTimeInterval(2000)
+            ),
+            filledHistoryOrder(
+                id: "gtc-3",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-3000),
+                filledAt: todayStart.addingTimeInterval(3000)
+            ),
+            filledHistoryOrder(
+                id: "gtc-4",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-4000),
+                filledAt: todayStart.addingTimeInterval(4000)
+            ),
+            filledHistoryOrder(
+                id: "older",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-172_800),
+                filledAt: todayStart.addingTimeInterval(-172_800)
+            ),
+        ]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(fake.closedCalls, 3)
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertEqual(session.orders.historyError, L10n.Trading.orderHistoryIncomplete)
+        XCTAssertFalse(session.orders.historyLoading)
+    }
+
+    func testLookupClosedOrdersAbandonsWhenTaskCancelled() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "older",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-86400),
+                filledAt: todayStart.addingTimeInterval(-86400)
+            )
+        ]
+        session.use(fake)
+        fake.pauseSends = true
+        let lookup = Task { await session.lookupClosedOrders(symbol: "AAPL") }
+        await waitUntil { fake.closedCalls == 1 }
+        XCTAssertTrue(session.orders.historyLoading)
+        lookup.cancel()
+        fake.releasePaused()
+        await lookup.value
+        XCTAssertEqual(fake.closedCalls, 1)
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertNil(session.orders.historyError)
+        XCTAssertFalse(session.orders.historyLoading)
+    }
+
+    func testCanceledPartialFillDoesNotCountOnCancelDay() {
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let yesterday = todayStart.addingTimeInterval(-3600)
+        var canceled = sampleOrder(
+            id: "partial",
+            symbol: "MSFT",
+            status: .canceled,
+            submittedAt: yesterday,
+            updatedAt: todayStart.addingTimeInterval(3600)
+        )
+        canceled.filledQuantity = 4
+        canceled.filledAvgPrice = 11
+        canceled.filledAt = nil
+        XCTAssertNil(canceled.easternFillDay)
+        XCTAssertFalse(canceled.belongsToEasternDay(MarketClock.usDateString()))
+        let store = OrderStore()
+        store.apply([canceled])
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), [])
+    }
+
+    func testCanceledPartialFillSameDayStillCounts() {
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        var canceled = sampleOrder(
+            id: "partial",
+            symbol: "MSFT",
+            status: .canceled,
+            submittedAt: todayStart.addingTimeInterval(3600),
+            updatedAt: todayStart.addingTimeInterval(7200)
+        )
+        canceled.filledQuantity = 4
+        canceled.filledAvgPrice = 11
+        canceled.filledAt = nil
+        XCTAssertEqual(canceled.easternFillDay, MarketClock.usDateString())
+        let store = OrderStore()
+        store.apply([canceled])
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), ["MSFT"])
+    }
+
+    func testApplyUpdateKeepsFillTimestampAfterLaterCancel() {
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let fillTime = todayStart.addingTimeInterval(-3600)
+        let cancelTime = todayStart.addingTimeInterval(3600)
+        var partial = sampleOrder(
+            id: "partial",
+            symbol: "AAPL",
+            status: .partiallyFilled,
+            submittedAt: fillTime,
+            updatedAt: fillTime
+        )
+        partial.filledQuantity = 4
+        partial.filledAt = nil
+        let store = OrderStore()
+        XCTAssertTrue(store.applyUpdate(partial).accepted)
+        XCTAssertEqual(store.orders.first?.filledAt, fillTime)
+
+        var canceled = partial
+        canceled.status = .canceled
+        canceled.updatedAt = cancelTime
+        canceled.filledAt = nil
+        XCTAssertTrue(store.applyUpdate(canceled).accepted)
+        XCTAssertEqual(store.orders.first?.filledAt, fillTime)
+        XCTAssertEqual(
+            store.orders.first?.easternFillDay,
+            MarketClock.usDateString(from: fillTime)
+        )
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), [])
+    }
+
+    func testApplyUpdateUsesLatestTimestampWhenFillQuantityIncreases() {
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        let firstFill = todayStart.addingTimeInterval(-3600)
+        let secondFill = todayStart.addingTimeInterval(3600)
+        var first = sampleOrder(
+            id: "partial",
+            symbol: "AAPL",
+            status: .partiallyFilled,
+            submittedAt: firstFill,
+            updatedAt: firstFill
+        )
+        first.filledQuantity = 2
+        first.filledAt = nil
+        let store = OrderStore()
+        XCTAssertTrue(store.applyUpdate(first).accepted)
+        XCTAssertEqual(store.orders.first?.filledAt, firstFill)
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), [])
+
+        var second = first
+        second.filledQuantity = 5
+        second.updatedAt = secondFill
+        second.filledAt = nil
+        XCTAssertTrue(store.applyUpdate(second).accepted)
+        XCTAssertEqual(store.orders.first?.filledAt, secondFill)
+        XCTAssertEqual(store.orders.first?.easternFillDay, MarketClock.usDateString())
+        XCTAssertEqual(store.todayFilledSymbols(on: MarketClock.usDateString()), ["AAPL"])
+    }
+
+    func testLookupClosedOrdersDropsTodayPartialUsingFillActivity() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        var todayPartial = sampleOrder(
+            id: "today-partial",
+            symbol: "AAPL",
+            status: .canceled,
+            submittedAt: todayStart.addingTimeInterval(-86400),
+            updatedAt: todayStart.addingTimeInterval(3600)
+        )
+        todayPartial.filledQuantity = 4
+        todayPartial.filledAvgPrice = 11
+        todayPartial.filledAt = nil
+        let older = filledHistoryOrder(
+            id: "older",
+            symbol: "AAPL",
+            submittedAt: todayStart.addingTimeInterval(-172_800),
+            filledAt: todayStart.addingTimeInterval(-172_800)
+        )
+        fake.orderRows = [todayPartial, older]
+        fake.fillRows = [
+            Fill(
+                orderId: "today-partial",
+                symbol: "AAPL",
+                side: .buy,
+                quantity: 4,
+                price: 11,
+                filledAt: todayStart.addingTimeInterval(1800)
+            )
+        ]
+        XCTAssertNil(todayPartial.easternFillDay)
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertEqual(fake.fillsDays, [MarketClock.usDateString()])
+        XCTAssertEqual(fake.closedSymbols, ["AAPL"])
+    }
+
+    func testLookupClosedOrdersSucceedsWhenFillActivityFailsAndFilledAtIsPresent() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        fake.orderRows = [
+            filledHistoryOrder(
+                id: "older",
+                symbol: "AAPL",
+                submittedAt: todayStart.addingTimeInterval(-86400),
+                filledAt: todayStart.addingTimeInterval(-86400)
+            )
+        ]
+        fake.fillsDayErrors = [MarketClock.usDateString(): AppError.orderHistoryIncomplete]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertNil(session.orders.historyError)
+        XCTAssertEqual(fake.fillsCalls, 0)
+        XCTAssertEqual(fake.closedCalls, 1)
+    }
+
+    func testLookupClosedOrdersKeepsFilledAtOrdersWhenFillActivityFails() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        var todayPartial = sampleOrder(
+            id: "today-partial",
+            symbol: "AAPL",
+            status: .canceled,
+            submittedAt: todayStart.addingTimeInterval(-86400),
+            updatedAt: todayStart.addingTimeInterval(3600)
+        )
+        todayPartial.filledQuantity = 4
+        todayPartial.filledAvgPrice = 11
+        todayPartial.filledAt = nil
+        let older = filledHistoryOrder(
+            id: "older",
+            symbol: "AAPL",
+            submittedAt: todayStart.addingTimeInterval(-172_800),
+            filledAt: todayStart.addingTimeInterval(-172_800)
+        )
+        fake.orderRows = [todayPartial, older]
+        fake.fillsDayErrors = [MarketClock.usDateString(): AppError.orderHistoryIncomplete]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertEqual(session.orders.historyOrders.map(\.id), ["older"])
+        XCTAssertEqual(session.orders.historyError, L10n.Trading.orderHistoryIncomplete)
+        XCTAssertEqual(fake.fillsCalls, 1)
+    }
+
+    func testLookupClosedOrdersErrorsWhenFillActivityFailsAndNoReliableOrders() async {
+        let session = TradingSession(enablesPolling: false)
+        let fake = FakeBrokerage(environment: .paper)
+        guard let todayStart = MarketClock.easternDayBounds(MarketClock.usDateString())?.start else {
+            return XCTFail("today bounds")
+        }
+        var todayPartial = sampleOrder(
+            id: "today-partial",
+            symbol: "AAPL",
+            status: .canceled,
+            submittedAt: todayStart.addingTimeInterval(-86400),
+            updatedAt: todayStart.addingTimeInterval(3600)
+        )
+        todayPartial.filledQuantity = 4
+        todayPartial.filledAvgPrice = 11
+        todayPartial.filledAt = nil
+        fake.orderRows = [todayPartial]
+        fake.fillsDayErrors = [MarketClock.usDateString(): AppError.orderHistoryIncomplete]
+        session.use(fake)
+        await session.lookupClosedOrders(symbol: "AAPL")
+        XCTAssertTrue(session.orders.historyOrders.isEmpty)
+        XCTAssertEqual(session.orders.historyError, L10n.Trading.orderHistoryIncomplete)
+        XCTAssertEqual(session.orders.historySymbol, "AAPL")
+        XCTAssertEqual(fake.fillsCalls, 1)
+    }
+
     func testSameAccountCredentialSwapDiscardsStaleRefresh() async {
         let session = TradingSession(enablesPolling: false)
         let old = FakeBrokerage(environment: .paper, id: "acct")
@@ -3123,6 +3660,9 @@ final class FakeBrokerage: BrokerageServing {
     private var _closedCalls = 0
     private var _orderLookups = 0
     private var _closedBeforeIds: [String?] = []
+    private var _closedSymbols: [String?] = []
+    private var _closedUntil: [Date?] = []
+    private var _closedPagesQueue: [OrderPage] = []
     private var _orderErrors: [String: Error] = [:]
     private var _hiddenClosed: Set<String> = []
     private var _pauseSends = false
@@ -3221,6 +3761,12 @@ final class FakeBrokerage: BrokerageServing {
     var orderLookups: Int { withLock { _orderLookups } }
 
     var closedBeforeIds: [String?] { withLock { _closedBeforeIds } }
+    var closedSymbols: [String?] { withLock { _closedSymbols } }
+    var closedUntil: [Date?] { withLock { _closedUntil } }
+    var closedPagesQueue: [OrderPage] {
+        get { withLock { _closedPagesQueue } }
+        set { withLock { _closedPagesQueue = newValue } }
+    }
 
     var hiddenClosed: Set<String> {
         get { withLock { _hiddenClosed } }
@@ -3319,11 +3865,23 @@ final class FakeBrokerage: BrokerageServing {
         return snapshot
     }
 
-    func closedOrders(limit: Int, beforeOrderId: String?) async throws -> OrderPage {
+    func closedOrders(limit: Int, beforeOrderId: String?, symbols: String?, until: Date?) async throws -> OrderPage {
         let snapshot: OrderPage = withLock {
             _closedCalls += 1
             _closedBeforeIds.append(beforeOrderId)
+            _closedSymbols.append(symbols)
+            _closedUntil.append(until)
+            if !_closedPagesQueue.isEmpty {
+                return _closedPagesQueue.removeFirst()
+            }
             var closed = _orderRows.filter { !$0.status.isOpen && !_hiddenClosed.contains($0.id) }
+            if let symbols, !symbols.isEmpty {
+                let wanted = Set(symbols.split(separator: ",").map { SymbolCode.normalize(String($0)) })
+                closed = closed.filter { wanted.contains($0.symbol) }
+            }
+            if let until {
+                closed = closed.filter { ($0.submittedAt ?? .distantPast) < until }
+            }
             closed.sort {
                 let lhs = $0.submittedAt ?? .distantPast
                 let rhs = $1.submittedAt ?? .distantPast
@@ -3545,6 +4103,22 @@ private func samplePosition(symbol: String, quantity: Double = 2, side: Position
         costBasis: 10 * quantity,
         unrealizedPL: quantity,
         unrealizedPLPercent: 10
+    )
+}
+
+private func filledHistoryOrder(
+    id: String,
+    symbol: String,
+    submittedAt: Date,
+    filledAt: Date
+) -> Order {
+    sampleOrder(
+        id: id,
+        symbol: symbol,
+        status: .filled,
+        submittedAt: submittedAt,
+        updatedAt: filledAt,
+        filledAt: filledAt
     )
 }
 

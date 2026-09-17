@@ -5,7 +5,7 @@ protocol BrokerageServing: AnyObject {
     func portfolio() async throws -> Portfolio
     func positions() async throws -> [Position]
     func openOrders() async throws -> [Order]
-    func closedOrders(limit: Int, beforeOrderId: String?) async throws -> OrderPage
+    func closedOrders(limit: Int, beforeOrderId: String?, symbols: String?, until: Date?) async throws -> OrderPage
     func order(id: String) async throws -> [Order]
     func cancel(orderId: String) async throws
     func place(_ order: NewOrder) async throws -> [Order]
@@ -18,8 +18,8 @@ protocol BrokerageServing: AnyObject {
 }
 
 extension BrokerageServing {
-    func closedOrders(limit: Int) async throws -> OrderPage {
-        try await closedOrders(limit: limit, beforeOrderId: nil)
+    func closedOrders(limit: Int, beforeOrderId: String? = nil, symbols: String? = nil) async throws -> OrderPage {
+        try await closedOrders(limit: limit, beforeOrderId: beforeOrderId, symbols: symbols, until: nil)
     }
 
     var orderUpdates: AsyncStream<Order> {

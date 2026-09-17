@@ -104,8 +104,13 @@ final class AlpacaBrokerage: BrokerageServing {
         try mapOrders(try await api.openOrders())
     }
 
-    func closedOrders(limit: Int, beforeOrderId: String?) async throws -> OrderPage {
-        let page = try await api.closedOrders(limit: limit, beforeOrderId: beforeOrderId)
+    func closedOrders(limit: Int, beforeOrderId: String?, symbols: String?, until: Date?) async throws -> OrderPage {
+        let page = try await api.closedOrders(
+            limit: limit,
+            beforeOrderId: beforeOrderId,
+            symbols: symbols,
+            until: until
+        )
         return OrderPage(
             orders: try mapOrders(page.orders),
             nextBeforeOrderId: page.nextBeforeOrderId,
