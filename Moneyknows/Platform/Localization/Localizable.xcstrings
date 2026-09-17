@@ -4125,40 +4125,6 @@
         }
       }
     },
-    "orders.historyIncomplete" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Older orders are not loaded yet."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "更早的订单尚未加载。"
-          }
-        }
-      }
-    },
-    "orders.loadMore" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Load more"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "加载更多"
-          }
-        }
-      }
-    },
     "orders.partialFill" : {
       "extractionState" : "manual",
       "localizations" : {

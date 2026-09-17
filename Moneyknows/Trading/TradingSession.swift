@@ -734,11 +734,11 @@ final class TradingSession: ObservableObject {
     }
 
     func loadMoreClosed() async {
-        guard serving != nil, orders.hasMoreClosed else { return }
+        guard serving != nil, orders.hasMoreClosed, orders.errorText == nil else { return }
         if inFlightIncludesClosed {
             await withCheckedContinuation { refreshWaiters.append($0) }
         }
-        guard let serving, orders.hasMoreClosed, !orders.isLoadingMore else { return }
+        guard let serving, orders.hasMoreClosed, orders.errorText == nil, !orders.isLoadingMore else { return }
         let epoch = self.epoch
         let ordersEpoch = self.ordersEpoch
         let pageEpoch = closedPageEpoch

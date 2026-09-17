@@ -2059,6 +2059,39 @@ final class TradingSessionTests: XCTestCase {
         XCTAssertEqual(fake.closedBeforeIds, [nil, "c2"])
     }
 
+    func testLoadMoreClosedDoesNotRetryAfterErrorUntilRefresh() async {
+        let session = TradingSession(enablesPolling: false, closedPageSize: 2)
+        let fake = FakeBrokerage(environment: .paper)
+        let submitted = Date(timeIntervalSince1970: 20)
+        fake.orderRows = [
+            sampleOrder(id: "c1", symbol: "AAPL", status: .filled, submittedAt: submitted),
+            sampleOrder(id: "c2", symbol: "AAPL", status: .filled, submittedAt: submitted),
+            sampleOrder(id: "c3", symbol: "AAPL", status: .filled, submittedAt: submitted),
+        ]
+        session.use(fake)
+        await session.refresh()
+        XCTAssertTrue(session.orders.hasMoreClosed)
+        XCTAssertEqual(fake.closedCalls, 1)
+
+        fake.ordersError = AppError.network
+        await session.loadMoreClosed()
+        XCTAssertEqual(session.orders.errorText, L10n.Errors.network)
+        XCTAssertTrue(session.orders.hasMoreClosed)
+        XCTAssertEqual(Set(session.orders.orders.map(\.id)), ["c1", "c2"])
+        XCTAssertEqual(fake.closedCalls, 2)
+
+        await session.loadMoreClosed()
+        XCTAssertEqual(fake.closedCalls, 2)
+        XCTAssertEqual(session.orders.errorText, L10n.Errors.network)
+
+        fake.ordersError = nil
+        await session.refresh()
+        XCTAssertNil(session.orders.errorText)
+        await session.loadMoreClosed()
+        XCTAssertEqual(Set(session.orders.orders.map(\.id)), ["c1", "c2", "c3"])
+        XCTAssertFalse(session.orders.hasMoreClosed)
+    }
+
     func testStaleLoadMoreDoesNotOverrideFirstPageRefresh() async {
         let session = TradingSession(enablesPolling: false, closedPageSize: 2)
         let fake = FakeBrokerage(environment: .paper)

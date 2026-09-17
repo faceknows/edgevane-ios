@@ -97,20 +97,18 @@ struct OrdersView: View {
                                     title: L10n.Orders.empty,
                                     message: L10n.Orders.emptyBody
                                 )
+                                .onAppear { Task { await loadMoreIfNeeded() } }
                             } else {
                                 orderRows
                             }
-                            if orders.hasMoreClosed {
-                                Text(L10n.Orders.historyIncomplete)
-                                    .font(.footnote)
-                                    .foregroundColor(.secondary)
-                                Button(L10n.Orders.loadMore) {
-                                    Task { await trading.loadMoreClosed() }
-                                }
-                                .disabled(orders.isLoadingMore)
-                                if orders.isLoadingMore {
-                                    ProgressView().frame(maxWidth: .infinity)
-                                }
+                            if orders.hasMoreClosed, orders.isLoadingMore {
+                                ProgressView().frame(maxWidth: .infinity)
+                            } else if orders.hasMoreClosed, orders.errorText == nil {
+                                Color.clear
+                                    .frame(height: 1)
+                                    .listRowSeparator(.hidden)
+                                    .onAppear { Task { await loadMoreIfNeeded() } }
+                                    .accessibilityHidden(true)
                             }
                         }
                     }
@@ -147,6 +145,10 @@ struct OrdersView: View {
                 order: order,
                 onCancel: { pendingCancel = order }
             )
+            .onAppear {
+                guard order.id == visibleOrders.last?.id else { return }
+                Task { await loadMoreIfNeeded() }
+            }
         }
     }
 
@@ -225,6 +227,11 @@ struct OrdersView: View {
         }
         selectedTodaySymbol = ""
         historyTask = Task { await trading.lookupClosedOrders(symbol: code) }
+    }
+
+    private func loadMoreIfNeeded() async {
+        guard orders.historySymbol == nil, filter != .new, orders.errorText == nil else { return }
+        await trading.loadMoreClosed()
     }
 
     private var cancelAlertBinding: Binding<Bool> {

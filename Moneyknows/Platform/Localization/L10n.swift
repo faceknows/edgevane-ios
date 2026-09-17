@@ -490,7 +490,6 @@ enum L10n {
         static var filterNew: String { localized("orders.filterNew") }
         static var symbolFilter: String { localized("orders.symbolFilter") }
         static var historySymbol: String { localized("orders.historySymbol") }
-        static var loadMore: String { localized("orders.loadMore") }
         static func partialFill(_ ordered: String, _ filled: String, _ remaining: String) -> String {
             String(format: localized("orders.partialFill"), ordered, filled, remaining)
         }
@@ -505,7 +504,6 @@ enum L10n {
         static func priceStop(_ price: String) -> String {
             String(format: localized("orders.priceStop"), price)
         }
-        static var historyIncomplete: String { localized("orders.historyIncomplete") }
         static var buy: String { localized("orders.buy") }
         static var sell: String { localized("orders.sell") }
         static var cancelOrder: String { localized("orders.cancelOrder") }
