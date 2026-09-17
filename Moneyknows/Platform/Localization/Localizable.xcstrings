@@ -7551,13 +7551,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ accepted"
+            "value" : "%@ %@ %@ @ %@ accepted"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已接受"
+            "value" : "%@ %@ %@ @ %@ 已接受"
           }
         }
       }
@@ -7568,13 +7568,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ canceled"
+            "value" : "%@ %@ %@ @ %@ canceled"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已取消"
+            "value" : "%@ %@ %@ @ %@ 已取消"
           }
         }
       }
@@ -7585,13 +7585,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ filled"
+            "value" : "%@ %@ %@ @ %@ filled"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已成交"
+            "value" : "%@ %@ %@ @ %@ 已成交"
           }
         }
       }
@@ -7619,13 +7619,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ rejected"
+            "value" : "%@ %@ %@ @ %@ rejected"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 被拒绝"
+            "value" : "%@ %@ %@ @ %@ 被拒绝"
           }
         }
       }

@@ -47,7 +47,8 @@ private struct ToastCardBody<Content: View>: View {
     var body: some View {
         Button(action: handleTap) {
             content()
-                .padding(12)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 18)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(uiColor: .secondarySystemBackground))
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.fieldCorner, style: .continuous))

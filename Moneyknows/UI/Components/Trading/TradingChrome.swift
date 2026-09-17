@@ -181,7 +181,7 @@ struct TradingNoticeBanner: View {
                     trading.clearNotice()
                 }
             }) {
-                Text(notice.text)
+                Text(styledText(for: notice))
                     .font(.footnote)
                     .foregroundColor(.primary)
                     .multilineTextAlignment(.leading)
@@ -192,6 +192,20 @@ struct TradingNoticeBanner: View {
                 removal: .opacity
             ))
         }
+    }
+
+    private func styledText(for notice: TradingNotice) -> AttributedString {
+        var text = AttributedString(notice.text)
+        for term in notice.boldTerms where !term.isEmpty {
+            var searchStart = text.startIndex
+            while searchStart < text.endIndex,
+                  let range = text[searchStart...].range(of: term)
+            {
+                text[range].font = .footnote.bold()
+                searchStart = range.upperBound
+            }
+        }
+        return text
     }
 }
 

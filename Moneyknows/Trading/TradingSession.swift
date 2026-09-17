@@ -593,8 +593,8 @@ final class TradingSession: ObservableObject {
         applyRows([order], notifyFill: true)
     }
 
-    func postNotice(_ text: String) {
-        let item = TradingNotice(text: text)
+    func postNotice(_ text: String, boldTerms: [String] = []) {
+        let item = TradingNotice(text: text, boldTerms: boldTerms)
         notice = item
         noticeTask?.cancel()
         noticeTask = Task { [weak self] in
@@ -623,7 +623,7 @@ final class TradingSession: ObservableObject {
             if result.statusChanged, announcedStatuses[order.id] != order.status {
                 announcedStatuses[order.id] = order.status
                 if let toast = Self.toast(for: order) {
-                    postNotice(toast)
+                    postNotice(toast.text, boldTerms: toast.boldTerms)
                 }
             }
             recordFill(order, fire: notifyFill)
@@ -644,19 +644,47 @@ final class TradingSession: ObservableObject {
         }
     }
 
-    private static func toast(for order: Order) -> String? {
+    private static func toast(for order: Order) -> (text: String, boldTerms: [String])? {
+        let side = order.side == .sell ? L10n.Orders.sell : L10n.Orders.buy
+        let shares = MarketFormat.quantity(toastQuantity(for: order))
+        let price = toastPrice(for: order)
+        let text: String
         switch order.status {
         case .new, .pendingNew, .accepted, .acceptedForBidding:
-            return L10n.Trading.orderAccepted(order.symbol)
+            text = L10n.Trading.orderAccepted(order.symbol, side, shares, price)
         case .filled:
-            return L10n.Trading.orderFilled(order.symbol)
+            text = L10n.Trading.orderFilled(order.symbol, side, shares, price)
         case .canceled:
-            return L10n.Trading.orderCanceled(order.symbol)
+            text = L10n.Trading.orderCanceled(order.symbol, side, shares, price)
         case .rejected:
-            return L10n.Trading.orderRejected(order.symbol)
+            text = L10n.Trading.orderRejected(order.symbol, side, shares, price)
         default:
             return nil
         }
+        return (text, [order.symbol, shares, price])
+    }
+
+    private static func toastQuantity(for order: Order) -> Double {
+        if order.status == .filled, order.filledQuantity > 0 {
+            return order.filledQuantity
+        }
+        return order.quantity
+    }
+
+    private static func toastPrice(for order: Order) -> String {
+        let value: Double?
+        if order.status == .filled {
+            value = order.filledAvgPrice ?? order.limitPrice ?? order.stopPrice
+        } else {
+            value = order.limitPrice ?? order.stopPrice ?? order.filledAvgPrice
+        }
+        if let value {
+            return MarketFormat.price(value)
+        }
+        if order.type == .market {
+            return L10n.Orders.priceMarket
+        }
+        return order.type.title
     }
 
     func lookupClosedOrders(symbol: String) async {

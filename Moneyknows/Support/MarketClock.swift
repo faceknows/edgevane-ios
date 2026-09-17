@@ -118,6 +118,23 @@ enum MarketClock {
         return sessionWindow(at: date) == session
     }
 
+    static func shouldFetchLatestSnapshot(at date: Date = Date()) -> Bool {
+        isUSTradingDay(usDateString(from: date))
+    }
+
+    /// Quote WebSocket stays live; this only paces REST `latest-snapshot` fallback.
+    /// Regular hours: 1 / 2 / 3s for 1–3 / 4–8 / ≥9 symbols; otherwise 5 / 10 / 15s.
+    static func latestSnapshotIntervalNanoseconds(symbolCount: Int, at date: Date = Date()) -> UInt64 {
+        let regular = isSessionActive(.regular, at: date)
+        if symbolCount >= 9 {
+            return regular ? 3_000_000_000 : 15_000_000_000
+        }
+        if symbolCount >= 4 {
+            return regular ? 2_000_000_000 : 10_000_000_000
+        }
+        return regular ? 1_000_000_000 : 5_000_000_000
+    }
+
     static func isExtendedHoursSession(at date: Date = Date()) -> Bool {
         isSessionActive(.premarket, at: date) || isSessionActive(.aftermarket, at: date)
     }

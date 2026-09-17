@@ -470,6 +470,7 @@ final class MarketRealtimeSessionTests: XCTestCase {
             socket: socket,
             barsAPI: BarsAPI(client: http)
         )
+        session.now = { Self.eastern(2026, 9, 5, 10) }
         await session.refreshSubscriptions()
         XCTAssertEqual(session.subscriptions.me, ["AAPL"])
         session.handle(event: MarketStreamEvent.trade, data: Data(#"{"s":"MSFT","p":9}"#.utf8))
@@ -513,6 +514,7 @@ final class MarketRealtimeSessionTests: XCTestCase {
             socket: socket,
             barsAPI: BarsAPI(client: http)
         )
+        session.now = { Self.eastern(2026, 9, 5, 10) }
         do {
             try await session.subscribe(["AAPL"])
             XCTFail("subscribe should fail")
@@ -528,6 +530,59 @@ final class MarketRealtimeSessionTests: XCTestCase {
         XCTAssertNil(session.quotes.quote(for: "AAPL"))
         XCTAssertEqual(socket.status, .closed)
         XCTAssertNil(socket.connectedToken)
+    }
+
+    func testSkipsLatestSnapshotOnNonTradingDay() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"{"me":["AAPL"],"all":["AAPL"]}"#.utf8)),
+        ]
+        let session = MarketRealtimeSession(
+            subscriptions: SubscriptionStore(api: SubscribeAPI(client: http)),
+            quotes: QuoteStore(),
+            seconds: SecondBarStore(),
+            socket: FakeMarketSocket(),
+            barsAPI: BarsAPI(client: http)
+        )
+        session.now = { Self.eastern(2026, 9, 5, 10) }
+        await session.refreshSubscriptions()
+        session.disconnect()
+        XCTAssertFalse(http.requests.contains { $0.path.contains("latest-snapshot") })
+    }
+
+    func testFetchesLatestSnapshotOnTradingDay() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"{"me":["AAPL"],"all":["AAPL"]}"#.utf8)),
+            .success(Data(#"{"quotes":{"AAPL":{"bp":1.1,"ap":1.2,"bs":3,"as":4}}}"#.utf8)),
+        ]
+        let session = MarketRealtimeSession(
+            subscriptions: SubscriptionStore(api: SubscribeAPI(client: http)),
+            quotes: QuoteStore(),
+            seconds: SecondBarStore(),
+            socket: FakeMarketSocket(),
+            barsAPI: BarsAPI(client: http)
+        )
+        session.now = { Self.eastern(2026, 9, 4, 10) }
+        await session.refreshSubscriptions()
+        session.disconnect()
+        XCTAssertTrue(http.requests.contains { $0.path.contains("latest-snapshot") })
+        XCTAssertEqual(session.quotes.quote(for: "AAPL")?.snapshotBid, 1.1)
+        XCTAssertEqual(session.quotes.quote(for: "AAPL")?.snapshotAsk, 1.2)
+        XCTAssertEqual(session.quotes.quote(for: "AAPL")?.displayBidSize, 3)
+        XCTAssertEqual(session.quotes.quote(for: "AAPL")?.displayAskSize, 4)
+    }
+
+    private static func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/New_York")!
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        parts.hour = hour
+        parts.minute = minute
+        return calendar.date(from: parts)!
     }
 }
 

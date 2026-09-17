@@ -3589,7 +3589,10 @@ final class OrderPlacementTests: XCTestCase {
         """#.utf8))
         XCTAssertEqual(session.orders.orders.first?.id, "stream-1")
         XCTAssertEqual(session.orders.orders.first?.symbol, "AAPL")
-        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("AAPL"))
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("AAPL", L10n.Orders.buy, "2", "11.00")
+        )
     }
 
     func testApplyStreamDataParsesArrayTradeUpdate() {
@@ -3599,7 +3602,10 @@ final class OrderPlacementTests: XCTestCase {
         [{"stream":"trade_updates","data":{"event":"new","order":{"id":"arr-1","symbol":"msft","side":"buy","type":"limit","status":"accepted","qty":"1","filled_qty":"0"}}}]
         """#.utf8))
         XCTAssertEqual(session.orders.orders.first { $0.id == "arr-1" }?.symbol, "MSFT")
-        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("MSFT"))
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("MSFT", L10n.Orders.buy, "1", L10n.Orders.typeLimit)
+        )
     }
 
     func testPlaceToastsAcceptedOrder() async throws {
@@ -3614,7 +3620,10 @@ final class OrderPlacementTests: XCTestCase {
             protectionMinutes: 0,
             maxOrderValue: 50
         )
-        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("AAPL"))
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("AAPL", L10n.Orders.buy, "1", "10.00")
+        )
     }
 
     func testBrokerageOrderUpdatesApplyAndToast() async {
@@ -3625,7 +3634,61 @@ final class OrderPlacementTests: XCTestCase {
             sampleOrder(id: "sock-1", symbol: "NVDA", status: .accepted, updatedAt: Date(timeIntervalSince1970: 1_700_003_000))
         )
         await waitUntil { session.orders.orders.contains { $0.id == "sock-1" } }
-        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("NVDA"))
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("NVDA", L10n.Orders.buy, "10", "11.00")
+        )
+    }
+
+    func testOrderToastsIncludeSideSharesAndPrice() {
+        let session = TradingSession(enablesPolling: false)
+        session.use(FakeBrokerage(environment: .paper))
+        session.applyStream(sampleOrder(id: "t-acc", symbol: "AAPL", status: .accepted, quantity: 10))
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("AAPL", L10n.Orders.buy, "10", "11.00")
+        )
+
+        var filled = sampleOrder(id: "t-fill", symbol: "MSFT", status: .filled, side: .sell, quantity: 3)
+        filled.filledAvgPrice = 12.5
+        session.applyStream(filled)
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderFilled("MSFT", L10n.Orders.sell, "3", "12.50")
+        )
+
+        var canceled = sampleOrder(id: "t-can", symbol: "TSLA", status: .canceled, quantity: 8)
+        canceled.limitPrice = 9.25
+        session.applyStream(canceled)
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderCanceled("TSLA", L10n.Orders.buy, "8", "9.25")
+        )
+
+        var market = sampleOrder(id: "t-mkt", symbol: "NVDA", status: .new, type: .market, quantity: 5)
+        market.limitPrice = nil
+        session.applyStream(market)
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("NVDA", L10n.Orders.buy, "5", L10n.Orders.priceMarket)
+        )
+
+        var limitMissingPrice = sampleOrder(id: "t-limit", symbol: "META", status: .accepted, type: .limit, quantity: 2)
+        limitMissingPrice.limitPrice = nil
+        session.applyStream(limitMissingPrice)
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderAccepted("META", L10n.Orders.buy, "2", L10n.Orders.typeLimit)
+        )
+
+        var stop = sampleOrder(id: "t-stop", symbol: "AMD", status: .rejected, side: .sell, type: .stop, quantity: 4)
+        stop.limitPrice = nil
+        stop.stopPrice = 6.4
+        session.applyStream(stop)
+        XCTAssertEqual(
+            session.notice?.text,
+            L10n.Trading.orderRejected("AMD", L10n.Orders.sell, "4", "6.40")
+        )
     }
 
     func testReplacementNoticeGetsNewIdentityEvenWithSameText() {

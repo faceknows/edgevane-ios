@@ -598,10 +598,12 @@ extension Order {
 struct TradingNotice: Equatable, Identifiable {
     let id: UUID
     let text: String
+    let boldTerms: [String]
 
-    init(text: String, id: UUID = UUID()) {
+    init(text: String, boldTerms: [String] = [], id: UUID = UUID()) {
         self.id = id
         self.text = text
+        self.boldTerms = boldTerms
     }
 }
 

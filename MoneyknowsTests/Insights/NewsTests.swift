@@ -187,7 +187,18 @@ final class NewsStoreTests: XCTestCase {
             socket: socket,
             barsAPI: BarsAPI(client: http)
         )
+        session.now = {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = TimeZone(identifier: "America/New_York")!
+            var parts = DateComponents()
+            parts.year = 2026
+            parts.month = 9
+            parts.day = 5
+            parts.hour = 10
+            return calendar.date(from: parts)!
+        }
         await session.refreshSubscriptions()
+        session.disconnect()
         let folder = "NewsRealtimeTests-\(UUID().uuidString)"
         let news = NewsStore(disk: DiskStore(folder: folder))
         news.isForeground = true

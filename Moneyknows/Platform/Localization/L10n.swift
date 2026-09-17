@@ -424,18 +424,18 @@ enum L10n {
         static var allowStopLoss: String { localized("trading.allowStopLoss") }
         static var sliderHint: String { localized("trading.sliderHint") }
         static var sliderTitle: String { localized("trading.sliderTitle") }
-        static func orderFilled(_ symbol: String) -> String {
-            String(format: localized("trading.orderFilled"), symbol)
+        static func orderFilled(_ symbol: String, _ side: String, _ quantity: String, _ price: String) -> String {
+            String(format: localized("trading.orderFilled"), symbol, side, quantity, price)
         }
-        static func orderAccepted(_ symbol: String) -> String {
-            String(format: localized("trading.orderAccepted"), symbol)
+        static func orderAccepted(_ symbol: String, _ side: String, _ quantity: String, _ price: String) -> String {
+            String(format: localized("trading.orderAccepted"), symbol, side, quantity, price)
         }
         static var orderHistoryIncomplete: String { localized("trading.orderHistoryIncomplete") }
-        static func orderCanceled(_ symbol: String) -> String {
-            String(format: localized("trading.orderCanceled"), symbol)
+        static func orderCanceled(_ symbol: String, _ side: String, _ quantity: String, _ price: String) -> String {
+            String(format: localized("trading.orderCanceled"), symbol, side, quantity, price)
         }
-        static func orderRejected(_ symbol: String) -> String {
-            String(format: localized("trading.orderRejected"), symbol)
+        static func orderRejected(_ symbol: String, _ side: String, _ quantity: String, _ price: String) -> String {
+            String(format: localized("trading.orderRejected"), symbol, side, quantity, price)
         }
         static var takeProfitKind: String { localized("trading.takeProfitKind") }
         static var stopLossKind: String { localized("trading.stopLossKind") }

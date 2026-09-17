@@ -20,6 +20,7 @@ final class MarketRealtimeSession: ObservableObject {
     private let barsAPI: BarsAPI
     private var snapshotTask: Task<Void, Never>?
     private var didBindSocket = false
+    var now: () -> Date = Date.init
     var onTradeUpdate: ((Data) -> Void)?
     var onNews: ((Data) -> Void)?
 
@@ -153,6 +154,7 @@ final class MarketRealtimeSession: ObservableObject {
     private func refreshSnapshots() async {
         let symbols = subscriptions.me
         guard !symbols.isEmpty else { return }
+        guard MarketClock.shouldFetchLatestSnapshot(at: now()) else { return }
         let snapshotGenerations = quotes.beginSnapshot(for: symbols)
         let observedTradeGenerations = quotes.tradeGenerations(for: symbols)
         do {
@@ -175,10 +177,14 @@ final class MarketRealtimeSession: ObservableObject {
         guard !subscriptions.me.isEmpty else { return }
         snapshotTask = Task { [weak self] in
             while !Task.isCancelled {
-                let delay: UInt64 = MarketClock.isSessionActive(.regular) ? 5_000_000_000 : 15_000_000_000
+                guard let self else { return }
+                let delay = MarketClock.latestSnapshotIntervalNanoseconds(
+                    symbolCount: self.subscriptions.me.count,
+                    at: self.now()
+                )
                 try? await Task.sleep(nanoseconds: delay)
                 guard !Task.isCancelled else { return }
-                await self?.refreshSnapshots()
+                await self.refreshSnapshots()
             }
         }
     }

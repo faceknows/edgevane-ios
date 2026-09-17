@@ -12,7 +12,7 @@
 | `SymbolSummaryStore` | `GET /stocks/summaries`，按 symbol 缓存 |
 | `BarStore` | 分钟（分会话）与日线仓库；key 含 market/symbol/date/session/timeframe。扫描器、详情、交易 Tab、持仓列表 **共用同一份** 1 分钟棒。记下每次成功拉取的美东时刻（**空结果也算一次成功**）；同一美东分钟、同一 key 不重复请求。已有棒则带 `startTime`（最后一根 HH:mm）只拉增量并按时刻合并。后端不补无成交分钟，首根晚于开盘仍走增量，不要因此整段重拉 |
 | `SecondBarStore` | 已订阅 symbol 的秒线环缓（约 10 分钟） |
-| `QuoteStore` | 已订阅最新成交价和盘口 bid/ask：`trade` + **`quote` 为主**，`latest-snapshot`（`bp` / `ap`）兜底 |
+| `QuoteStore` | 已订阅最新成交价和盘口 bid/ask：`trade` + **`quote` 为主**，`latest-snapshot`（`bp` / `ap`）兜底；快照间隔随订阅数量与是否常规开盘变化，非交易日不拉 |
 | `SubscriptionStore` | 网关 `{ me, all }`；添加/退订 |
 | `ScreenerStore` | 当前扫描器结果（一种列表，换 fetch）。每种扫描器各自记住上次筛选；离开后再进入仍用上次条件（有隐藏日期的仍刷新日期） |
 
@@ -70,7 +70,7 @@ VWAP 开关默认开（实现时若与 RN 默认不一致，跟 RN）。
 登录后 `App` 打开 Platform Socket。
 
 - `trade` / `quote` / `second-trade`：仅当 symbol ∈ `me` 才写入 Quote / SecondBar。
-- 已订阅标的同时用 `latest-snapshot` 给 QuoteStore 兜底（`bp` / `ap` / `bs` / `as`；Socket `quote` 未到时盘口条也能显示数量）。
+- 已订阅标的同时用 `latest-snapshot` 给 QuoteStore 兜底（`bp` / `ap` / `bs` / `as`；Socket `quote` 未到时盘口条也能显示数量）。快照按已订阅数量轮询：常规时段 1 / 2 / 3 秒（1–3 / 4–8 / ≥9 只），盘前盘后与隔夜 5 / 10 / 15 秒；周末和美股假期不请求。网关 `quote` 仍消费，不关掉。
 - 订阅变更后：新 symbol 开始收；退订立即停写并丢缓冲与盘口。
 - 连接状态对 UI 可见。
 
@@ -80,5 +80,5 @@ VWAP 开关默认开（实现时若与 RN 默认不一致，跟 RN）。
 - 未订阅无秒图、无交易条；订阅后出现，并能退订。
 - 切 1/3/5 分钟与蜡烛/线、VWAP 符合图表设计。切周期时分钟主图与纳指对照保持同一可见时间起止。纳指对照不响应平移、缩放和双击复位。无 VXX。
 - 历史分钟 / 复盘不改变详情里「今天」的棒；有成交时图上能看到买卖点。
-- 交易 Tab 能加/删订阅且不出现升级页；断线时能看出未连接。
+- 交易 Tab 能加/删订阅且不出现升级页；已订阅：`trade` / `quote` / `second-trade` 仅写入 `me` 内代码；`latest-snapshot` 按订阅数量轮询兜底（常规 1/2/3 秒，否则 5/10/15 秒；周末假期不拉）。断线时能看出未连接。
 - 已订阅列表能同时看到多只代码的当日 1 分钟收盘折线（叠蓝色 VWAP）与 1 秒折线；无成交量柱；迷你折线有时间轴、最高/最低，不画右侧价格轴。点卡片进详情。分钟刷新失败时即使还有旧折线也要显示失败和重试；点重试不进详情。
