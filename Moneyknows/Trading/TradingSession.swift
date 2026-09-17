@@ -7,7 +7,7 @@ final class TradingSession: ObservableObject {
     let orders = OrderStore()
 
     @Published private(set) var needsCredentials = false
-    @Published private(set) var notice: String?
+    @Published private(set) var notice: TradingNotice?
 
     var placement = OrderPlacement()
     var onEntryFill: ((Order) -> Void)?
@@ -491,12 +491,13 @@ final class TradingSession: ObservableObject {
     }
 
     func postNotice(_ text: String) {
-        notice = text
+        let item = TradingNotice(text: text)
+        notice = item
         noticeTask?.cancel()
         noticeTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 4_000_000_000)
             guard !Task.isCancelled else { return }
-            self?.dismissNotice(text)
+            self?.dismissNotice(id: item.id)
         }
     }
 
@@ -506,8 +507,8 @@ final class TradingSession: ObservableObject {
         notice = nil
     }
 
-    private func dismissNotice(_ text: String) {
-        if notice == text {
+    func dismissNotice(id: UUID) {
+        if notice?.id == id {
             notice = nil
         }
     }

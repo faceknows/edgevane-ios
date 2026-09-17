@@ -6,10 +6,18 @@ struct NewsToastBanner: View {
 
     var body: some View {
         if let item = news.toast {
-            Button {
-                news.clearToast()
-                router.openNews(item.id)
-            } label: {
+            ToastCard(
+                id: item.id,
+                onDismiss: {
+                    if news.toast?.id == item.id {
+                        news.clearToast()
+                    }
+                },
+                onTap: {
+                    news.clearToast()
+                    router.openNews(item.id)
+                }
+            ) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.displaySymbol)
                         .font(.caption.weight(.semibold))
@@ -18,11 +26,11 @@ struct NewsToastBanner: View {
                         .lineLimit(2)
                 }
                 .foregroundColor(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color(uiColor: .secondarySystemBackground))
             }
-            .buttonStyle(.plain)
+            .transition(.asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .opacity
+            ))
         }
     }
 }

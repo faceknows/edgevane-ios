@@ -516,6 +516,16 @@ extension Order {
     }
 }
 
+struct TradingNotice: Equatable, Identifiable {
+    let id: UUID
+    let text: String
+
+    init(text: String, id: UUID = UUID()) {
+        self.id = id
+        self.text = text
+    }
+}
+
 enum DailyPnL {
     static let warningThreshold = -1.5
 

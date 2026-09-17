@@ -52,7 +52,8 @@ Alpaca 直连路径只在 `Brokerage/Alpaca`：
 1. 网关 `trade_updates`
 2. Alpaca 直连 `trade_updates`
 
-以 `order.id`（及 `updated_at`/`status`）去重。同一状态不重复 toast。  
+以 `order.id`（及 `updated_at`/`status`）去重。同一状态不重复 toast。
+订单新建/取消/成交/拒单以及自动止盈止损成败，走共用前台 toast：overlay 浮在当前页上，不插入布局、不挤动页面；数秒后自动消失；用户可把提示划出窗口关掉。
 `AutoExit` **只订阅 `OrderStore` 的「入场成交」**，不分别挂在两条 Socket 上。这样只连上网关也能同时做自动止盈和止损。
 
 ## 4. 下单用例
@@ -117,3 +118,4 @@ Alpaca 直连路径只在 `Brokerage/Alpaca`：
 - 模拟/实盘切换后列表换成新环境。列表页模拟/实盘徽标只在仪表盘今日盈亏卡片；下单弹窗（含滑条）必须显示环境。
 - 没有付费、没有第二券商入口。
 - 复盘买卖点与当前模拟/实盘一致；一笔成交一个点。
+- 下单被接受、取消、成交时顶部浮层 toast，页面不跳动；可等待消失或划走。

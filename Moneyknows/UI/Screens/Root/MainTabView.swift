@@ -19,12 +19,6 @@ struct MainTabView: View {
             .navigationViewStyle(.stack)
             .tabItem { Label(L10n.Tabs.settings, systemImage: "gearshape") }
         }
-        .safeAreaInset(edge: .top) {
-            VStack(spacing: 0) {
-                TradingNoticeBanner()
-                NewsToastBanner()
-                NotificationToastBanner()
-            }
-        }
+        .appToastOverlay()
     }
 }

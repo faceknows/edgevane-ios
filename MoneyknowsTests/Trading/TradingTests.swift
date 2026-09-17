@@ -2070,7 +2070,7 @@ final class OrderPlacementTests: XCTestCase {
         )
         await session.refresh(includingClosed: false)
         await waitUntil {
-            let text = session.notice ?? ""
+            let text = session.notice?.text ?? ""
             return text.contains("Could not place") || text.contains("未能挂")
         }
         XCTAssertTrue(fake.placed.isEmpty)
@@ -2645,13 +2645,13 @@ final class OrderPlacementTests: XCTestCase {
         applyBuyFill(session: session, fake: fake, id: "fill-restore-fail", updatedAt: Date(timeIntervalSince1970: 1_700_002_300))
         await waitUntil {
             fake.placeAttempts >= 2 && {
-                let text = session.notice ?? ""
+                let text = session.notice?.text ?? ""
                 return text.contains("restore") || text.contains("保护单")
             }()
         }
         XCTAssertTrue(fake.canceled.contains("old-oco"))
         XCTAssertTrue(fake.placed.isEmpty)
-        XCTAssertTrue(session.notice?.contains("AAPL") == true)
+        XCTAssertTrue(session.notice?.text.contains("AAPL") == true)
     }
 
     func testEmptyPositionSyncExhaustedNotifiesWhenUnprotected() async {
@@ -2665,11 +2665,11 @@ final class OrderPlacementTests: XCTestCase {
         _ = makeAutoExit(session: session)
         session.applyStream(sampleOrder(id: "entry-empty", status: .filled, updatedAt: Date(timeIntervalSince1970: 1_700_002_500)))
         await waitUntil {
-            let text = session.notice ?? ""
+            let text = session.notice?.text ?? ""
             return text.contains("Could not place") || text.contains("未能挂")
         }
         XCTAssertTrue(fake.placed.isEmpty)
-        XCTAssertTrue(session.notice?.contains("AAPL") == true)
+        XCTAssertTrue(session.notice?.text.contains("AAPL") == true)
     }
 
     func testPositionFetchFailureExhaustedNotifiesWhenUnprotected() async {
@@ -2682,7 +2682,7 @@ final class OrderPlacementTests: XCTestCase {
         _ = makeAutoExit(session: session)
         session.applyStream(sampleOrder(id: "entry-fetch-fail", status: .filled, updatedAt: Date(timeIntervalSince1970: 1_700_002_600)))
         await waitUntil {
-            let text = session.notice ?? ""
+            let text = session.notice?.text ?? ""
             return text.contains("Could not place") || text.contains("未能挂")
         }
         XCTAssertTrue(fake.placed.isEmpty)
@@ -2731,7 +2731,7 @@ final class OrderPlacementTests: XCTestCase {
             )
         )
         await waitUntil {
-            let text = session.notice ?? ""
+            let text = session.notice?.text ?? ""
             return text.contains("Could not place") || text.contains("未能挂")
         }
         XCTAssertTrue(fake.placed.isEmpty)
@@ -2767,7 +2767,7 @@ final class OrderPlacementTests: XCTestCase {
             )
         )
         await waitUntil {
-            let text = session.notice ?? ""
+            let text = session.notice?.text ?? ""
             return text.contains("Could not place") || text.contains("未能挂")
         }
         XCTAssertGreaterThanOrEqual(fake.positionsCalls, 4)
@@ -2826,7 +2826,7 @@ final class OrderPlacementTests: XCTestCase {
         """#.utf8))
         XCTAssertEqual(session.orders.orders.first?.id, "stream-1")
         XCTAssertEqual(session.orders.orders.first?.symbol, "AAPL")
-        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("AAPL"))
+        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("AAPL"))
     }
 
     func testApplyStreamDataParsesArrayTradeUpdate() {
@@ -2836,7 +2836,7 @@ final class OrderPlacementTests: XCTestCase {
         [{"stream":"trade_updates","data":{"event":"new","order":{"id":"arr-1","symbol":"msft","side":"buy","type":"limit","status":"accepted","qty":"1","filled_qty":"0"}}}]
         """#.utf8))
         XCTAssertEqual(session.orders.orders.first { $0.id == "arr-1" }?.symbol, "MSFT")
-        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("MSFT"))
+        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("MSFT"))
     }
 
     func testPlaceToastsAcceptedOrder() async throws {
@@ -2851,7 +2851,7 @@ final class OrderPlacementTests: XCTestCase {
             protectionMinutes: 0,
             maxOrderValue: 50
         )
-        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("AAPL"))
+        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("AAPL"))
     }
 
     func testBrokerageOrderUpdatesApplyAndToast() async {
@@ -2862,7 +2862,30 @@ final class OrderPlacementTests: XCTestCase {
             sampleOrder(id: "sock-1", symbol: "NVDA", status: .accepted, updatedAt: Date(timeIntervalSince1970: 1_700_003_000))
         )
         await waitUntil { session.orders.orders.contains { $0.id == "sock-1" } }
-        XCTAssertEqual(session.notice, L10n.Trading.orderAccepted("NVDA"))
+        XCTAssertEqual(session.notice?.text, L10n.Trading.orderAccepted("NVDA"))
+    }
+
+    func testReplacementNoticeGetsNewIdentityEvenWithSameText() {
+        let session = TradingSession(enablesPolling: false)
+        session.postNotice("AAPL accepted")
+        let first = session.notice
+        XCTAssertEqual(first?.text, "AAPL accepted")
+        session.postNotice("AAPL accepted")
+        let second = session.notice
+        XCTAssertEqual(second?.text, "AAPL accepted")
+        XCTAssertNotEqual(first?.id, second?.id)
+    }
+
+    func testExpiredNoticeDoesNotClearReplacementWithSameText() throws {
+        let session = TradingSession(enablesPolling: false)
+        session.postNotice("AAPL accepted")
+        let firstID = try XCTUnwrap(session.notice?.id)
+        session.postNotice("AAPL accepted")
+        let secondID = try XCTUnwrap(session.notice?.id)
+        XCTAssertNotEqual(firstID, secondID)
+        session.dismissNotice(id: firstID)
+        XCTAssertEqual(session.notice?.id, secondID)
+        XCTAssertEqual(session.notice?.text, "AAPL accepted")
     }
 
     private func makeAutoExit(

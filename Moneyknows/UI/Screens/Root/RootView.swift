@@ -38,6 +38,7 @@ private struct RootSwitcher: View {
                 overlayDestination(overlay)
             }
             .navigationViewStyle(.stack)
+            .appToastOverlay()
         }
     }
 
@@ -51,13 +52,6 @@ private struct RootSwitcher: View {
                         Button(L10n.Common.close) {
                             router.dismissOverlay()
                         }
-                    }
-                }
-                .safeAreaInset(edge: .top) {
-                    VStack(spacing: 0) {
-                        TradingNoticeBanner()
-                        NewsToastBanner()
-                        NotificationToastBanner()
                     }
                 }
         case .news(let newsID):

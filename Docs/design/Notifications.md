@@ -19,6 +19,8 @@
 
 `notificationVolumeThreshold`（0 = 不过滤，否则 2–8）：**历史列表与前台 toast 用同一套过滤**。实现时与 RN 对齐过滤发生在服务端还是客户端。
 
+前台 toast 与新闻、交易状态共用浮层：不插入页面、不挤动布局；自动消失；可划出窗口关掉；点按仍按类型跳转。
+
 ## 3. 深链
 
 - 解析通知 `data`（与 RN `openNotificationTarget` 对齐，**按此顺序**）：

@@ -10,16 +10,24 @@ struct NotificationToastBanner: View {
         if let item = notifications.toast,
            NotificationVolume.passes(item, threshold: preferences.values.notificationVolumeThreshold)
         {
-            Button {
-                notifications.clearToast()
-                router.handleNotification(
-                    item,
-                    versionPassed: appModel.versionGate.state == .passed,
-                    signedIn: appModel.session.isSignedIn,
-                    currentUserId: appModel.session.user?.id,
-                    alreadyShowingHistory: router.isShowingNotificationHistory
-                )
-            } label: {
+            ToastCard(
+                id: item.id,
+                onDismiss: {
+                    if notifications.toast?.id == item.id {
+                        notifications.clearToast()
+                    }
+                },
+                onTap: {
+                    notifications.clearToast()
+                    router.handleNotification(
+                        item,
+                        versionPassed: appModel.versionGate.state == .passed,
+                        signedIn: appModel.session.isSignedIn,
+                        currentUserId: appModel.session.user?.id,
+                        alreadyShowingHistory: router.isShowingNotificationHistory
+                    )
+                }
+            ) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(toastTitle(item))
                         .font(.caption.weight(.semibold))
@@ -30,11 +38,11 @@ struct NotificationToastBanner: View {
                     }
                 }
                 .foregroundColor(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(10)
-                .background(Color(uiColor: .secondarySystemBackground))
             }
-            .buttonStyle(.plain)
+            .transition(.asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .opacity
+            ))
         }
     }
 

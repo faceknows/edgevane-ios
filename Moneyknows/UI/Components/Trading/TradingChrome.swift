@@ -175,19 +175,22 @@ struct TradingNoticeBanner: View {
     @EnvironmentObject private var trading: TradingSession
 
     var body: some View {
-        if let notice = trading.notice, !notice.isEmpty {
-            Button {
-                trading.clearNotice()
-            } label: {
-                Text(notice)
+        if let notice = trading.notice, !notice.text.isEmpty {
+            ToastCard(id: notice.id, onDismiss: {
+                if trading.notice?.id == notice.id {
+                    trading.clearNotice()
+                }
+            }) {
+                Text(notice.text)
                     .font(.footnote)
                     .foregroundColor(.primary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-                    .padding(10)
-                    .background(Color(uiColor: .secondarySystemBackground))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
+            .transition(.asymmetric(
+                insertion: .move(edge: .top).combined(with: .opacity),
+                removal: .opacity
+            ))
         }
     }
 }
