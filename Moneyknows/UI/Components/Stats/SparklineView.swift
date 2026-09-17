@@ -212,6 +212,7 @@ struct SparklineView: View {
     var isLoading = false
     var errorText: String? = nil
     var retry: (() -> Void)? = nil
+    var showsPriceScale = true
 
     var body: some View {
         ZStack {
@@ -233,7 +234,11 @@ struct SparklineView: View {
     private var canvas: some View {
         Canvas { context, size in
             guard let prepared = SparklineChrome.prepare(plot),
-                  let layout = SparklineChrome.layout(for: prepared, in: size) else { return }
+                  let layout = SparklineChrome.layout(
+                    for: prepared,
+                    in: size,
+                    showsPriceScale: showsPriceScale
+                  ) else { return }
             if prepared.usesCandles {
                 drawCandles(prepared.bars, vwap: prepared.overlay, layout: layout, in: &context)
             } else {
@@ -357,19 +362,26 @@ struct SparklineView: View {
                 anchor: xAnchor(x: tick.position, plot: layout.plot)
             )
         }
-        for tick in layout.yTicks {
-            context.draw(
-                axisLabel(tick.text),
-                at: CGPoint(x: size.width - 2, y: tick.position),
-                anchor: .trailing
-            )
+        if layout.showsPriceScale {
+            for tick in layout.yTicks {
+                context.draw(
+                    axisLabel(tick.text),
+                    at: CGPoint(x: size.width - 2, y: tick.position),
+                    anchor: .trailing
+                )
+            }
         }
-        if let last = layout.last {
-            context.draw(
-                lastLabel(last.text),
-                at: CGPoint(x: size.width - 2, y: last.y),
-                anchor: .trailing
-            )
+        if let last = layout.last, SparklineChrome.showsLastLabel(layout) {
+            let point: CGPoint
+            let anchor: UnitPoint
+            if layout.showsPriceScale {
+                point = CGPoint(x: size.width - 2, y: last.y)
+                anchor = .trailing
+            } else {
+                point = CGPoint(x: last.x, y: last.y)
+                anchor = SparklineChrome.lastLabelTrails(x: last.x, plot: layout.plot) ? .trailing : .leading
+            }
+            context.draw(lastLabel(last.text), at: point, anchor: anchor)
         }
     }
 
@@ -432,6 +444,7 @@ struct SparklinePane: View {
     var onOpen: (() -> Void)? = nil
     /// Scanner passes copy; Trade Tab omits it so a successful empty fetch stays blank.
     var emptyText: String? = nil
+    var showsPriceScale: Bool = true
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
@@ -487,7 +500,8 @@ struct SparklinePane: View {
             downColor: ChartPalette.color(.down, scheme: colorScheme),
             isLoading: isLoading,
             errorText: onOpen == nil ? errorText : nil,
-            retry: onOpen == nil ? retry : nil
+            retry: onOpen == nil ? retry : nil,
+            showsPriceScale: showsPriceScale
         )
     }
 
@@ -547,7 +561,8 @@ struct WatchSparklinePair: View {
                 isLoading: isMinuteLoading,
                 errorText: minuteError,
                 retry: retryMinutes,
-                onOpen: onOpen
+                onOpen: onOpen,
+                showsPriceScale: false
             )
             if let onOpen {
                 Button(action: onOpen) {
@@ -575,7 +590,8 @@ struct WatchSecondPane: View {
             title: "",
             plot: .line(values: line.values, times: line.times, timeKind: .second),
             baseline: line.values.first,
-            isLoading: false
+            isLoading: false,
+            showsPriceScale: false
         )
     }
 }

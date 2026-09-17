@@ -108,6 +108,11 @@ struct SymbolDetailView: View {
                             barDuration: charts.interval.barDuration
                         )
                     }
+                    ChartChrome(
+                        interval: $charts.interval,
+                        style: $charts.style,
+                        showVWAP: $charts.showVWAP
+                    )
                     ChartPanel(
                         title: L10n.Detail.chart,
                         model: charts.regularModel,
@@ -120,22 +125,7 @@ struct SymbolDetailView: View {
                         publishesVisibleTimeRange: true,
                         barDuration: charts.interval.barDuration
                     )
-                    ChartChrome(
-                        interval: $charts.interval,
-                        style: $charts.style,
-                        showVWAP: $charts.showVWAP
-                    )
                     MinuteIndicatorBadges(snapshot: charts.minuteIndicators)
-                    if isSubscribed {
-                        LastTradeQuoteStrip(
-                            lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
-                            quote: quotes.quote(for: symbol)
-                        )
-                    } else {
-                        Text(MarketFormat.price(headerPrice))
-                            .font(.title.bold())
-                            .monospacedDigit()
-                    }
                     if isSubscribed {
                         if hasSecondBars {
                             secondChart
@@ -146,7 +136,15 @@ struct SymbolDetailView: View {
                                 }
                             }
                         }
+                        LastTradeQuoteStrip(
+                            lastPrice: quotes.quote(for: symbol)?.last ?? summary?.lastPrice,
+                            quote: quotes.quote(for: symbol)
+                        )
                         TradeBarView(symbol: symbol, action: $tradeAction, presetPrice: $sliderPrice)
+                    } else {
+                        Text(MarketFormat.price(headerPrice))
+                            .font(.title.bold())
+                            .monospacedDigit()
                     }
                     if let subscriptionError {
                         Text(subscriptionError)

@@ -134,6 +134,7 @@ final class MinuteChartAssemblerTests: XCTestCase {
             VWAP.series(from: bars1m).map(\.value)
         )
         XCTAssertEqual(model.priceLines.map(\.id), ["prevClose", "sessionOpen"])
+        XCTAssertEqual(model.priceLines.map(\.title), [L10n.Chart.prevClose, L10n.Chart.sessionOpen])
         XCTAssertTrue(model.priceLines.allSatisfy(\.dashed))
         XCTAssertEqual(model.markers.map(\.id), ["fill-1"])
         XCTAssertEqual(model.markers.first?.time, model.bars.first?.time)

@@ -779,16 +779,28 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
         let lowJSON = showLow
             ? "{\"t\":\(lowT),\"p\":\(labels.low),\"text\":\(Self.jsString(lowText)),\"left\":\(lowLeft ? "true" : "false")}"
             : "null"
+        let priceLinesJSON = priceLinesJSON(from: applied?.model.priceLines ?? [], colors: colors, precision: precision)
         evaluate("""
         if (window.__mkDrawVisibleChrome) window.__mkDrawVisibleChrome({
           last:{t:\(lastT),p:\(labels.last),text:\(Self.jsString(lastText))},
           high:{t:\(highT),p:\(labels.high),text:\(Self.jsString(highText)),left:\(highLeft ? "true" : "false")},
           low:\(lowJSON),
+          priceLines:\(priceLinesJSON),
           line:\(Self.jsString(Self.cssColor(colors.buy))),
           text:\(Self.jsString(Self.cssColor(colors.text))),
           background:\(Self.jsString(Self.cssColor(colors.background)))
         });
         """)
+    }
+
+    private func priceLinesJSON(from lines: [ChartModel.PriceLine], colors: ChartColors, precision: Int) -> String {
+        let items = lines.compactMap { line -> String? in
+            guard line.price.isFinite else { return nil }
+            let text = ChartVisibleExtremes.priceText(line.price, precision: precision)
+            let color = Self.cssColor(colors.rgba(for: line.colorToken))
+            return "{\"p\":\(line.price),\"text\":\(Self.jsString(text)),\"color\":\(Self.jsString(color))}"
+        }
+        return "[\(items.joined(separator: ","))]"
     }
 
     private func evaluate(_ script: String) {
@@ -832,8 +844,8 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
                 color: chartColor(colors.rgba(for: line.colorToken)),
                 lineWidth: .one,
                 lineStyle: line.dashed ? .dashed : .solid,
-                axisLabelVisible: true,
-                title: line.title
+                axisLabelVisible: false,
+                title: ""
             ))
         }
     }
@@ -1080,7 +1092,7 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             return null;
           }
           function lastLineEndX(plotRight, canvasWidth) {
-            return Math.max(plotRight, canvasWidth - \(ChartVisibleExtremes.lastLineEndInset));
+            return Math.max(plotRight, canvasWidth - \#(ChartVisibleExtremes.lastLineEndInset));
           }
           function paint() {
             var payload = window.__mkLastChromePayload;
@@ -1129,6 +1141,58 @@ final class LightweightChartCoordinator: NSObject, LightweightChartsDelegate, Ch
             }
             drawMark(payload.high);
             drawMark(payload.low);
+            var plotRight = timeScale.width();
+            var priceX = plotRight + \#(ChartVisibleExtremes.priceLineLabelInset);
+            var priceItems = [];
+            var rawLines = payload.priceLines || [];
+            var minGap = \#(ChartVisibleExtremes.priceLineLabelMinGap);
+            var pad = \#(ChartVisibleExtremes.priceLineLabelHalfHeight);
+            var minY = pad;
+            var maxY = Math.max(minY, height - pad);
+            var occupied = [];
+            if (lastY != null) { occupied.push(lastY); }
+            function clampY(value) { return Math.max(minY, Math.min(maxY, value)); }
+            function blockerAt(y) {
+              for (var j = 0; j < occupied.length; j++) {
+                if (Math.abs(y - occupied[j]) < minGap) { return occupied[j]; }
+              }
+              return null;
+            }
+            for (var i = 0; i < rawLines.length; i++) {
+              var lineY = yOf(rawLines[i].p);
+              if (lineY == null) { continue; }
+              var y = clampY(lineY);
+              for (var attempt = 0; attempt < \#(ChartVisibleExtremes.priceLineNudgeAttempts); attempt++) {
+                var other = blockerAt(y);
+                if (other == null) { break; }
+                var down = other + minGap;
+                var up = other - minGap;
+                var next;
+                if (y >= other) {
+                  if (down <= maxY) { next = down; }
+                  else if (up >= minY) { next = up; }
+                  else { break; }
+                } else if (up >= minY) {
+                  next = up;
+                } else if (down <= maxY) {
+                  next = down;
+                } else {
+                  break;
+                }
+                var clamped = clampY(next);
+                if (clamped === y) { break; }
+                y = clamped;
+              }
+              occupied.push(y);
+              priceItems.push({ text: rawLines[i].text, color: rawLines[i].color, y: y });
+            }
+            ctx.font = '9px ui-monospace, Menlo, monospace';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'middle';
+            for (var i = 0; i < priceItems.length; i++) {
+              ctx.fillStyle = priceItems[i].color;
+              ctx.fillText(priceItems[i].text, priceX, priceItems[i].y);
+            }
             if (lastX != null && lastY != null && payload.last.text) {
               ctx.font = '600 9px ui-monospace, Menlo, monospace';
               ctx.textAlign = 'right';

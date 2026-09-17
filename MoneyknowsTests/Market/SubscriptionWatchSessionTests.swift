@@ -181,6 +181,71 @@ final class SparklineGeometryTests: XCTestCase {
         XCTAssertEqual(rect.maxY, 120 - SparklineChrome.bottomInset, accuracy: 0.001)
     }
 
+    func testChromePlotRectHidesPriceScaleGutter() {
+        let size = CGSize(width: 200, height: 120)
+        let full = SparklineChrome.plotRect(in: size, showsPriceScale: true)
+        let compact = SparklineChrome.plotRect(in: size, showsPriceScale: false)
+        XCTAssertEqual(compact.maxX, 200 - SparklineChrome.compactTrailingInset, accuracy: 0.001)
+        XCTAssertGreaterThan(compact.width, full.width)
+        XCTAssertEqual(
+            compact.width - full.width,
+            SparklineChrome.trailingInset - SparklineChrome.compactTrailingInset,
+            accuracy: 0.001
+        )
+    }
+
+    func testPriceLabelRectUsesTextSizeAndAnchor() {
+        let point = CGPoint(x: 100, y: 40)
+        let trailing = SparklineChrome.priceLabelRect(text: "10.00", at: point, trails: true)
+        XCTAssertEqual(trailing.maxX, 100, accuracy: 0.001)
+        XCTAssertEqual(trailing.midY, 40, accuracy: 0.001)
+        XCTAssertEqual(trailing.width, 5 * SparklineChrome.priceLabelCharWidth, accuracy: 0.001)
+        XCTAssertEqual(trailing.height, SparklineChrome.priceLabelHeight, accuracy: 0.001)
+        let leading = SparklineChrome.priceLabelRect(text: "--10.00", at: point, trails: false)
+        XCTAssertEqual(leading.minX, 100, accuracy: 0.001)
+        XCTAssertEqual(leading.width, 7 * SparklineChrome.priceLabelCharWidth, accuracy: 0.001)
+        XCTAssertTrue(SparklineChrome.lastLabelTrails(x: 100, plot: CGRect(x: 0, y: 0, width: 100, height: 40)))
+        XCTAssertFalse(SparklineChrome.lastLabelTrails(x: 49, plot: CGRect(x: 0, y: 0, width: 100, height: 40)))
+    }
+
+    func testShowsLastLabelUsesCaptionBoundsNotAnchorDistance() {
+        let plot = CGRect(x: 6, y: 14, width: 188, height: 110)
+        let last = SparklineChrome.Last(x: 194, y: 60, text: "10.00")
+        let nearbyHigh = SparklineChrome.Mark(
+            point: CGPoint(x: 174, y: 60),
+            text: "11.00--",
+            onLeftHalf: false
+        )
+        XCTAssertEqual(hypot(nearbyHigh.point.x - last.x, nearbyHigh.point.y - last.y), 20, accuracy: 0.001)
+        XCTAssertFalse(
+            SparklineChrome.showsLastLabel(
+                compactLayout(plot: plot, high: nearbyHigh, last: last)
+            )
+        )
+
+        let farHigh = SparklineChrome.Mark(
+            point: CGPoint(x: 194, y: 20),
+            text: "11.00--",
+            onLeftHalf: false
+        )
+        XCTAssertTrue(
+            SparklineChrome.showsLastLabel(
+                compactLayout(plot: plot, high: farHigh, last: last)
+            )
+        )
+
+        let leftHigh = SparklineChrome.Mark(
+            point: CGPoint(x: 20, y: 60),
+            text: "--11.00",
+            onLeftHalf: true
+        )
+        XCTAssertTrue(
+            SparklineChrome.showsLastLabel(
+                compactLayout(plot: plot, high: leftHigh, last: last)
+            )
+        )
+    }
+
     func testChromeXTicksUseEasternTime() {
         let open = eastern(2026, 9, 4, 9, 30)
         let mid = eastern(2026, 9, 4, 12, 45)
@@ -283,6 +348,33 @@ final class SparklineGeometryTests: XCTestCase {
         XCTAssertEqual(line!.last!.x, line!.plot.maxX, accuracy: 0.001)
         XCTAssertGreaterThan(line!.lastEndX, line!.plot.maxX)
         XCTAssertEqual(line?.xTicks.map(\.text), ["09:30", "09:31", "09:32"])
+        XCTAssertTrue(SparklineChrome.showsLastLabel(line!))
+        let compactLine = SparklineChrome.layout(
+            for: .line(
+                values: [9, 11, 8],
+                times: [t0, t1, t1.addingTimeInterval(60)],
+                timeKind: .minute
+            ),
+            in: CGSize(width: 200, height: 140),
+            showsPriceScale: false
+        )
+        XCTAssertEqual(compactLine?.yTicks, [])
+        XCTAssertFalse(compactLine?.showsPriceScale ?? true)
+        XCTAssertEqual(compactLine!.plot.maxX, 200 - SparklineChrome.compactTrailingInset, accuracy: 0.001)
+        XCTAssertEqual(compactLine!.last!.x, compactLine!.plot.maxX, accuracy: 0.001)
+        XCTAssertEqual(compactLine!.lastEndX, compactLine!.plot.maxX, accuracy: 0.001)
+        XCTAssertFalse(SparklineChrome.showsLastLabel(compactLine!))
+        let compactMid = SparklineChrome.layout(
+            for: .line(
+                values: [9, 11, 10],
+                times: [t0, t1, t1.addingTimeInterval(60)],
+                timeKind: .minute
+            ),
+            in: CGSize(width: 200, height: 140),
+            showsPriceScale: false
+        )
+        XCTAssertEqual(compactMid?.last?.text, "10.00")
+        XCTAssertTrue(SparklineChrome.showsLastLabel(compactMid!))
         let seconds = SparklineChrome.layout(
             for: .line(
                 values: [9, 11],
@@ -330,6 +422,26 @@ final class SparklineGeometryTests: XCTestCase {
         XCTAssertNotNil(candle)
         XCTAssertEqual(candle?.last?.text, "10.00")
         XCTAssertGreaterThan(candle!.lastEndX, candle!.last!.x)
+    }
+
+    private func compactLayout(
+        plot: CGRect,
+        high: SparklineChrome.Mark?,
+        last: SparklineChrome.Last
+    ) -> SparklineChrome.Layout {
+        SparklineChrome.Layout(
+            plot: plot,
+            domainLow: 9,
+            domainHigh: 11,
+            xTicks: [],
+            yTicks: [],
+            high: high,
+            low: nil,
+            last: last,
+            lastEndX: plot.maxX,
+            vwapCaption: nil,
+            showsPriceScale: false
+        )
     }
 
     private func eastern(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int, _ second: Int = 0) -> Date {

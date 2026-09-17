@@ -444,9 +444,59 @@ enum ChartVisibleExtremes {
     }
 
     static let lastLineEndInset = 2.0
+    /// Left padding inside the right price scale, matching the Y-axis tick column.
+    static let priceLineLabelInset = 8.0
+    static let priceLineLabelMinGap = 12.0
+    static let priceLineLabelHalfHeight = 6.0
+    static let priceLineNudgeAttempts = 8
 
     static func lastLineEndX(plotRight: Double, canvasWidth: Double) -> Double {
         max(plotRight, canvasWidth - lastLineEndInset)
+    }
+
+    static func priceLineLabelX(plotRight: Double) -> Double {
+        plotRight + priceLineLabelInset
+    }
+
+    /// Resolve collisions inside the canvas. Prefer the in-bounds side; re-check gap after each move.
+    static func placedPriceLineY(
+        proposed: Double,
+        occupied: [Double],
+        height: Double,
+        minGap: Double = priceLineLabelMinGap,
+        attempts: Int = priceLineNudgeAttempts
+    ) -> Double {
+        let minY = priceLineLabelHalfHeight
+        let maxY = max(minY, height - priceLineLabelHalfHeight)
+        func clamp(_ value: Double) -> Double {
+            min(maxY, max(minY, value))
+        }
+        var y = clamp(proposed)
+        for _ in 0..<attempts {
+            guard let other = occupied.first(where: { abs(y - $0) < minGap }) else { break }
+            let down = other + minGap
+            let up = other - minGap
+            let next: Double
+            if y >= other {
+                if down <= maxY {
+                    next = down
+                } else if up >= minY {
+                    next = up
+                } else {
+                    break
+                }
+            } else if up >= minY {
+                next = up
+            } else if down <= maxY {
+                next = down
+            } else {
+                break
+            }
+            let clamped = clamp(next)
+            if clamped == y { break }
+            y = clamped
+        }
+        return y
     }
 
     static func priceText(_ value: Double, precision: Int) -> String {

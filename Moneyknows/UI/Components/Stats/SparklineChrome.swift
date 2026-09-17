@@ -31,12 +31,17 @@ enum SparklineChrome {
     static let topInset: CGFloat = 14
     static let leadingInset: CGFloat = 6
     static let trailingInset: CGFloat = 50
+    static let compactTrailingInset: CGFloat = leadingInset
     static let bottomInset: CGFloat = 16
     static let xTickCount = 6
     static let yTickCount = 4
     static let xLabelGap: CGFloat = 8
     static let minuteLabelWidth: CGFloat = 36
     static let secondLabelWidth: CGFloat = 52
+    /// 9pt monospaced captions; slightly wider/taller than glyphs so nearby labels count as overlapping.
+    static let priceLabelCharWidth: CGFloat = 6
+    static let priceLabelHeight: CGFloat = 12
+    static let priceLabelGap: CGFloat = 2
 
     struct Tick: Equatable {
         var position: CGFloat
@@ -66,13 +71,18 @@ enum SparklineChrome {
         var last: Last?
         var lastEndX: CGFloat
         var vwapCaption: String?
+        var showsPriceScale: Bool
     }
 
-    static func plotRect(in size: CGSize) -> CGRect {
+    static func trailingGutter(showsPriceScale: Bool) -> CGFloat {
+        showsPriceScale ? trailingInset : compactTrailingInset
+    }
+
+    static func plotRect(in size: CGSize, showsPriceScale: Bool = true) -> CGRect {
         CGRect(
             x: leadingInset,
             y: topInset,
-            width: max(0, size.width - leadingInset - trailingInset),
+            width: max(0, size.width - leadingInset - trailingGutter(showsPriceScale: showsPriceScale)),
             height: max(0, size.height - topInset - bottomInset)
         )
     }
@@ -116,14 +126,14 @@ enum SparklineChrome {
         }
     }
 
-    static func layout(for plot: SparklinePlot, in size: CGSize) -> Layout? {
+    static func layout(for plot: SparklinePlot, in size: CGSize, showsPriceScale: Bool = true) -> Layout? {
         guard let prepared = prepare(plot) else { return nil }
-        return layout(for: prepared, in: size)
+        return layout(for: prepared, in: size, showsPriceScale: showsPriceScale)
     }
 
-    static func layout(for prepared: SparklinePrepared, in size: CGSize) -> Layout? {
+    static func layout(for prepared: SparklinePrepared, in size: CGSize, showsPriceScale: Bool = true) -> Layout? {
         guard size.width > 0, size.height > 0 else { return nil }
-        let plotArea = plotRect(in: size)
+        let plotArea = plotRect(in: size, showsPriceScale: showsPriceScale)
         guard plotArea.width > 0, plotArea.height > 0 else { return nil }
         let count = prepared.usesCandles ? prepared.bars.count : prepared.values.count
         guard count > 0 else { return nil }
@@ -142,9 +152,11 @@ enum SparklineChrome {
         ).map { tick in
             Tick(position: x(for: tick.index), text: tick.text)
         }
-        let yAxis = yTickPrices(low: prepared.domainLow, high: prepared.domainHigh).map { price in
-            Tick(position: priceY(price), text: ChartVisibleExtremes.priceText(price, precision: prepared.precision))
-        }
+        let yAxis = showsPriceScale
+            ? yTickPrices(low: prepared.domainLow, high: prepared.domainHigh).map { price in
+                Tick(position: priceY(price), text: ChartVisibleExtremes.priceText(price, precision: prepared.precision))
+            }
+            : []
         var high: Mark?
         var low: Mark?
         if let labels = prepared.extremes {
@@ -183,12 +195,52 @@ enum SparklineChrome {
             high: high,
             low: low,
             last: last,
-            lastEndX: CGFloat(ChartVisibleExtremes.lastLineEndX(
-                plotRight: Double(plotArea.maxX),
-                canvasWidth: Double(size.width)
-            )),
-            vwapCaption: prepared.vwapCaption
+            lastEndX: showsPriceScale
+                ? CGFloat(ChartVisibleExtremes.lastLineEndX(
+                    plotRight: Double(plotArea.maxX),
+                    canvasWidth: Double(size.width)
+                ))
+                : plotArea.maxX,
+            vwapCaption: prepared.vwapCaption,
+            showsPriceScale: showsPriceScale
         )
+    }
+
+    static func lastLabelTrails(x: CGFloat, plot: CGRect) -> Bool {
+        x >= plot.midX
+    }
+
+    static func priceLabelRect(text: String, at point: CGPoint, trails: Bool) -> CGRect {
+        let width = max(0, CGFloat(text.count) * priceLabelCharWidth)
+        return CGRect(
+            x: trails ? point.x - width : point.x,
+            y: point.y - priceLabelHeight / 2,
+            width: width,
+            height: priceLabelHeight
+        )
+    }
+
+    static func showsLastLabel(_ layout: Layout) -> Bool {
+        guard let last = layout.last else { return false }
+        guard !layout.showsPriceScale else { return true }
+        let lastBox = expandedPriceLabelRect(
+            text: last.text,
+            at: CGPoint(x: last.x, y: last.y),
+            trails: lastLabelTrails(x: last.x, plot: layout.plot)
+        )
+        func overlaps(_ mark: Mark) -> Bool {
+            lastBox.intersects(
+                expandedPriceLabelRect(text: mark.text, at: mark.point, trails: !mark.onLeftHalf)
+            )
+        }
+        if let high = layout.high, overlaps(high) { return false }
+        if let low = layout.low, overlaps(low) { return false }
+        return true
+    }
+
+    private static func expandedPriceLabelRect(text: String, at point: CGPoint, trails: Bool) -> CGRect {
+        let pad = priceLabelGap / 2
+        return priceLabelRect(text: text, at: point, trails: trails).insetBy(dx: -pad, dy: -pad)
     }
 
     static func xTickCapacity(plotWidth: CGFloat, kind: ChartEasternTime.TickKind) -> Int {

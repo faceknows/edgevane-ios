@@ -359,9 +359,8 @@ struct PriceSliderTradeView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(L10n.Trading.sliderHint)
-                .font(.footnote)
-                .foregroundColor(.secondary)
+            Text(MarketFormat.price(clampedPrice.wrappedValue))
+                .font(.headline.monospacedDigit())
             HStack {
                 Text(MarketFormat.price(activeRange.lowerBound))
                     .font(.caption.monospacedDigit())
@@ -376,9 +375,6 @@ struct PriceSliderTradeView: View {
                     .font(.caption.monospacedDigit())
                     .foregroundColor(.secondary)
             }
-            Text(MarketFormat.price(clampedPrice.wrappedValue))
-                .font(.headline.monospacedDigit())
-                .frame(maxWidth: .infinity)
         }
         .onChange(of: range.lowerBound) { _ in refreshRangeIfUnlocked() }
         .onChange(of: range.upperBound) { _ in refreshRangeIfUnlocked() }

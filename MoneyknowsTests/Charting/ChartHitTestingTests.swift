@@ -201,6 +201,70 @@ final class ChartVisibleExtremesTests: XCTestCase {
         XCTAssertEqual(ChartVisibleExtremes.lastLineEndX(plotRight: 200, canvasWidth: 160), 200)
     }
 
+    func testPriceLineCaptionSitsOnRightAxisOutsidePlot() {
+        let plotRight = 100.0
+        let priceX = ChartVisibleExtremes.priceLineLabelX(plotRight: plotRight)
+        let lastX = ChartVisibleExtremes.lastLineEndX(plotRight: plotRight, canvasWidth: 160)
+        XCTAssertEqual(priceX, 108)
+        XCTAssertGreaterThan(priceX, plotRight)
+        XCTAssertLessThan(priceX, lastX)
+    }
+
+    func testPriceLineYStaysInsideCanvasAfterNudge() {
+        let top = ChartVisibleExtremes.priceLineLabelHalfHeight
+        XCTAssertEqual(
+            ChartVisibleExtremes.placedPriceLineY(proposed: -10, occupied: [], height: 200),
+            top
+        )
+        XCTAssertEqual(
+            ChartVisibleExtremes.placedPriceLineY(proposed: 999, occupied: [], height: 200),
+            200 - top
+        )
+        let tight = 20.0
+        let nearTop = ChartVisibleExtremes.placedPriceLineY(proposed: 8, occupied: [8], height: tight)
+        XCTAssertGreaterThanOrEqual(nearTop, top)
+        XCTAssertLessThanOrEqual(nearTop, tight - top)
+        let nearBottom = ChartVisibleExtremes.placedPriceLineY(proposed: 18, occupied: [18], height: tight)
+        XCTAssertGreaterThanOrEqual(nearBottom, top)
+        XCTAssertLessThanOrEqual(nearBottom, tight - top)
+    }
+
+    func testPriceLineYKeepsGapAfterClampNearEdges() {
+        let height = 200.0
+        let gap = ChartVisibleExtremes.priceLineLabelMinGap
+        let topLast = ChartVisibleExtremes.priceLineLabelHalfHeight
+        let fromTop = ChartVisibleExtremes.placedPriceLineY(
+            proposed: topLast,
+            occupied: [topLast],
+            height: height
+        )
+        XCTAssertNotEqual(fromTop, topLast)
+        XCTAssertGreaterThanOrEqual(abs(fromTop - topLast), gap)
+        XCTAssertGreaterThanOrEqual(fromTop, topLast)
+        XCTAssertLessThanOrEqual(fromTop, height - topLast)
+
+        let bottomLast = height - topLast
+        let fromBottom = ChartVisibleExtremes.placedPriceLineY(
+            proposed: bottomLast,
+            occupied: [bottomLast],
+            height: height
+        )
+        XCTAssertNotEqual(fromBottom, bottomLast)
+        XCTAssertGreaterThanOrEqual(abs(fromBottom - bottomLast), gap)
+        XCTAssertGreaterThanOrEqual(fromBottom, topLast)
+        XCTAssertLessThanOrEqual(fromBottom, bottomLast)
+
+        let second = ChartVisibleExtremes.placedPriceLineY(
+            proposed: topLast,
+            occupied: [topLast, fromTop],
+            height: height
+        )
+        XCTAssertGreaterThanOrEqual(abs(second - topLast), gap)
+        XCTAssertGreaterThanOrEqual(abs(second - fromTop), gap)
+        XCTAssertGreaterThanOrEqual(second, topLast)
+        XCTAssertLessThanOrEqual(second, bottomLast)
+    }
+
     func testFractionDigitsUsesInstrumentTick() {
         XCTAssertEqual(
             ChartVisibleExtremes.fractionDigits(in: sampleBars((high: 11.8, low: 11.2, close: 11.4))),
