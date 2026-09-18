@@ -143,6 +143,7 @@
 		C7D0F1111111111111110045 /* RsiAdxFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110044 /* RsiAdxFilterView.swift */; };
 		C7D0F1111111111111110047 /* VolumeFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110046 /* VolumeFilterView.swift */; };
 		C7D0F1111111111111110049 /* IBKRFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110048 /* IBKRFilterView.swift */; };
+		C7D0F111111111111111004B /* PremarketFilterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F111111111111111004A /* PremarketFilterView.swift */; };
 		C7D0F1111111111111110002 /* DayFills.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110001 /* DayFills.swift */; };
 		C7D0F1111111111111110004 /* HistoricalMinutesSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110003 /* HistoricalMinutesSession.swift */; };
 		C7D0F1111111111111110006 /* IndexChartSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7D0F1111111111111110005 /* IndexChartSession.swift */; };
@@ -345,6 +346,7 @@
 		C7D0F1111111111111110044 /* RsiAdxFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RsiAdxFilterView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110046 /* VolumeFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VolumeFilterView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110048 /* IBKRFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IBKRFilterView.swift; sourceTree = "<group>"; };
+		C7D0F111111111111111004A /* PremarketFilterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremarketFilterView.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110050 /* ToastCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastCard.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110052 /* AppToastOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppToastOverlay.swift; sourceTree = "<group>"; };
 		C7D0F1111111111111110054 /* ToastSwipeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastSwipeTests.swift; sourceTree = "<group>"; };
@@ -645,6 +647,7 @@
 				C7D0F1111111111111110048 /* IBKRFilterView.swift */,
 				C7D0F111111111111111003B /* MomentumFilterView.swift */,
 				13B870286463E2535138EC83 /* PriceSlopeFilterView.swift */,
+				C7D0F111111111111111004A /* PremarketFilterView.swift */,
 				6F0ADFD6E9CF4278A0135F85 /* ScreenerCatalogView.swift */,
 				628F0F10F9A5B622A165D793 /* ScreenerResultsView.swift */,
 				63831A18B33527B9A56CB8DC /* SymbolDetailView.swift */,
@@ -1193,6 +1196,7 @@
 				C7D0F1111111111111110045 /* RsiAdxFilterView.swift in Sources */,
 				C7D0F1111111111111110047 /* VolumeFilterView.swift in Sources */,
 				C7D0F1111111111111110049 /* IBKRFilterView.swift in Sources */,
+				C7D0F111111111111111004B /* PremarketFilterView.swift in Sources */,
 				A6CE9461F5234CB4767F0147 /* ProfileStore.swift in Sources */,
 				462CE3AEDCB1EA8FBCB683D2 /* ProfileView.swift in Sources */,
 				FF720C8BA64C8478D697D7C8 /* PushPreferenceStore.swift in Sources */,

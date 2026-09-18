@@ -237,12 +237,16 @@ final class ScreenerAPIDecodingTests: XCTestCase {
 
 @MainActor
 final class ScreenerStoreTests: XCTestCase {
-    func testAllEightKindsHaveDefaultQueries() {
-        XCTAssertEqual(ScreenerKind.allCases.count, 8)
+    func testAllNineKindsHaveDefaultQueries() {
+        XCTAssertEqual(ScreenerKind.allCases.count, 9)
         let priceSlope = ScreenerQuery.defaults(for: .priceSlope, now: Date(timeIntervalSince1970: 1_778_000_000))
         XCTAssertEqual(priceSlope.spanMinutes, "30")
         XCTAssertEqual(priceSlope.minPrice, "6")
         XCTAssertFalse(priceSlope.date.isEmpty)
+        let premarket = ScreenerQuery.defaults(for: .premarket)
+        XCTAssertEqual(premarket.direction, "up")
+        XCTAssertEqual(premarket.spanMinutes, "60")
+        XCTAssertEqual(ScreenerSpanMinutes.premarket.map(\.rawValue), ["30", "60", "90", "120"])
         XCTAssertEqual(ScreenerQuery.defaults(for: .atr).barCount, "10")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).barCount, "0")
         XCTAssertEqual(ScreenerQuery.defaults(for: .stair).timeFrame, "1Min")
@@ -253,6 +257,7 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertTrue(ScreenerKind.momentum.showsFilters)
         XCTAssertTrue(ScreenerKind.atr.showsFilters)
         XCTAssertTrue(ScreenerKind.priceSlope.showsFilters)
+        XCTAssertTrue(ScreenerKind.premarket.showsFilters)
         XCTAssertTrue(ScreenerKind.stair.showsFilters)
         XCTAssertTrue(ScreenerKind.rsiAdx.showsFilters)
         XCTAssertTrue(ScreenerKind.volume.showsFilters)
@@ -262,6 +267,7 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertTrue(ScreenerKind.atr.usesImplicitTradingDate)
         XCTAssertTrue(ScreenerKind.stair.usesImplicitTradingDate)
         XCTAssertFalse(ScreenerKind.priceSlope.usesImplicitTradingDate)
+        XCTAssertFalse(ScreenerKind.premarket.usesImplicitTradingDate)
         XCTAssertFalse(ScreenerKind.rsiAdx.usesImplicitTradingDate)
         XCTAssertFalse(ScreenerKind.volume.usesImplicitTradingDate)
         XCTAssertFalse(ScreenerKind.ibkr.usesImplicitTradingDate)
@@ -732,6 +738,56 @@ final class ScreenerStoreTests: XCTestCase {
         XCTAssertEqual(store.query.direction, "down")
         XCTAssertEqual(store.query.spanMinutes, "60")
         XCTAssertTrue(store.query.endTime.isEmpty)
+    }
+
+    func testPremarketRequestSendsDirectionAndPeriod() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data(#"[{"symbol":"AMD"}]"#.utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .premarket)
+        query.direction = "down"
+        query.spanMinutes = "90"
+        await store.load(.premarket, query: query)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/premarket-indicator")
+        XCTAssertEqual(http.requests.first?.query["direction"], "down")
+        XCTAssertEqual(http.requests.first?.query["period"], "90")
+        XCTAssertNil(http.requests.first?.query["market"])
+        XCTAssertNil(http.requests.first?.query["date"])
+        XCTAssertNil(http.requests.first?.query["spanMinutes"])
+        XCTAssertEqual(store.rows.map(\.symbol), ["AMD"])
+    }
+
+    func testPremarketDefaultSendsUpAndPeriod60() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [.success(Data("[]".utf8))]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        await store.load(.premarket)
+        XCTAssertEqual(http.requests.first?.path, "intraday-stocks/premarket-indicator")
+        XCTAssertEqual(http.requests.first?.query["direction"], "up")
+        XCTAssertEqual(http.requests.first?.query["period"], "60")
+        XCTAssertEqual(http.requests.first?.query.count, 2)
+    }
+
+    func testPremarketRemembersQueryAfterSwitchingToAnotherScreener() async {
+        let http = ScriptedHTTP()
+        http.rawResults = [
+            .success(Data(#"[{"symbol":"PRE"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"VOL"}]"#.utf8)),
+            .success(Data(#"[{"symbol":"BACK"}]"#.utf8)),
+        ]
+        let store = ScreenerStore(api: ScreenerAPI(client: http))
+        var query = ScreenerQuery.defaults(for: .premarket)
+        query.direction = "down"
+        query.spanMinutes = "120"
+        await store.load(.premarket, query: query)
+        await store.appear(.volume)
+        await store.appear(.premarket)
+        XCTAssertEqual(http.requests.last?.path, "intraday-stocks/premarket-indicator")
+        XCTAssertEqual(http.requests.last?.query["direction"], "down")
+        XCTAssertEqual(http.requests.last?.query["period"], "120")
+        XCTAssertEqual(store.query.direction, "down")
+        XCTAssertEqual(store.query.spanMinutes, "120")
+        XCTAssertEqual(store.rows.map(\.symbol), ["BACK"])
     }
 
     func testStairDefaultSendsBarCountZero() async {

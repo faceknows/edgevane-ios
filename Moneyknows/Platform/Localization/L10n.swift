@@ -259,6 +259,7 @@ enum L10n {
         static var momentum: String { localized("market.momentum") }
         static var atr: String { localized("market.atr") }
         static var priceSlope: String { localized("market.priceSlope") }
+        static var premarket: String { localized("market.premarket") }
         static var stair: String { localized("market.stair") }
         static var rsiAdx: String { localized("market.rsiAdx") }
         static var rsi: String { localized("market.rsi") }

@@ -137,6 +137,11 @@ final class ScreenerStore: ObservableObject {
                 "minPrice": query.minPrice,
                 "minVolume": query.minVolume,
             ])
+        case .premarket:
+            dtos = try await api.premarketIndicator(query: [
+                "direction": query.direction,
+                "period": query.spanMinutes,
+            ])
         case .stair:
             dtos = try await api.stairSetups(query: [
                 "market": query.market,

@@ -142,6 +142,10 @@ struct ScreenerAPI {
         try await get("intraday-stocks/price-slope", query)
     }
 
+    func premarketIndicator(query: [String: String]) async throws -> [SymbolSummaryDTO] {
+        try await get("intraday-stocks/premarket-indicator", query)
+    }
+
     func stairSetups(query: [String: String]) async throws -> [SymbolSummaryDTO] {
         try await get("intraday-stocks/top-stair-setups", query)
     }

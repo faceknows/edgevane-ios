@@ -2641,7 +2641,7 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "市场数据"
+            "value" : "市场机会"
           }
         }
       }
@@ -2948,6 +2948,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "通知中的股票"
+          }
+        }
+      }
+    },
+    "market.premarket" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Premarket Change"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "盘前的涨跌"
           }
         }
       }

@@ -14,7 +14,7 @@
 | `VersionAPI` | `GET /app/version` |
 | `PreferencesAPI` | `GET/PATCH /v1/users/preferences` |
 | `BarsAPI` | 分钟 / 盘前 / 盘后 / 日线 / 快照 / 指数分钟 |
-| `ScreenerAPI` | 第一期 8 个扫描器 + `stocks/summaries` |
+| `ScreenerAPI` | 第一期 9 个扫描器 + `stocks/summaries` |
 | `SubscribeAPI` | 网关主机上的订阅 REST |
 | `AIAPI` | 情绪、经济日历（个股 AI 第一期不接） |
 | `PushAPI` | FCM、通知历史 |
@@ -70,6 +70,7 @@
 | 动量 | `GET /intraday-stocks/top-momentum` |
 | ATR | `GET /intraday-stocks/top-atr-stocks` |
 | 价格斜率 | `GET /intraday-stocks/price-slope` |
+| 盘前的涨跌 | `GET /intraday-stocks/premarket-indicator` `direction, period` |
 | 阶梯 | `GET /intraday-stocks/top-stair-setups` |
 | RSI ADX | `GET /intraday-stocks/indicators-rsi-adx` |
 | 成交量 | `GET /intraday-stocks/top-volumes-increased` |

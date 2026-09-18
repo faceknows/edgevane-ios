@@ -84,13 +84,14 @@ struct ScreenerBarCountPicker: View {
 
 struct ScreenerSpanPicker: View {
     @Binding var value: String
+    var options: [ScreenerSpanMinutes] = ScreenerSpanMinutes.allCases
     var onSelect: ((String) -> Void)? = nil
 
     var body: some View {
         TappableValueField(
             title: L10n.Market.window,
             selection: $value,
-            options: ScreenerSpanMinutes.allCases.map {
+            options: options.map {
                 TappableOption(value: $0.rawValue, title: $0.title)
             },
             onSelect: onSelect

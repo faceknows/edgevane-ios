@@ -5,6 +5,7 @@ enum ScreenerKind: String, CaseIterable, Identifiable {
     case momentum
     case atr
     case priceSlope
+    case premarket
     case stair
     case rsiAdx
     case volume
@@ -18,6 +19,7 @@ enum ScreenerKind: String, CaseIterable, Identifiable {
         case .momentum: return L10n.Market.momentum
         case .atr: return L10n.Market.atr
         case .priceSlope: return L10n.Market.priceSlope
+        case .premarket: return L10n.Market.premarket
         case .stair: return L10n.Market.stair
         case .rsiAdx: return L10n.Market.rsiAdx
         case .volume: return L10n.Market.volume
@@ -27,7 +29,7 @@ enum ScreenerKind: String, CaseIterable, Identifiable {
 
     var showsFilters: Bool {
         switch self {
-        case .momentum, .atr, .priceSlope, .stair, .rsiAdx, .volume, .ibkr: return true
+        case .momentum, .atr, .priceSlope, .premarket, .stair, .rsiAdx, .volume, .ibkr: return true
         default: return false
         }
     }
@@ -119,6 +121,9 @@ enum ScreenerSpanMinutes: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
     var title: String { rawValue }
+
+    static let priceSlope: [ScreenerSpanMinutes] = allCases
+    static let premarket: [ScreenerSpanMinutes] = [.thirty, .sixty, .ninety, .oneTwenty]
 }
 
 enum ScreenerRSIRange: String, CaseIterable, Identifiable {
@@ -295,6 +300,9 @@ struct ScreenerQuery: Equatable {
             query.spanMinutes = ScreenerSpanMinutes.thirty.rawValue
             query.minPrice = ScreenerMinPrice.six.rawValue
             query.endTime = ""
+        case .premarket:
+            query.direction = ScreenerDirection.up.rawValue
+            query.spanMinutes = ScreenerSpanMinutes.sixty.rawValue
         case .rsiAdx:
             query.timeFrame = ScreenerTimeFrame.one.rawValue
             query.rsiRange = ScreenerRSIRange.from50to60.rawValue

@@ -55,6 +55,10 @@ struct ScreenerResultsView: View {
             PriceSlopeFilterView(query: $store.query) {
                 Task { await store.load(.priceSlope, query: store.query) }
             }
+        case .premarket:
+            PremarketFilterView(query: $store.query) {
+                Task { await store.load(.premarket, query: store.query) }
+            }
         case .rsiAdx:
             RsiAdxFilterView(query: $store.query) {
                 Task { await store.load(.rsiAdx, query: store.query) }
